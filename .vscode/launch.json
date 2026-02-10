@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:design-ruler}/swift/Ruler",
+            "name": "Debug Ruler (swift/Ruler)",
+            "target": "Ruler",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug Ruler (swift/Ruler)"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:design-ruler}/swift/Ruler",
+            "name": "Release Ruler (swift/Ruler)",
+            "target": "Ruler",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release Ruler (swift/Ruler)"
+        }
+    ]
+}

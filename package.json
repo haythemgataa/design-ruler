@@ -1,0 +1,68 @@
+{
+  "$schema": "https://www.raycast.com/schemas/extension.json",
+  "name": "design-ruler",
+  "title": "Design Ruler",
+  "description": "Measure UI with edge detection and add lines to verify alignment.",
+  "icon": "extension-icon.png",
+  "author": "haythem_gataa",
+  "platforms": [
+    "macOS"
+  ],
+  "categories": [
+    "Design Tools",
+    "Developer Tools"
+  ],
+  "license": "MIT",
+  "commands": [
+    {
+      "name": "design-ruler",
+      "title": "Design Ruler",
+      "description": "Inspect pixel distances with edge detection",
+      "mode": "no-view",
+      "preferences": [
+        {
+          "name": "hideHintBar",
+          "type": "checkbox",
+          "title": "Hide Hint Bar",
+          "description": "Hide the keyboard shortcut hint bar",
+          "default": false,
+          "label": "Hide hint bar",
+          "required": false
+        },
+        {
+          "name": "corrections",
+          "type": "dropdown",
+          "title": "Corrections",
+          "description": "How to handle 1px borders in measurements",
+          "default": "smart",
+          "required": false,
+          "data": [
+            { "title": "Smart", "value": "smart" },
+            { "title": "Include 1px Borders", "value": "include" },
+            { "title": "No Corrections", "value": "none" }
+          ]
+        }
+      ]
+    }
+  ],
+  "dependencies": {
+    "@raycast/api": "^1.104.5",
+    "@raycast/utils": "^1.17.0"
+  },
+  "devDependencies": {
+    "@raycast/eslint-config": "^2.0.4",
+    "@types/node": "22.13.10",
+    "@types/react": "19.0.10",
+    "eslint": "^9.22.0",
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.2"
+  },
+  "scripts": {
+    "build": "ray build",
+    "dev": "ray develop",
+    "fix-lint": "ray lint --fix",
+    "lint": "ray lint",
+    "prepublishOnly": "echo \"\\n\\nIt seems like you are trying to publish the Raycast extension to npm.\\n\\nIf you did intend to publish it to npm, remove the \\`prepublishOnly\\` script and rerun \\`npm publish\\` again.\\nIf you wanted to publish it to the Raycast Store instead, use \\`npm run publish\\` instead.\\n\\n\" && exit 1",
+    "publish": "npx @raycast/api@latest publish"
+  }
+}
