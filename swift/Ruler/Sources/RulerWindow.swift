@@ -31,6 +31,7 @@ final class RulerWindow: NSWindow {
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 
         window.setupViews(screenFrame: screen.frame, hideHintBar: hideHintBar)
+        NSCursor.hide()
         return window
     }
 
@@ -130,6 +131,7 @@ final class RulerWindow: NSWindow {
             let edges = shift ? edgeDetector.decrementSkip(.top) : edgeDetector.incrementSkip(.top)
             if let edges { crosshairView.update(cursor: crosshairView.cursorPosition, edges: edges) }
         case 53: // ESC
+            NSCursor.unhide()
             close()
             NSApp.terminate(nil)
         default:
