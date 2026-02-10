@@ -53,6 +53,7 @@ final class Ruler {
 
         rulerWindow.orderFrontRegardless()
         rulerWindow.makeKey()
+        rulerWindow.showInitialState()
         NSApp.activate(ignoringOtherApps: true)
         app.run()
     }

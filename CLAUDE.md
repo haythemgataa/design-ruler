@@ -65,6 +65,15 @@ Adds complexity with minimal benefit over image-based detection.
 ### NO Snap Engine
 Snapping cursor to edges is disorienting. Arrow-key skipping is better.
 
+### NO NSCursor.set() for Persistent Cursors
+`NSCursor.crosshair.set()` gets overridden immediately by the window's
+cursor rect management. Use `resetCursorRects()` + `addCursorRect()`.
+
+### NO Absolute-Coordinate Paths for Animated Layers
+`CAShapeLayer.path` with absolute screen coordinates morphs point-by-point
+instead of sliding. Use `layer.frame` for position + local-origin `path`
+so Core Animation can interpolate the frame's position.
+
 ---
 
 ## 4. Coordinate Systems — The #1 Source of Bugs
@@ -180,10 +189,12 @@ text stays readable.
 
 ## 8. Rendering Performance Rules
 
-### CrosshairView (redraws every mouse move)
-- Minimal drawing: 4 lines + 4 optional cross-feet + 1 pill
-- 0.5px offset for crisp 1pt strokes on Retina
-- Sets `needsDisplay = true` in property didSet
+### CrosshairView (CAShapeLayer, GPU-composited)
+- No `draw()` override — only CALayer property updates on mouse move
+- Lines + feet in one CATransaction (actions disabled, instant)
+- Pill in a separate CATransaction (animated on flip, instant otherwise)
+- Pill bg layers: use `frame` + local-origin `path` so `frame` animates
+  on flip (absolute-coordinate paths morph instead of sliding)
 
 ### HintBarView (static, renders ONCE)
 - Override `wantsUpdateLayer` → `true`
@@ -196,9 +207,12 @@ text stays readable.
 
 ## 9. Hint Bar Behavior
 
-- Always visible (default position: bottom center)
-- When cursor gets near the bottom, shift hint bar to the top
-- When cursor moves away, shift back to bottom
+- Always visible (default position: bottom center, 20px margin)
+- When cursor gets near the bottom, slide hint bar to the top (48px margin
+  to clear MacBook notch)
+- When cursor moves away, slide back to bottom
+- Slide animation: two-phase CAAnimationGroup (slide-out 0.1s + slide-in
+  0.15s), both easeOut. `isAnimating` guard prevents overlapping animations.
 - One user preference: hide hint bar entirely
 - Content: "Use [arrow keys] to skip an edge. Add [⇧] to invert."
 
@@ -216,17 +230,58 @@ Single preference. Passed to Swift as a parameter.
 
 ## 11. Key Behaviors
 
-- **Launch**: captures cursor's screen, fullscreen overlay appears
-- **Mouse move**: crosshair follows cursor, edges detected, W×H updates
+- **Launch**: captures cursor's screen, fullscreen overlay appears, system
+  crosshair cursor shown, pill fades in at cursor with "0000 × 0000"
+- **Mouse move**: crosshair follows cursor, edges detected, W×H updates.
+  On first move: system crosshair hidden, custom CAShapeLayer takes over.
 - **Arrow keys**: skip to next edge in that direction
 - **Shift+arrow**: un-skip (bring edge closer)
 - **Mouse move**: resets all skip counts
-- **ESC**: exits silently
-- **Hint bar**: bottom (or top when cursor is near bottom)
+- **ESC**: exits silently (unhides cursor only if mouse had moved)
+- **Hint bar**: bottom (or top when cursor is near bottom), slides on swap
+- **Pill flip**: animates 0.15s easeOut when swapping sides near edges
 
 ---
 
-## 12. Implementation Phases
+## 12. Animations
+
+All animations use Core Animation (GPU-composited, ~0 CPU cost).
+
+### Pill Position Swap (CrosshairView)
+When the pill flips sides (right↔left near screen edge, above↔below near
+top), the translation animates 0.15s easeOut instead of jumping instantly.
+Implemented by splitting `update()` into two CATransaction blocks: lines/feet
+always instant, pill conditionally animated when flip detected via
+`pillIsOnLeft`/`pillIsBelow` state booleans.
+
+**Key detail**: Pill bg `CAShapeLayer`s must use `layer.frame` + local-origin
+`path` (not absolute-coordinate paths). Absolute paths morph point-by-point
+on flip instead of sliding.
+
+### Hint Bar Slide (HintBarView)
+Two-phase `CAAnimationGroup` on `position.y`: slide-out (0.1s easeOut) then
+slide-in (0.15s easeOut, `beginTime` 0.1). Model value (`frame.origin.y`)
+set immediately; animation overrides presentation layer. `isAnimating` flag
+prevents overlapping animations.
+
+### Crosshair Cursor on Launch (CrosshairView + RulerWindow)
+System crosshair cursor shown on launch via `resetCursorRects()` /
+`addCursorRect()`. On first mouse move, `hideSystemCrosshair()` invalidates
+cursor rects and calls `NSCursor.hide()`.
+
+**Do NOT use `NSCursor.crosshair.set()`** — it gets immediately overridden
+by the window's cursor rect management when the window becomes key. Must use
+`resetCursorRects()` with `addCursorRect(_:cursor:)` instead.
+
+### Pill Initialization (CrosshairView + RulerWindow + Ruler)
+On launch, pill appears at cursor position with "0000 × 0000" and fades in
+over 0.3s easeOut. `showInitialPill(at:)` sets all pill layer opacities to 0
+in a disabled-actions transaction, calls `layoutPill()`, then animates
+opacity to 1.
+
+---
+
+## 13. Implementation Phases
 
 ### Phase 1: Project Scaffold
 - `package.json` — 1 command (no-view), 1 preference (hideHintBar)
@@ -260,7 +315,7 @@ Single preference. Passed to Swift as a parameter.
 
 ---
 
-## 13. Swift Bridge Pattern
+## 14. Swift Bridge Pattern
 
 TypeScript:
 ```typescript
@@ -279,7 +334,7 @@ import RaycastSwiftMacros
 
 ---
 
-## 14. Testing Checklist
+## 15. Testing Checklist
 
 - [ ] Launches on the screen where cursor is (not always main)
 - [ ] No visible focus steal
@@ -294,3 +349,9 @@ import RaycastSwiftMacros
 - [ ] Hint bar at bottom, shifts to top when cursor near bottom
 - [ ] hideHintBar preference works
 - [ ] CPU stays low (<5%) during mouse movement
+- [ ] System crosshair cursor visible on launch (before mouse move)
+- [ ] Crosshair cursor disappears on first mouse move
+- [ ] Pill shows "0000 × 0000" on launch, fades in
+- [ ] Pill animates smoothly (bg + text) when flipping sides near edges
+- [ ] Hint bar slides (not jumps) when swapping top/bottom
+- [ ] Hint bar clears MacBook notch when at top

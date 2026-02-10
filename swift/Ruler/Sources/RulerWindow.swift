@@ -8,6 +8,7 @@ final class RulerWindow: NSWindow {
     private var hintBarView: HintBarView!
     private var screenBounds: CGRect = .zero
     private var lastMoveTime: Double = 0
+    private var hasReceivedFirstMove = false
 
     /// Create a fullscreen ruler window for the given screen
     static func create(for screen: NSScreen, edgeDetector: EdgeDetector, hideHintBar: Bool) -> RulerWindow {
@@ -31,7 +32,6 @@ final class RulerWindow: NSWindow {
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 
         window.setupViews(screenFrame: screen.frame, hideHintBar: hideHintBar)
-        NSCursor.hide()
         return window
     }
 
@@ -65,6 +65,16 @@ final class RulerWindow: NSWindow {
         container.addSubview(imageView, positioned: .below, relativeTo: crosshairView)
     }
 
+    /// Show initial pill at cursor position before first mouse move.
+    func showInitialState() {
+        let mouseLocation = NSEvent.mouseLocation
+        let windowPoint = NSPoint(
+            x: mouseLocation.x - screenBounds.origin.x,
+            y: mouseLocation.y - screenBounds.origin.y
+        )
+        crosshairView.showInitialPill(at: windowPoint)
+    }
+
     // MARK: - Event Handling
 
     override var canBecomeKey: Bool { true }
@@ -75,6 +85,11 @@ final class RulerWindow: NSWindow {
         let now = CACurrentMediaTime()
         guard now - lastMoveTime >= 0.014 else { return }
         lastMoveTime = now
+
+        if !hasReceivedFirstMove {
+            hasReceivedFirstMove = true
+            crosshairView.hideSystemCrosshair()
+        }
 
         let windowPoint = event.locationInWindow
         let appKitScreenPoint = NSPoint(
@@ -131,7 +146,9 @@ final class RulerWindow: NSWindow {
             let edges = shift ? edgeDetector.decrementSkip(.top) : edgeDetector.incrementSkip(.top)
             if let edges { crosshairView.update(cursor: crosshairView.cursorPosition, edges: edges) }
         case 53: // ESC
-            NSCursor.unhide()
+            if hasReceivedFirstMove {
+                NSCursor.unhide()
+            }
             close()
             NSApp.terminate(nil)
         default:
