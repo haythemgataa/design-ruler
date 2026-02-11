@@ -30,6 +30,12 @@ final class Ruler {
             NSMouseInRect(mouseLocation, screen.frame, false)
         } ?? NSScreen.main!
 
+        // When hideHintBar is toggled on, clear the backspace-dismiss flag
+        // so toggling the preference off→on→off re-enables the hint bar
+        if hideHintBar {
+            UserDefaults.standard.removeObject(forKey: "com.raycast.design-ruler.hintBarDismissed")
+        }
+
         // Configure edge detector
         edgeDetector.correctionMode = CorrectionMode(rawValue: corrections) ?? .smart
 

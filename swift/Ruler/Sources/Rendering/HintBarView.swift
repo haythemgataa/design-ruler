@@ -1,109 +1,87 @@
 import AppKit
+import SwiftUI
 import QuartzCore
 
-/// Static hint bar showing keyboard shortcut hints.
-/// Renders once into layer.contents for zero per-frame cost.
+/// Thin NSView wrapper that hosts SwiftUI hint bar content.
+/// Handles frame positioning and slide animation; all rendering is in HintBarContent.
 final class HintBarView: NSView {
-    private let barHeight: CGFloat = 36
+    // MARK: - Public key identifiers
+
+    enum KeyID: Hashable, CaseIterable {
+        case up, down, left, right, shift, esc, backspace
+    }
+
+    // MARK: - State & hosting
+
+    private let state = HintBarState()
+    private var hostingView: NSHostingView<HintBarContent>?
+
+    // MARK: - Animation
+
     private let barMargin: CGFloat = 20
     private let topMargin: CGFloat = 48
-    private let cornerRadius: CGFloat = 8
     private var isAtBottom = true
     private var isAnimating = false
+
+    // MARK: - Init
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         wantsLayer = true
+        setupHostingView()
     }
 
     required init?(coder: NSCoder) {
         super.init(coder: coder)
         wantsLayer = true
+        setupHostingView()
     }
 
-    override var wantsUpdateLayer: Bool { true }
-
-    override func updateLayer() {
-        guard let layer = self.layer, layer.contents == nil else { return }
-
-        let scale = window?.backingScaleFactor ?? NSScreen.screens.first?.backingScaleFactor ?? 2.0
-        let pixelWidth = Int(bounds.width * scale)
-        let pixelHeight = Int(bounds.height * scale)
-
-        guard pixelWidth > 0, pixelHeight > 0 else { return }
-
-        guard let rep = NSBitmapImageRep(
-            bitmapDataPlanes: nil,
-            pixelsWide: pixelWidth,
-            pixelsHigh: pixelHeight,
-            bitsPerSample: 8,
-            samplesPerPixel: 4,
-            hasAlpha: true,
-            isPlanar: false,
-            colorSpaceName: .deviceRGB,
-            bytesPerRow: 0,
-            bitsPerPixel: 0
-        ) else { return }
-
-        rep.size = bounds.size
-
-        NSGraphicsContext.saveGraphicsState()
-        let ctx = NSGraphicsContext(bitmapImageRep: rep)
-        NSGraphicsContext.current = ctx
-
-        drawContent()
-
-        NSGraphicsContext.restoreGraphicsState()
-
-        layer.contents = rep.cgImage
-        layer.contentsScale = scale
+    private func setupHostingView() {
+        let content = HintBarContent(state: state)
+        let hosting = NSHostingView(rootView: content)
+        addSubview(hosting)
+        self.hostingView = hosting
     }
 
-    private func drawContent() {
-        let totalWidth = bounds.width
-        let text = "Use ↑ ↓ ← → to skip an edge.  Add ⇧ to invert."
+    // MARK: - Hit testing (pass all events through to the window)
 
-        let attrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 12, weight: .medium),
-            .foregroundColor: NSColor.white
-        ]
-        let textSize = (text as NSString).size(withAttributes: attrs)
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
-        let pillWidth = textSize.width + 24
-        let pillHeight = barHeight
-        let pillX = (totalWidth - pillWidth) / 2
-        let pillY: CGFloat = 0
+    // MARK: - Public API: key press/release
 
-        let pillRect = NSRect(x: pillX, y: pillY, width: pillWidth, height: pillHeight)
-        let bg = NSBezierPath(roundedRect: pillRect, xRadius: cornerRadius, yRadius: cornerRadius)
-        NSColor(white: 0, alpha: 0.7).setFill()
-        bg.fill()
+    func pressKey(_ key: KeyID) { state.pressedKeys.insert(key) }
+    func releaseKey(_ key: KeyID) { state.pressedKeys.remove(key) }
 
-        let textX = pillX + 12
-        let textY = pillY + (pillHeight - textSize.height) / 2
-        let textRect = NSRect(x: textX, y: textY, width: textSize.width, height: textSize.height)
-        (text as NSString).draw(in: textRect, withAttributes: attrs)
+    // MARK: - Position & animation
+
+    /// Compute layout and set initial frame at bottom center.
+    func configure(screenWidth: CGFloat, screenHeight: CGFloat) {
+        guard let hosting = hostingView else { return }
+        let size = hosting.fittingSize
+        let viewX = floor((screenWidth - size.width) / 2)
+        frame = NSRect(x: viewX, y: barMargin, width: size.width, height: size.height)
+        hosting.frame = bounds
+        isAtBottom = true
     }
 
-    /// Update position based on cursor proximity. Call from mouseMoved.
     func updatePosition(cursorY: CGFloat, screenHeight: CGFloat) {
-        let nearBottom = cursorY < barHeight + barMargin * 3
+        let viewH = bounds.height
+        let nearBottom = cursorY < viewH + barMargin * 3
         let shouldBeAtTop = nearBottom
 
-        // No change needed if already in the right position
         if shouldBeAtTop && !isAtBottom { return }
         if !shouldBeAtTop && isAtBottom { return }
         guard !isAnimating else { return }
 
         let finalY: CGFloat
         if shouldBeAtTop {
-            finalY = screenHeight - barHeight - topMargin
+            finalY = screenHeight - viewH - topMargin
             isAtBottom = false
         } else {
             finalY = barMargin
             isAtBottom = true
         }
-
         animateSlide(to: finalY, screenHeight: screenHeight, exitDown: shouldBeAtTop)
     }
 
@@ -113,48 +91,29 @@ final class HintBarView: NSView {
             return
         }
 
+        let viewH = bounds.height
         isAnimating = true
-        let currentCenter = layer.position.y
-        let offscreenExit = exitDown ? -barHeight : screenHeight + barHeight
-        let offscreenEntry = exitDown ? screenHeight + barHeight : -barHeight
-        let finalCenter = finalY + barHeight / 2
+        let currentPos = layer.position.y
+        let offscreenExit = exitDown ? -viewH : screenHeight + viewH
+        let offscreenEntry = exitDown ? screenHeight + viewH : -viewH
 
-        // Slide out
-        let slideOut = CABasicAnimation(keyPath: "position.y")
-        slideOut.fromValue = currentCenter
-        slideOut.toValue = offscreenExit
-        slideOut.duration = 0.1
-        slideOut.timingFunction = CAMediaTimingFunction(name: .easeOut)
-        slideOut.beginTime = 0
-
-        // Slide in
-        let slideIn = CABasicAnimation(keyPath: "position.y")
-        slideIn.fromValue = offscreenEntry
-        slideIn.toValue = finalCenter
-        slideIn.duration = 0.15
-        slideIn.timingFunction = CAMediaTimingFunction(name: .easeOut)
-        slideIn.beginTime = 0.1
-
-        let group = CAAnimationGroup()
-        group.animations = [slideOut, slideIn]
-        group.duration = 0.25
-        group.isRemovedOnCompletion = true
-
-        // Set model value immediately
-        frame.origin.y = finalY
+        let anim = CAKeyframeAnimation(keyPath: "position.y")
+        anim.values = [currentPos, offscreenExit, offscreenEntry, finalY]
+        anim.keyTimes = [0, 0.3, 0.3001, 1]
+        anim.timingFunctions = [
+            CAMediaTimingFunction(name: .easeIn),
+            CAMediaTimingFunction(name: .linear),
+            CAMediaTimingFunction(controlPoints: 0.23, 1, 0.32, 1)
+        ]
+        anim.duration = 0.3
+        anim.isRemovedOnCompletion = true
 
         CATransaction.begin()
         CATransaction.setCompletionBlock { [weak self] in
             self?.isAnimating = false
         }
-        layer.add(group, forKey: "hintBarSlide")
+        frame.origin.y = finalY
+        layer.add(anim, forKey: "hintBarSlide")
         CATransaction.commit()
-    }
-
-    /// Set up initial frame positioned at bottom center
-    func configure(screenWidth: CGFloat, screenHeight: CGFloat) {
-        let barWidth = screenWidth
-        frame = NSRect(x: 0, y: barMargin, width: barWidth, height: barHeight)
-        isAtBottom = true
     }
 }

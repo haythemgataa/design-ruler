@@ -4,7 +4,7 @@ import PackageDescription
 
 let package = Package(
     name: "Ruler",
-    platforms: [.macOS(.v12)],
+    platforms: [.macOS(.v13)],
     dependencies: [
         .package(url: "https://github.com/raycast/extensions-swift-tools", from: "1.0.4"),
     ],

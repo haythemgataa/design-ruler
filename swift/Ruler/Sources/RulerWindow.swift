@@ -51,7 +51,8 @@ final class RulerWindow: NSWindow {
 
         let hv = HintBarView(frame: .zero)
         self.hintBarView = hv
-        if !hideHintBar {
+        let dismissed = UserDefaults.standard.bool(forKey: "com.raycast.design-ruler.hintBarDismissed")
+        if !hideHintBar && !dismissed {
             hv.configure(screenWidth: size.width, screenHeight: size.height)
             containerView.addSubview(hv)
         }
@@ -105,7 +106,9 @@ final class RulerWindow: NSWindow {
 
         guard let edges = edgeDetector.onMouseMoved(at: appKitScreenPoint) else { return }
         crosshairView.update(cursor: windowPoint, edges: edges)
-        hintBarView.updatePosition(cursorY: windowPoint.y, screenHeight: screenBounds.height)
+        if hintBarView.superview != nil {
+            hintBarView.updatePosition(cursorY: windowPoint.y, screenHeight: screenBounds.height)
+        }
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -137,21 +140,41 @@ final class RulerWindow: NSWindow {
 
     override func keyDown(with event: NSEvent) {
         let shift = event.modifierFlags.contains(.shift)
+        let hintVisible = hintBarView.superview != nil
 
         switch Int(event.keyCode) {
         case 123: // Left arrow
+            if !event.isARepeat && hintVisible { hintBarView.pressKey(.left) }
             let edges = shift ? edgeDetector.decrementSkip(.left) : edgeDetector.incrementSkip(.left)
             if let edges { crosshairView.update(cursor: crosshairView.cursorPosition, edges: edges) }
         case 124: // Right arrow
+            if !event.isARepeat && hintVisible { hintBarView.pressKey(.right) }
             let edges = shift ? edgeDetector.decrementSkip(.right) : edgeDetector.incrementSkip(.right)
             if let edges { crosshairView.update(cursor: crosshairView.cursorPosition, edges: edges) }
         case 125: // Down arrow
+            if !event.isARepeat && hintVisible { hintBarView.pressKey(.down) }
             let edges = shift ? edgeDetector.decrementSkip(.bottom) : edgeDetector.incrementSkip(.bottom)
             if let edges { crosshairView.update(cursor: crosshairView.cursorPosition, edges: edges) }
         case 126: // Up arrow
+            if !event.isARepeat && hintVisible { hintBarView.pressKey(.up) }
             let edges = shift ? edgeDetector.decrementSkip(.top) : edgeDetector.incrementSkip(.top)
             if let edges { crosshairView.update(cursor: crosshairView.cursorPosition, edges: edges) }
+        case 51: // Backspace — dismiss hint bar permanently
+            if hintVisible {
+                hintBarView.pressKey(.backspace)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+                    guard let self, self.hintBarView.superview != nil else { return }
+                    NSAnimationContext.runAnimationGroup({ ctx in
+                        ctx.duration = 0.2
+                        self.hintBarView.animator().alphaValue = 0
+                    }, completionHandler: {
+                        self.hintBarView.removeFromSuperview()
+                    })
+                }
+                UserDefaults.standard.set(true, forKey: "com.raycast.design-ruler.hintBarDismissed")
+            }
         case 53: // ESC
+            if hintVisible { hintBarView.pressKey(.esc) }
             if hasReceivedFirstMove {
                 NSCursor.unhide()
             }
@@ -159,6 +182,26 @@ final class RulerWindow: NSWindow {
             NSApp.terminate(nil)
         default:
             break
+        }
+    }
+
+    override func keyUp(with event: NSEvent) {
+        guard hintBarView.superview != nil else { return }
+        switch Int(event.keyCode) {
+        case 123: hintBarView.releaseKey(.left)
+        case 124: hintBarView.releaseKey(.right)
+        case 125: hintBarView.releaseKey(.down)
+        case 126: hintBarView.releaseKey(.up)
+        default: break
+        }
+    }
+
+    override func flagsChanged(with event: NSEvent) {
+        guard hintBarView.superview != nil else { return }
+        if event.modifierFlags.contains(.shift) {
+            hintBarView.pressKey(.shift)
+        } else {
+            hintBarView.releaseKey(.shift)
         }
     }
 }
