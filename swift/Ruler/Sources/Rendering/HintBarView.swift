@@ -18,7 +18,7 @@ final class HintBarView: NSView {
 
     // MARK: - Animation
 
-    private let barMargin: CGFloat = 20
+    private let barMargin: CGFloat = 16
     private let topMargin: CGFloat = 48
     private var isAtBottom = true
     private var isAnimating = false

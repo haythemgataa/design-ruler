@@ -18,7 +18,7 @@ struct HintBarContent: View {
             ExtraHintCard(state: state)
                 .zIndex(0)
         }
-        .padding(30)
+        .padding(0)
     }
 }
 

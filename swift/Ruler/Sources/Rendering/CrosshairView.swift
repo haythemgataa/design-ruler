@@ -36,10 +36,10 @@ final class CrosshairView: NSView {
     private let outerRadius: CGFloat = 12
     private let innerRadius: CGFloat = 4
     private let labelValueGap: CGFloat = 4
-    private let wPadLeft: CGFloat = 10
+    private let wPadLeft: CGFloat = 8
     private let wPadRight: CGFloat = 6
     private let hPadLeft: CGFloat = 6
-    private let hPadRight: CGFloat = 10
+    private let hPadRight: CGFloat = 8
 
     // Pill position state (for swap animation)
     private var pillIsOnLeft = false
@@ -356,28 +356,47 @@ final class CrosshairView: NSView {
 
     // MARK: - Section path
 
-    /// Rounded rect path with different left/right corner radii.
+    /// Rounded rect path with different left/right corner radii and continuous (squircle) corners.
     private func sectionPath(rect: CGRect, leftRadius: CGFloat, rightRadius: CGFloat) -> CGPath {
         let lr = min(leftRadius, rect.height / 2)
         let rr = min(rightRadius, rect.height / 2)
         let path = CGMutablePath()
 
+        // Continuous corner kappa — higher than circle's 0.5523 to create squircle shape
+        let k: CGFloat = 0.72
+
+        // Top edge
         path.move(to: CGPoint(x: rect.minX + lr, y: rect.maxY))
         path.addLine(to: CGPoint(x: rect.maxX - rr, y: rect.maxY))
-        path.addArc(tangent1End: CGPoint(x: rect.maxX, y: rect.maxY),
-                     tangent2End: CGPoint(x: rect.maxX, y: rect.maxY - rr), radius: rr)
 
+        // Top-right corner
+        path.addCurve(to: CGPoint(x: rect.maxX, y: rect.maxY - rr),
+                      control1: CGPoint(x: rect.maxX - rr * (1 - k), y: rect.maxY),
+                      control2: CGPoint(x: rect.maxX, y: rect.maxY - rr * (1 - k)))
+
+        // Right edge
         path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY + rr))
-        path.addArc(tangent1End: CGPoint(x: rect.maxX, y: rect.minY),
-                     tangent2End: CGPoint(x: rect.maxX - rr, y: rect.minY), radius: rr)
 
+        // Bottom-right corner
+        path.addCurve(to: CGPoint(x: rect.maxX - rr, y: rect.minY),
+                      control1: CGPoint(x: rect.maxX, y: rect.minY + rr * (1 - k)),
+                      control2: CGPoint(x: rect.maxX - rr * (1 - k), y: rect.minY))
+
+        // Bottom edge
         path.addLine(to: CGPoint(x: rect.minX + lr, y: rect.minY))
-        path.addArc(tangent1End: CGPoint(x: rect.minX, y: rect.minY),
-                     tangent2End: CGPoint(x: rect.minX, y: rect.minY + lr), radius: lr)
 
+        // Bottom-left corner
+        path.addCurve(to: CGPoint(x: rect.minX, y: rect.minY + lr),
+                      control1: CGPoint(x: rect.minX + lr * (1 - k), y: rect.minY),
+                      control2: CGPoint(x: rect.minX, y: rect.minY + lr * (1 - k)))
+
+        // Left edge
         path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY - lr))
-        path.addArc(tangent1End: CGPoint(x: rect.minX, y: rect.maxY),
-                     tangent2End: CGPoint(x: rect.minX + lr, y: rect.maxY), radius: lr)
+
+        // Top-left corner
+        path.addCurve(to: CGPoint(x: rect.minX + lr, y: rect.maxY),
+                      control1: CGPoint(x: rect.minX, y: rect.maxY - lr * (1 - k)),
+                      control2: CGPoint(x: rect.minX + lr * (1 - k), y: rect.maxY))
 
         path.closeSubpath()
         return path
