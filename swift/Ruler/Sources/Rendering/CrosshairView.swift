@@ -94,6 +94,11 @@ final class CrosshairView: NSView {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         guard let scale = window?.backingScaleFactor else { return }
+        // Set contentsScale on ALL layers — shape layers need it for crisp
+        // rendering on non-Retina / mixed-DPI displays
+        for sl in [linesLayer, leftFoot, rightFoot, topFoot, bottomFoot, wBgLayer, hBgLayer] {
+            sl.contentsScale = scale
+        }
         for tl in [wLabelLayer, hLabelLayer, wValueLayer, hValueLayer] {
             tl.contentsScale = scale
         }

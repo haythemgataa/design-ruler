@@ -12,13 +12,18 @@ final class RulerWindow: NSWindow {
 
     /// Create a fullscreen ruler window for the given screen
     static func create(for screen: NSScreen, edgeDetector: EdgeDetector, hideHintBar: Bool) -> RulerWindow {
+        // Use visibleFrame with zero origin for contentRect — when `screen:` is passed,
+        // NSWindow interprets the origin relative to the screen's coordinate space,
+        // so global coords would double-count the offset on secondary monitors.
         let window = RulerWindow(
-            contentRect: screen.frame,
+            contentRect: NSRect(origin: .zero, size: screen.frame.size),
             styleMask: .borderless,
             backing: .buffered,
             defer: false,
             screen: screen
         )
+        // Explicitly set frame in global coords to guarantee correct placement
+        window.setFrame(screen.frame, display: false)
         window.edgeDetector = edgeDetector
         window.screenBounds = screen.frame
         window.level = .statusBar
@@ -54,15 +59,16 @@ final class RulerWindow: NSWindow {
         contentView = containerView
     }
 
-    /// Set frozen screenshot as background
-    func setBackground(_ image: NSImage) {
+    /// Set frozen screenshot as background using CALayer (bypasses NSImage DPI scaling)
+    func setBackground(_ cgImage: CGImage) {
         guard let container = contentView else { return }
 
-        let imageView = NSImageView(frame: NSRect(origin: .zero, size: screenBounds.size))
-        imageView.image = image
-        imageView.imageScaling = .scaleAxesIndependently
+        let bgView = NSView(frame: NSRect(origin: .zero, size: screenBounds.size))
+        bgView.wantsLayer = true
+        bgView.layer?.contents = cgImage
+        bgView.layer?.contentsGravity = .resize
 
-        container.addSubview(imageView, positioned: .below, relativeTo: crosshairView)
+        container.addSubview(bgView, positioned: .below, relativeTo: crosshairView)
     }
 
     /// Show initial pill at cursor position before first mouse move.

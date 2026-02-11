@@ -115,7 +115,12 @@ class ColorMap {
                             }
                         }
 
-                        let distance = CGFloat(isHorizontal ? abs(finalX - fromX) : abs(finalY - fromY)) / scale
+                        let rawPixelDist = isHorizontal ? abs(finalX - fromX) : abs(finalY - fromY)
+                        // For negative directions (left/up), the pixel grid boundary
+                        // is 1 pixel closer to the cursor than the first-different pixel.
+                        // At 2x this 0.5pt error was hidden by Int() truncation; at 1x it's visible.
+                        let boundaryAdjust = (dx + dy < 0) ? 1 : 0
+                        let distance = CGFloat(max(rawPixelDist - boundaryAdjust, 0)) / scale
                         let screenPos: CGFloat
                         if isHorizontal {
                             screenPos = screenFrame.origin.x + CGFloat(finalX) / scale

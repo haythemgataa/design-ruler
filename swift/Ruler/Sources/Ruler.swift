@@ -34,7 +34,7 @@ final class Ruler {
         edgeDetector.correctionMode = CorrectionMode(rawValue: corrections) ?? .smart
 
         // Capture BEFORE creating window — CG connection is warm, this takes ~3ms
-        let screenshot = edgeDetector.capture(screen: cursorScreen)
+        let cgImage = edgeDetector.capture(screen: cursorScreen)
 
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
@@ -47,8 +47,8 @@ final class Ruler {
         )
         self.window = rulerWindow
 
-        if let image = screenshot {
-            rulerWindow.setBackground(image)
+        if let cgImage = cgImage {
+            rulerWindow.setBackground(cgImage)
         }
 
         rulerWindow.orderFrontRegardless()

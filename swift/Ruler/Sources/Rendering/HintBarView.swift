@@ -26,7 +26,7 @@ final class HintBarView: NSView {
     override func updateLayer() {
         guard let layer = self.layer, layer.contents == nil else { return }
 
-        let scale = NSScreen.main?.backingScaleFactor ?? 2.0
+        let scale = window?.backingScaleFactor ?? NSScreen.screens.first?.backingScaleFactor ?? 2.0
         let pixelWidth = Int(bounds.width * scale)
         let pixelHeight = Int(bounds.height * scale)
 

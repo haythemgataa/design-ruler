@@ -12,8 +12,8 @@ final class EdgeDetector {
     private var lastCursorPosition: CGPoint?
     var correctionMode: CorrectionMode = .smart
 
-    /// Capture full screen before window exists. Returns NSImage for window background.
-    func capture(screen: NSScreen) -> NSImage? {
+    /// Capture full screen before window exists. Returns CGImage for window background.
+    func capture(screen: NSScreen) -> CGImage? {
         guard let mainScreen = NSScreen.screens.first else { return nil }
         let frame = screen.frame
         let mainHeight = mainScreen.frame.height
@@ -33,16 +33,13 @@ final class EdgeDetector {
             [.bestResolution]
         ) else { return nil }
 
+        fputs("[DEBUG] screen.frame(AppKit)=\(frame) cgRect=\(cgRect) cgImage=\(cgImage.width)×\(cgImage.height) backing=\(screen.backingScaleFactor)\n", stderr)
+
         // screenFrame in AX/CG coords for ColorMap
-        let screenFrame = CGRect(
-            x: frame.origin.x,
-            y: mainHeight - frame.origin.y - frame.height,
-            width: frame.width,
-            height: frame.height
-        )
+        let screenFrame = cgRect
         applyCapture(cgImage: cgImage, screenFrame: screenFrame)
 
-        return NSImage(cgImage: cgImage, size: frame.size)
+        return cgImage
     }
 
     /// Apply captured image — sets colorMap. Call from main thread.
