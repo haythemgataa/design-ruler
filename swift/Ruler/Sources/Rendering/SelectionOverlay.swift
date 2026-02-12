@@ -173,6 +173,7 @@ final class SelectionOverlay {
         CATransaction.setAnimationTimingFunction(CAMediaTimingFunction(name: .easeOut))
 
         rectLayer.strokeColor = hovered ? hoveredStroke : normalStroke
+        rectLayer.compositingFilter = hovered ? nil : "differenceBlendMode"
         fillLayer.fillColor = hovered ? hoveredFill : normalFill
         pillBgLayer.fillColor = hovered ? hoveredPillBg : normalPillBg
 
