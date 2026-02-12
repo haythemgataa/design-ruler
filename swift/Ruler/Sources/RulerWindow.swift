@@ -145,19 +145,19 @@ final class RulerWindow: NSWindow {
         switch Int(event.keyCode) {
         case 123: // Left arrow
             if !event.isARepeat && hintVisible { hintBarView.pressKey(.left) }
-            let edges = shift ? edgeDetector.decrementSkip(.left) : edgeDetector.incrementSkip(.left)
+            let edges = shift ? edgeDetector.decrementSkip(.right) : edgeDetector.incrementSkip(.left)
             if let edges { crosshairView.update(cursor: crosshairView.cursorPosition, edges: edges) }
         case 124: // Right arrow
             if !event.isARepeat && hintVisible { hintBarView.pressKey(.right) }
-            let edges = shift ? edgeDetector.decrementSkip(.right) : edgeDetector.incrementSkip(.right)
+            let edges = shift ? edgeDetector.decrementSkip(.left) : edgeDetector.incrementSkip(.right)
             if let edges { crosshairView.update(cursor: crosshairView.cursorPosition, edges: edges) }
         case 125: // Down arrow
             if !event.isARepeat && hintVisible { hintBarView.pressKey(.down) }
-            let edges = shift ? edgeDetector.decrementSkip(.bottom) : edgeDetector.incrementSkip(.bottom)
+            let edges = shift ? edgeDetector.decrementSkip(.top) : edgeDetector.incrementSkip(.bottom)
             if let edges { crosshairView.update(cursor: crosshairView.cursorPosition, edges: edges) }
         case 126: // Up arrow
             if !event.isARepeat && hintVisible { hintBarView.pressKey(.up) }
-            let edges = shift ? edgeDetector.decrementSkip(.top) : edgeDetector.incrementSkip(.top)
+            let edges = shift ? edgeDetector.decrementSkip(.bottom) : edgeDetector.incrementSkip(.top)
             if let edges { crosshairView.update(cursor: crosshairView.cursorPosition, edges: edges) }
         case 51: // Backspace — dismiss hint bar permanently
             if hintVisible {

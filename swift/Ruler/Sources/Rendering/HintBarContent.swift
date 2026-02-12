@@ -37,7 +37,7 @@ private struct MainHintCard: View {
             KeyCap(.shift, symbol: "\u{21E7}", width: 32, height: 20,
                    symbolFont: .system(size: 14, weight: .bold, design: .rounded),
                    symbolTracking: -0.2, align: .bottomLeading, state: state)
-            mainText("to invert direction.")
+            mainText("to invert.")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
