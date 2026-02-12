@@ -6,9 +6,11 @@ final class RulerWindow: NSWindow {
     private var edgeDetector: EdgeDetector!
     private var crosshairView: CrosshairView!
     private var hintBarView: HintBarView!
+    private var selectionManager: SelectionManager!
     private var screenBounds: CGRect = .zero
     private var lastMoveTime: Double = 0
     private var hasReceivedFirstMove = false
+    private var isDragging = false
 
     /// Create a fullscreen ruler window for the given screen
     static func create(for screen: NSScreen, edgeDetector: EdgeDetector, hideHintBar: Bool) -> RulerWindow {
@@ -36,11 +38,11 @@ final class RulerWindow: NSWindow {
         window.ignoresMouseEvents = false
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 
-        window.setupViews(screenFrame: screen.frame, hideHintBar: hideHintBar)
+        window.setupViews(screenFrame: screen.frame, edgeDetector: edgeDetector, hideHintBar: hideHintBar)
         return window
     }
 
-    private func setupViews(screenFrame: CGRect, hideHintBar: Bool) {
+    private func setupViews(screenFrame: CGRect, edgeDetector: EdgeDetector, hideHintBar: Bool) {
         let size = screenFrame.size
         let containerView = NSView(frame: NSRect(origin: .zero, size: size))
 
@@ -48,6 +50,14 @@ final class RulerWindow: NSWindow {
         cv.screenFrame = screenFrame
         self.crosshairView = cv
         containerView.addSubview(cv)
+
+        // Selection manager uses the crosshair view's layer as parent for selection overlays
+        let scale = backingScaleFactor
+        self.selectionManager = SelectionManager(
+            parentLayer: cv.layer!,
+            edgeDetector: edgeDetector,
+            scale: scale
+        )
 
         let hv = HintBarView(frame: .zero)
         self.hintBarView = hv
@@ -109,33 +119,62 @@ final class RulerWindow: NSWindow {
         if hintBarView.superview != nil {
             hintBarView.updatePosition(cursorY: windowPoint.y, screenHeight: screenBounds.height)
         }
+
+        // Update selection hover state
+        if selectionManager.hasSelections {
+            selectionManager.updateHover(at: windowPoint)
+        }
     }
 
     override func mouseDown(with event: NSEvent) {
         let windowPoint = event.locationInWindow
+
+        // Click on a hovered selection → remove it
+        if let hovered = selectionManager.hitTest(windowPoint), hovered.state == .hovered {
+            selectionManager.removeSelection(hovered)
+            return
+        }
+
+        // Start drag
+        isDragging = true
+        crosshairView.hideForDrag()
+        selectionManager.startDrag(at: windowPoint)
+
+        // Show system crosshair cursor during drag
+        if hasReceivedFirstMove {
+            NSCursor.crosshair.push()
+            NSCursor.unhide()
+        }
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard isDragging else { return }
+        let windowPoint = event.locationInWindow
+        selectionManager.updateDrag(to: windowPoint)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        guard isDragging else { return }
+        isDragging = false
+
+        let windowPoint = event.locationInWindow
+        _ = selectionManager.endDrag(at: windowPoint, screenBounds: screenBounds)
+
+        // Restore crosshair at current cursor position
+        crosshairView.showAfterDrag()
         let appKitScreenPoint = NSPoint(
             x: screenBounds.origin.x + windowPoint.x,
             y: screenBounds.origin.y + windowPoint.y
         )
-        let axPoint = CoordinateConverter.appKitToAX(appKitScreenPoint)
+        if let edges = edgeDetector.onMouseMoved(at: appKitScreenPoint) {
+            crosshairView.update(cursor: windowPoint, edges: edges)
+        }
 
-        // Re-scan edges at click position (don't reset skips)
-        guard let edges = edgeDetector.onMouseMoved(at: appKitScreenPoint) else { return }
-
-        let leftX = edges.left.map { windowPoint.x - $0.distance } ?? 0
-        let rightX = edges.right.map { windowPoint.x + $0.distance } ?? screenBounds.width
-        let topY = edges.top.map { windowPoint.y + $0.distance } ?? screenBounds.height
-        let bottomY = edges.bottom.map { windowPoint.y - $0.distance } ?? 0
-        let w = rightX - leftX
-        let h = topY - bottomY
-
-        let ld = edges.left.map { String(format: "%.1f", $0.distance) } ?? "nil"
-        let rd = edges.right.map { String(format: "%.1f", $0.distance) } ?? "nil"
-        let td = edges.top.map { String(format: "%.1f", $0.distance) } ?? "nil"
-        let bd = edges.bottom.map { String(format: "%.1f", $0.distance) } ?? "nil"
-
-        let line = "[TEST] pos=(\(Int(axPoint.x)),\(Int(axPoint.y))) W×H=\(Int(w))×\(Int(h)) edges: L=\(ld) R=\(rd) T=\(td) B=\(bd)\n"
-        fputs(line, stderr)
+        // Hide system cursor again (custom crosshair takes over)
+        if hasReceivedFirstMove {
+            NSCursor.pop()
+            NSCursor.hide()
+        }
     }
 
     override func keyDown(with event: NSEvent) {
@@ -174,12 +213,18 @@ final class RulerWindow: NSWindow {
                 UserDefaults.standard.set(true, forKey: "com.raycast.design-ruler.hintBarDismissed")
             }
         case 53: // ESC
-            if hintVisible { hintBarView.pressKey(.esc) }
-            if hasReceivedFirstMove {
-                NSCursor.unhide()
+            if selectionManager.hasSelections {
+                // First ESC: clear all selections
+                selectionManager.clearAll()
+            } else {
+                // No selections: exit
+                if hintVisible { hintBarView.pressKey(.esc) }
+                if hasReceivedFirstMove {
+                    NSCursor.unhide()
+                }
+                close()
+                NSApp.terminate(nil)
             }
-            close()
-            NSApp.terminate(nil)
         default:
             break
         }

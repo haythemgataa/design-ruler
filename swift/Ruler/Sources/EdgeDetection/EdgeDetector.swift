@@ -176,6 +176,48 @@ final class EdgeDetector {
         return currentEdges(at: p)
     }
 
+    /// Snap a user-drawn rectangle to detected edges.
+    /// `windowRect` is in AppKit window-local coords; `screenBounds` is the screen's AppKit frame.
+    /// Returns snapped rect in window-local AppKit coords, or nil if snap fails.
+    func snapSelection(windowRect: CGRect, screenBounds: CGRect) -> CGRect? {
+        guard let map = colorMap else { return nil }
+        guard let mainHeight = NSScreen.screens.first?.frame.height else { return nil }
+
+        // Window-local AppKit → Screen AppKit
+        let screenRect = CGRect(
+            x: screenBounds.origin.x + windowRect.origin.x,
+            y: screenBounds.origin.y + windowRect.origin.y,
+            width: windowRect.width,
+            height: windowRect.height
+        )
+
+        // Screen AppKit → AX/CG (flip Y)
+        let axRect = CGRect(
+            x: screenRect.origin.x,
+            y: mainHeight - screenRect.origin.y - screenRect.height,
+            width: screenRect.width,
+            height: screenRect.height
+        )
+
+        guard let snappedAX = map.scanInward(from: axRect) else { return nil }
+
+        // AX/CG → Screen AppKit (flip Y back)
+        let snappedScreen = CGRect(
+            x: snappedAX.origin.x,
+            y: mainHeight - snappedAX.origin.y - snappedAX.height,
+            width: snappedAX.width,
+            height: snappedAX.height
+        )
+
+        // Screen AppKit → Window-local AppKit
+        return CGRect(
+            x: snappedScreen.origin.x - screenBounds.origin.x,
+            y: snappedScreen.origin.y - screenBounds.origin.y,
+            width: snappedScreen.width,
+            height: snappedScreen.height
+        )
+    }
+
     /// Shift+Arrow: bring edge back closer. Returns updated edges.
     func decrementSkip(_ direction: Direction) -> DirectionalEdges? {
         switch direction {

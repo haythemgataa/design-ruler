@@ -33,7 +33,7 @@ final class CrosshairView: NSView {
     // Pill layout constants
     private let pillHeight: CGFloat = 24
     private let sectionGap: CGFloat = 2
-    private let outerRadius: CGFloat = 12
+    private let outerRadius: CGFloat = 8
     private let innerRadius: CGFloat = 4
     private let labelValueGap: CGFloat = 4
     private let wPadLeft: CGFloat = 8
@@ -84,6 +84,32 @@ final class CrosshairView: NSView {
         }
     }
 
+    /// Hide all crosshair elements (lines, feet, pill) during drag.
+    func hideForDrag() {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        linesLayer.opacity = 0
+        leftFoot.opacity = 0
+        rightFoot.opacity = 0
+        topFoot.opacity = 0
+        bottomFoot.opacity = 0
+        for pl in pillLayers { pl.opacity = 0 }
+        CATransaction.commit()
+    }
+
+    /// Show all crosshair elements after drag ends.
+    func showAfterDrag() {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        linesLayer.opacity = 1
+        leftFoot.opacity = 1
+        rightFoot.opacity = 1
+        topFoot.opacity = 1
+        bottomFoot.opacity = 1
+        for pl in pillLayers { pl.opacity = 1 }
+        CATransaction.commit()
+    }
+
     /// Switch from system crosshair to hidden cursor (custom CAShapeLayer takes over).
     func hideSystemCrosshair() {
         showSystemCrosshair = false
@@ -128,13 +154,15 @@ final class CrosshairView: NSView {
 
         // Pill section backgrounds
         let bgColor = CGColor(gray: 0, alpha: 0.8)
-        wBgLayer.fillColor = bgColor
-        wBgLayer.strokeColor = nil
-        root.addSublayer(wBgLayer)
-
-        hBgLayer.fillColor = bgColor
-        hBgLayer.strokeColor = nil
-        root.addSublayer(hBgLayer)
+        for bg in [wBgLayer, hBgLayer] {
+            bg.fillColor = bgColor
+            bg.strokeColor = nil
+            bg.shadowColor = CGColor(gray: 0, alpha: 0.3)
+            bg.shadowOffset = CGSize(width: 0, height: -1)
+            bg.shadowRadius = 3
+            bg.shadowOpacity = 1.0
+            root.addSublayer(bg)
+        }
 
         // Text layers
         for tl in [wLabelLayer, hLabelLayer, wValueLayer, hValueLayer] {

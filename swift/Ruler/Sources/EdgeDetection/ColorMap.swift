@@ -172,4 +172,138 @@ class ColorMap {
 
         return nil
     }
+
+    // MARK: - Snap (scan inward from rectangle edges)
+
+    /// Scan inward from each side of a rectangle to find nearest object edges.
+    /// `rect` is in AX/CG screen coords (same space as `screenFrame`).
+    /// Returns snapped rect in AX/CG coords, or nil if edges not found on all 4 sides.
+    func scanInward(from rect: CGRect, samplesPerSide: Int = 7, tolerance: UInt8 = 1) -> CGRect? {
+        let s = scale
+        let sf = screenFrame
+
+        // Convert rect to pixel coords
+        let pLeft = min(max(Int((rect.minX - sf.origin.x) * s), 0), width - 1)
+        let pRight = min(max(Int((rect.maxX - sf.origin.x) * s), 0), width - 1)
+        let pTop = min(max(Int((rect.minY - sf.origin.y) * s), 0), height - 1)
+        let pBottom = min(max(Int((rect.maxY - sf.origin.y) * s), 0), height - 1)
+
+        guard pLeft < pRight, pTop < pBottom else { return nil }
+
+        let sampleYs = evenlySpaced(from: pTop, to: pBottom, count: samplesPerSide)
+        let sampleXs = evenlySpaced(from: pLeft, to: pRight, count: samplesPerSide)
+
+        // Scan from left edge rightward
+        var leftHits: [CGFloat] = []
+        for sy in sampleYs {
+            if let px = scanSimple(fromX: pLeft, fromY: sy, dx: 1, dy: 0,
+                                   maxSteps: pRight - pLeft, tolerance: tolerance) {
+                leftHits.append(sf.origin.x + CGFloat(px) / s)
+            }
+        }
+
+        // Scan from right edge leftward
+        // +1 because pixel x spans [x, x+1) — we want the far (right) edge
+        var rightHits: [CGFloat] = []
+        for sy in sampleYs {
+            if let px = scanSimple(fromX: pRight, fromY: sy, dx: -1, dy: 0,
+                                   maxSteps: pRight - pLeft, tolerance: tolerance) {
+                rightHits.append(sf.origin.x + CGFloat(px + 1) / s)
+            }
+        }
+
+        // Scan from top edge downward (CG: top = minY)
+        var topHits: [CGFloat] = []
+        for sx in sampleXs {
+            if let py = scanSimple(fromX: sx, fromY: pTop, dx: 0, dy: 1,
+                                   maxSteps: pBottom - pTop, tolerance: tolerance) {
+                topHits.append(sf.origin.y + CGFloat(py) / s)
+            }
+        }
+
+        // Scan from bottom edge upward (CG: bottom = maxY)
+        // +1 because pixel y spans [y, y+1) — we want the far (bottom) edge
+        var bottomHits: [CGFloat] = []
+        for sx in sampleXs {
+            if let py = scanSimple(fromX: sx, fromY: pBottom, dx: 0, dy: -1,
+                                   maxSteps: pBottom - pTop, tolerance: tolerance) {
+                bottomHits.append(sf.origin.y + CGFloat(py + 1) / s)
+            }
+        }
+
+        // Require ≥2 successful scans per side
+        guard leftHits.count >= 2, rightHits.count >= 2,
+              topHits.count >= 2, bottomHits.count >= 2 else { return nil }
+
+        // Use min/max (not median) to capture the full bounding box.
+        // For curved objects (circles, icons, text) the outermost extent
+        // is detected by the sample nearest the center of each side.
+        let snappedLeft = leftHits.min()!
+        let snappedRight = rightHits.max()!
+        let snappedTop = topHits.min()!
+        let snappedBottom = bottomHits.max()!
+
+        guard snappedLeft < snappedRight, snappedTop < snappedBottom else { return nil }
+
+        return CGRect(x: snappedLeft, y: snappedTop,
+                      width: snappedRight - snappedLeft,
+                      height: snappedBottom - snappedTop)
+    }
+
+    /// Walk from (fromX,fromY) in direction (dx,dy) for at most maxSteps.
+    /// Returns the pixel coordinate (x or y) of the first color change, or nil.
+    private func scanSimple(fromX: Int, fromY: Int, dx: Int, dy: Int,
+                            maxSteps: Int, tolerance: UInt8) -> Int? {
+        let refIdx = (fromY * width + fromX) * 4
+        let refR = pixels[refIdx]
+        let refG = pixels[refIdx + 1]
+        let refB = pixels[refIdx + 2]
+
+        var x = fromX + dx
+        var y = fromY + dy
+        var steps = 0
+
+        while x >= 0, x < width, y >= 0, y < height, steps < maxSteps {
+            let idx = (y * width + x) * 4
+            let r = pixels[idx]
+            let g = pixels[idx + 1]
+            let b = pixels[idx + 2]
+
+            let diff = max(abs(Int(r) - Int(refR)),
+                           max(abs(Int(g) - Int(refG)), abs(Int(b) - Int(refB))))
+            if diff > Int(tolerance) {
+                return dx != 0 ? x : y
+            }
+
+            x += dx
+            y += dy
+            steps += 1
+        }
+
+        return nil
+    }
+
+    private func evenlySpaced(from start: Int, to end: Int, count: Int) -> [Int] {
+        guard count > 1 else { return [(start + end) / 2] }
+        // Inset slightly from edges to avoid sampling along the boundary itself
+        let inset = max(1, (end - start) / (count * 2))
+        let inStart = start + inset
+        let inEnd = end - inset
+        guard inStart < inEnd else { return [(start + end) / 2] }
+
+        let step = CGFloat(inEnd - inStart) / CGFloat(count - 1)
+        return (0..<count).map { i in
+            inStart + Int(round(CGFloat(i) * step))
+        }
+    }
+
+    private func median(_ values: [CGFloat]) -> CGFloat {
+        let sorted = values.sorted()
+        let count = sorted.count
+        if count % 2 == 0 {
+            return (sorted[count / 2 - 1] + sorted[count / 2]) / 2
+        } else {
+            return sorted[count / 2]
+        }
+    }
 }
