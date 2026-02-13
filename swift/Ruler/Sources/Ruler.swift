@@ -16,6 +16,8 @@ final class Ruler {
     private var windows: [RulerWindow] = []
     private weak var activeWindow: RulerWindow?
     private var firstMoveReceived = false
+    private var inactivityTimer: Timer?
+    private let inactivityTimeout: TimeInterval = 600 // 10 minutes
 
     private init() {}
 
@@ -85,6 +87,9 @@ final class Ruler {
             rulerWindow.onFirstMove = { [weak self] in
                 self?.handleFirstMove()
             }
+            rulerWindow.onActivity = { [weak self] in
+                self?.resetInactivityTimer()
+            }
 
             windows.append(rulerWindow)
         }
@@ -101,10 +106,12 @@ final class Ruler {
         activeWindow = cursorWindow
 
         NSApp.activate(ignoringOtherApps: true)
+        resetInactivityTimer()
         app.run()
     }
 
     private func activateWindow(_ window: RulerWindow) {
+        resetInactivityTimer()
         guard window !== activeWindow else { return }
 
         // Deactivate old window
@@ -128,5 +135,15 @@ final class Ruler {
 
     private func handleFirstMove() {
         firstMoveReceived = true
+    }
+
+    private func resetInactivityTimer() {
+        inactivityTimer?.invalidate()
+        inactivityTimer = Timer.scheduledTimer(
+            withTimeInterval: inactivityTimeout,
+            repeats: false
+        ) { [weak self] _ in
+            self?.handleExit()
+        }
     }
 }

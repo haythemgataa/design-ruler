@@ -18,6 +18,7 @@ final class RulerWindow: NSWindow {
     var onActivate: ((RulerWindow) -> Void)?
     var onRequestExit: (() -> Void)?
     var onFirstMove: (() -> Void)?
+    var onActivity: (() -> Void)?
 
     /// Create a fullscreen ruler window for the given screen
     static func create(for screen: NSScreen, edgeDetector: EdgeDetector, hideHintBar: Bool) -> RulerWindow {
@@ -178,6 +179,7 @@ final class RulerWindow: NSWindow {
         let now = CACurrentMediaTime()
         guard now - lastMoveTime >= 0.014 else { return }
         lastMoveTime = now
+        onActivity?()
 
         if !hasReceivedFirstMove {
             hasReceivedFirstMove = true
@@ -218,6 +220,7 @@ final class RulerWindow: NSWindow {
     }
 
     override func mouseDown(with event: NSEvent) {
+        onActivity?()
         let windowPoint = event.locationInWindow
 
         // Reset stale drag state — if mouseUp was never delivered (e.g., system stole the event),
@@ -265,12 +268,14 @@ final class RulerWindow: NSWindow {
     }
 
     override func mouseDragged(with event: NSEvent) {
+        onActivity?()
         if !isDragging { return }
         let windowPoint = event.locationInWindow
         selectionManager.updateDrag(to: windowPoint)
     }
 
     override func mouseUp(with event: NSEvent) {
+        onActivity?()
         if !isDragging { return }
         isDragging = false
 
@@ -295,6 +300,7 @@ final class RulerWindow: NSWindow {
     }
 
     override func keyDown(with event: NSEvent) {
+        onActivity?()
         let shift = event.modifierFlags.contains(.shift)
         let hintVisible = hintBarView.superview != nil
 
