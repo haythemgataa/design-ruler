@@ -54,7 +54,7 @@ final class SelectionManager {
             selections.append(sel)
             return true
         } else {
-            sel.remove(animated: true)
+            sel.shakeAndRemove()
             return false
         }
     }
