@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-13)
 
 **Core value:** Instant, accurate pixel inspection of anything on screen — zero friction from Raycast invoke to dimension readout.
-**Current focus:** Phase 3 - Snap Failure Shake
+**Current focus:** Phase 4 - Selection Pill Clamping
 
 ## Current Position
 
-Phase: 3 of 5 (Snap Failure Shake) -- COMPLETE
+Phase: 4 of 5 (Selection Pill Clamping) -- COMPLETE
 Plan: 1 of 1 in current phase
-Status: Phase complete, ready for Phase 4
-Last activity: 2026-02-13 — Phase 3 executed and complete
+Status: Phase complete, ready for Phase 5
+Last activity: 2026-02-13 — Phase 4 executed and complete
 
-Progress: [######░░░░] 60%
+Progress: [########░░] 80%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 3
+- Total plans completed: 4
 - Average duration: 2min
-- Total execution time: 0.1 hours
+- Total execution time: 0.2 hours
 
 **By Phase:**
 
@@ -30,9 +30,10 @@ Progress: [######░░░░] 60%
 | 01-debug-cleanup | 1 | 2min | 2min |
 | 02-cursor-state-machine | 1 | 3min | 3min |
 | 03-snap-failure-shake | 1 | 1min | 1min |
+| 04-selection-pill-clamping | 1 | 1min | 1min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (2min), 02-01 (3min), 03-01 (1min)
+- Last 5 plans: 01-01 (2min), 02-01 (3min), 03-01 (1min), 04-01 (1min)
 - Trend: Stable/Accelerating
 
 *Updated after each plan completion*
@@ -57,6 +58,9 @@ Recent decisions affecting current work:
 - [03-01]: Used isAdditive=true with relative offsets for shake -- same animation object shared across all 4 layers
 - [03-01]: Chained shake into existing remove(animated:true) via CATransaction completion block
 - [03-01]: Applied shake to all 4 layers even though pill is invisible on snap failure -- harmless and future-proof
+- [04-01]: 4px clampMargin derived from shadowRadius(3) + abs(shadowOffset.height)(1)
+- [04-01]: Uniform margin on all sides rather than per-edge shadow extent computation
+- [04-01]: Vertical flip threshold changed from hardcoded 8 to clampMargin for consistency
 
 ### Pending Todos
 
@@ -69,5 +73,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-13
-Stopped at: Completed 03-01-PLAN.md (Phase 3 complete, ready for Phase 4)
+Stopped at: Completed 04-01-PLAN.md (Phase 4 complete, ready for Phase 5)
 Resume file: None
