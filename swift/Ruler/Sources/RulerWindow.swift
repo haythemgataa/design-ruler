@@ -3,6 +3,7 @@ import QuartzCore
 
 /// Fullscreen borderless window that captures mouse and keyboard events.
 final class RulerWindow: NSWindow {
+    private(set) var targetScreen: NSScreen!
     private var edgeDetector: EdgeDetector!
     private var crosshairView: CrosshairView!
     private var hintBarView: HintBarView!
@@ -11,6 +12,12 @@ final class RulerWindow: NSWindow {
     private var lastMoveTime: Double = 0
     private var hasReceivedFirstMove = false
     private var isDragging = false
+    private var isHoveringSelection = false
+
+    // Callbacks for multi-monitor coordination
+    var onActivate: ((RulerWindow) -> Void)?
+    var onRequestExit: (() -> Void)?
+    var onFirstMove: (() -> Void)?
 
     /// Create a fullscreen ruler window for the given screen
     static func create(for screen: NSScreen, edgeDetector: EdgeDetector, hideHintBar: Bool) -> RulerWindow {
@@ -26,6 +33,7 @@ final class RulerWindow: NSWindow {
         )
         // Explicitly set frame in global coords to guarantee correct placement
         window.setFrame(screen.frame, display: false)
+        window.targetScreen = screen
         window.edgeDetector = edgeDetector
         window.screenBounds = screen.frame
         window.level = .statusBar
@@ -39,6 +47,7 @@ final class RulerWindow: NSWindow {
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 
         window.setupViews(screenFrame: screen.frame, edgeDetector: edgeDetector, hideHintBar: hideHintBar)
+        window.setupTrackingArea()
         return window
     }
 
@@ -70,6 +79,16 @@ final class RulerWindow: NSWindow {
         contentView = containerView
     }
 
+    private func setupTrackingArea() {
+        guard let cv = contentView else { return }
+        let area = NSTrackingArea(
+            rect: cv.bounds,
+            options: [.mouseEnteredAndExited, .activeAlways],
+            owner: self, userInfo: nil
+        )
+        cv.addTrackingArea(area)
+    }
+
     /// Set frozen screenshot as background using CALayer (bypasses NSImage DPI scaling)
     func setBackground(_ cgImage: CGImage) {
         guard let container = contentView else { return }
@@ -92,10 +111,67 @@ final class RulerWindow: NSWindow {
         crosshairView.showInitialPill(at: windowPoint)
     }
 
+    // MARK: - Multi-monitor activation
+
+    override func mouseEntered(with event: NSEvent) {
+        onActivate?(self)
+    }
+
+    /// Deactivate this window when cursor leaves for another screen.
+    func deactivate() {
+        crosshairView.hideForDrag()
+        if isHoveringSelection {
+            isHoveringSelection = false
+            NSCursor.pop()
+            NSCursor.hide()
+            selectionManager.updateHover(at: .zero)
+        }
+        if isDragging {
+            selectionManager.cancelDrag()
+            isDragging = false
+            if hasReceivedFirstMove { NSCursor.pop(); NSCursor.hide() }
+        }
+    }
+
+    /// Activate this window when cursor enters from another screen.
+    func activate(firstMoveAlreadyReceived: Bool) {
+        if firstMoveAlreadyReceived && !hasReceivedFirstMove {
+            hasReceivedFirstMove = true
+            crosshairView.skipSystemCrosshairPhase()
+        }
+        crosshairView.showAfterDrag()
+
+        // Trigger edge detection at current cursor position
+        let mouse = NSEvent.mouseLocation
+        let wp = NSPoint(x: mouse.x - screenBounds.origin.x, y: mouse.y - screenBounds.origin.y)
+        let sp = NSPoint(x: screenBounds.origin.x + wp.x, y: screenBounds.origin.y + wp.y)
+        if let edges = edgeDetector.onMouseMoved(at: sp) {
+            crosshairView.update(cursor: wp, edges: edges)
+        }
+        if hintBarView.superview != nil {
+            hintBarView.updatePosition(cursorY: wp.y, screenHeight: screenBounds.height)
+        }
+    }
+
+    var hasSelections: Bool { selectionManager.hasSelections }
+
     // MARK: - Event Handling
 
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
+
+    // Route mouse events directly to the window, bypassing view hit-testing.
+    // No subview in this overlay needs mouse events — handling them here
+    // prevents views from silently consuming mouseDown (which caused an
+    // intermittent bug where drags wouldn't start).
+    override func sendEvent(_ event: NSEvent) {
+        switch event.type {
+        case .leftMouseDown:  mouseDown(with: event)
+        case .leftMouseDragged: mouseDragged(with: event)
+        case .leftMouseUp:    mouseUp(with: event)
+        default: super.sendEvent(event)
+        }
+    }
 
     override func mouseMoved(with event: NSEvent) {
         // Throttle to ~60fps
@@ -106,6 +182,7 @@ final class RulerWindow: NSWindow {
         if !hasReceivedFirstMove {
             hasReceivedFirstMove = true
             crosshairView.hideSystemCrosshair()
+            onFirstMove?()
         }
 
         let windowPoint = event.locationInWindow
@@ -115,28 +192,71 @@ final class RulerWindow: NSWindow {
         )
 
         guard let edges = edgeDetector.onMouseMoved(at: appKitScreenPoint) else { return }
+
+        // Update selection hover state — hide crosshair and show hand cursor when hovering
+        if selectionManager.hasSelections, let _ = selectionManager.hitTest(windowPoint) {
+            if !isHoveringSelection {
+                isHoveringSelection = true
+                crosshairView.hideForDrag()
+                NSCursor.pointingHand.push()
+                NSCursor.unhide()
+            }
+            selectionManager.updateHover(at: windowPoint)
+            return
+        } else if isHoveringSelection {
+            isHoveringSelection = false
+            crosshairView.showAfterDrag()
+            NSCursor.pop()
+            NSCursor.hide()
+            selectionManager.updateHover(at: windowPoint)
+        }
+
         crosshairView.update(cursor: windowPoint, edges: edges)
         if hintBarView.superview != nil {
             hintBarView.updatePosition(cursorY: windowPoint.y, screenHeight: screenBounds.height)
-        }
-
-        // Update selection hover state
-        if selectionManager.hasSelections {
-            selectionManager.updateHover(at: windowPoint)
         }
     }
 
     override func mouseDown(with event: NSEvent) {
         let windowPoint = event.locationInWindow
 
-        // Click on a hovered selection → remove it
+        // Reset stale drag state — if mouseUp was never delivered (e.g., system stole the event),
+        // isDragging could be stuck true, preventing new drags from starting correctly
+        if isDragging {
+            fputs("[DEBUG] mouseDown: isDragging was still true, resetting stale state\n", stderr)
+            isDragging = false
+            crosshairView.showAfterDrag()
+            if hasReceivedFirstMove { NSCursor.pop(); NSCursor.hide() }
+        }
+
+        // Click on a hovered selection → remove it and restore crosshair
         if let hovered = selectionManager.hitTest(windowPoint), hovered.state == .hovered {
             selectionManager.removeSelection(hovered)
+            if isHoveringSelection {
+                isHoveringSelection = false
+                NSCursor.pop()
+                NSCursor.hide()
+            }
+            // Restore crosshair at current position
+            crosshairView.showAfterDrag()
+            let appKitScreenPoint = NSPoint(
+                x: screenBounds.origin.x + windowPoint.x,
+                y: screenBounds.origin.y + windowPoint.y
+            )
+            if let edges = edgeDetector.onMouseMoved(at: appKitScreenPoint) {
+                crosshairView.update(cursor: windowPoint, edges: edges)
+            }
             return
         }
 
+        fputs("[DEBUG] mouseDown: starting drag at \(windowPoint), selections=\(selectionManager.hasSelections)\n", stderr)
+
         // Start drag
         isDragging = true
+        if isHoveringSelection {
+            isHoveringSelection = false
+            NSCursor.pop()  // remove pointing hand
+        }
         crosshairView.hideForDrag()
         selectionManager.startDrag(at: windowPoint)
 
@@ -148,13 +268,19 @@ final class RulerWindow: NSWindow {
     }
 
     override func mouseDragged(with event: NSEvent) {
-        guard isDragging else { return }
+        if !isDragging {
+            fputs("[DEBUG] mouseDragged: rejected — isDragging is false\n", stderr)
+            return
+        }
         let windowPoint = event.locationInWindow
         selectionManager.updateDrag(to: windowPoint)
     }
 
     override func mouseUp(with event: NSEvent) {
-        guard isDragging else { return }
+        if !isDragging {
+            fputs("[DEBUG] mouseUp: rejected — isDragging is false\n", stderr)
+            return
+        }
         isDragging = false
 
         let windowPoint = event.locationInWindow
@@ -213,18 +339,8 @@ final class RulerWindow: NSWindow {
                 UserDefaults.standard.set(true, forKey: "com.raycast.design-ruler.hintBarDismissed")
             }
         case 53: // ESC
-            if selectionManager.hasSelections {
-                // First ESC: clear all selections
-                selectionManager.clearAll()
-            } else {
-                // No selections: exit
-                if hintVisible { hintBarView.pressKey(.esc) }
-                if hasReceivedFirstMove {
-                    NSCursor.unhide()
-                }
-                close()
-                NSApp.terminate(nil)
-            }
+            if hintVisible { hintBarView.pressKey(.esc) }
+            onRequestExit?()
         default:
             break
         }

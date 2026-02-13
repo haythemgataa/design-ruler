@@ -70,7 +70,11 @@ final class EdgeDetector {
         skipCounts = (0, 0, 0, 0)
         let axPoint = CoordinateConverter.appKitToAX(appKitPoint)
         lastCursorPosition = axPoint
-        return currentEdges(at: axPoint)
+        let edges = currentEdges(at: axPoint)
+        if edges == nil {
+            fputs("[DEBUG] onMouseMoved: currentEdges returned nil (colorMap=\(colorMap == nil ? "nil" : "exists")) at \(axPoint)\n", stderr)
+        }
+        return edges
     }
 
     /// Scan cached ColorMap at point (AX coords) with current skip counts.

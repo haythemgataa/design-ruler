@@ -117,6 +117,14 @@ final class CrosshairView: NSView {
         NSCursor.hide()
     }
 
+    /// Skip the system crosshair phase without calling NSCursor.hide().
+    /// Used when transitioning to a screen where the mouse has already moved
+    /// (avoids incrementing the hide counter or flashing the system crosshair).
+    func skipSystemCrosshairPhase() {
+        showSystemCrosshair = false
+        window?.invalidateCursorRects(for: self)
+    }
+
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         guard let scale = window?.backingScaleFactor else { return }
