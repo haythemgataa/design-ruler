@@ -1,6 +1,8 @@
 import AppKit
 import RaycastSwiftMacros
 
+private let kHintBarDismissedKey = "com.raycast.design-ruler.hintBarDismissed"
+
 @raycast func inspect(hideHintBar: Bool, corrections: String) {
     // Warm up CGWindowListCreateImage connection (1x1 capture absorbs cold-start penalty)
     _ = CGWindowListCreateImage(
@@ -31,7 +33,7 @@ final class Ruler {
         // When hideHintBar is toggled on, clear the backspace-dismiss flag
         // so toggling the preference off→on→off re-enables the hint bar
         if hideHintBar {
-            UserDefaults.standard.removeObject(forKey: "com.raycast.design-ruler.hintBarDismissed")
+            UserDefaults.standard.removeObject(forKey: kHintBarDismissedKey)
         }
 
         let correctionMode = CorrectionMode(rawValue: corrections) ?? .smart
