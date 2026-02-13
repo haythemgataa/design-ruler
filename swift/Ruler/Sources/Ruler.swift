@@ -3,20 +3,7 @@ import RaycastSwiftMacros
 
 private let kHintBarDismissedKey = "com.raycast.design-ruler.hintBarDismissed"
 
-/// Returns the system busy-but-clickable cursor (spinning disc with arrow).
-/// Falls back to the arrow cursor if the API is unavailable.
-private func busyCursor() -> NSCursor {
-    let sel = NSSelectorFromString("busyButClickableCursor")
-    if NSCursor.responds(to: sel),
-       let result = NSCursor.perform(sel)?.takeUnretainedValue() as? NSCursor {
-        return result
-    }
-    return .arrow
-}
-
 @raycast func inspect(hideHintBar: Bool, corrections: String) {
-    busyCursor().push()
-
     // Warm up CGWindowListCreateImage connection (1x1 capture absorbs cold-start penalty)
     _ = CGWindowListCreateImage(
         CGRect(x: 0, y: 0, width: 1, height: 1),
@@ -66,8 +53,6 @@ final class Ruler {
             let cgImage = detector.capture(screen: screen)
             captures.append((screen, detector, cgImage))
         }
-
-        NSCursor.pop()  // Remove wait cursor before overlay appears
 
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)

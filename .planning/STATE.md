@@ -5,21 +5,21 @@
 See: .planning/PROJECT.md (updated 2026-02-13)
 
 **Core value:** Instant, accurate pixel inspection of anything on screen — zero friction from Raycast invoke to dimension readout.
-**Current focus:** Phase 5 - Help Toggle System
+**Current focus:** Phase 4 - Selection Pill Clamping
 
 ## Current Position
 
-Phase: 5 of 5 (Help Toggle System) -- COMPLETE
+Phase: 4 of 5 (Selection Pill Clamping) -- COMPLETE
 Plan: 1 of 1 in current phase
-Status: All phases complete
-Last activity: 2026-02-13 — Phase 5 executed and complete
+Status: Phase complete, ready for Phase 5
+Last activity: 2026-02-13 — Phase 4 executed and complete
 
-Progress: [##########] 100%
+Progress: [########░░] 80%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5
+- Total plans completed: 4
 - Average duration: 2min
 - Total execution time: 0.2 hours
 
@@ -31,11 +31,10 @@ Progress: [##########] 100%
 | 02-cursor-state-machine | 1 | 3min | 3min |
 | 03-snap-failure-shake | 1 | 1min | 1min |
 | 04-selection-pill-clamping | 1 | 1min | 1min |
-| 05-help-toggle-system | 1 | 3min | 3min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (2min), 02-01 (3min), 03-01 (1min), 04-01 (1min), 05-01 (3min)
-- Trend: Stable
+- Last 5 plans: 01-01 (2min), 02-01 (3min), 03-01 (1min), 04-01 (1min)
+- Trend: Stable/Accelerating
 
 *Updated after each plan completion*
 
@@ -62,9 +61,6 @@ Recent decisions affecting current work:
 - [04-01]: 4px clampMargin derived from shadowRadius(3) + abs(shadowOffset.height)(1)
 - [04-01]: Uniform margin on all sides rather than per-edge shadow extent computation
 - [04-01]: Vertical flip threshold changed from hardcoded 8 to clampMargin for consistency
-- [05-01]: CAShapeLayer + CATextLayer for transient message instead of SwiftUI hosting -- matches existing pill pattern
-- [05-01]: event.characters == "?" for layout-independent detection (US, AZERTY, QWERTZ)
-- [05-01]: Duplicate kHintBarDismissedKey constants in both files -- lesser evil than cross-file coupling
 
 ### Pending Todos
 
@@ -77,5 +73,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-13
-Stopped at: Completed 05-01-PLAN.md (All phases complete)
+Stopped at: Completed 04-01-PLAN.md (Phase 4 complete, ready for Phase 5)
 Resume file: None
