@@ -114,7 +114,7 @@ final class CrosshairView: NSView {
     func hideSystemCrosshair() {
         showSystemCrosshair = false
         window?.invalidateCursorRects(for: self)
-        NSCursor.hide()
+        CursorManager.shared.transitionToHidden()
     }
 
     /// Skip the system crosshair phase without calling NSCursor.hide().

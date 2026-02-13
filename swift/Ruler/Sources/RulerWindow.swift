@@ -123,14 +123,13 @@ final class RulerWindow: NSWindow {
         crosshairView.hideForDrag()
         if isHoveringSelection {
             isHoveringSelection = false
-            NSCursor.pop()
-            NSCursor.hide()
+            CursorManager.shared.transitionBackToHidden()
             selectionManager.updateHover(at: .zero)
         }
         if isDragging {
             selectionManager.cancelDrag()
             isDragging = false
-            if hasReceivedFirstMove { NSCursor.pop(); NSCursor.hide() }
+            CursorManager.shared.transitionBackToHidden()
         }
     }
 
@@ -200,16 +199,14 @@ final class RulerWindow: NSWindow {
             if !isHoveringSelection {
                 isHoveringSelection = true
                 crosshairView.hideForDrag()
-                NSCursor.pointingHand.push()
-                NSCursor.unhide()
+                CursorManager.shared.transitionToPointingHand()
             }
             selectionManager.updateHover(at: windowPoint)
             return
         } else if isHoveringSelection {
             isHoveringSelection = false
             crosshairView.showAfterDrag()
-            NSCursor.pop()
-            NSCursor.hide()
+            CursorManager.shared.transitionBackToHidden()
             selectionManager.updateHover(at: windowPoint)
         }
 
@@ -228,7 +225,7 @@ final class RulerWindow: NSWindow {
         if isDragging {
             isDragging = false
             crosshairView.showAfterDrag()
-            if hasReceivedFirstMove { NSCursor.pop(); NSCursor.hide() }
+            CursorManager.shared.transitionBackToHidden()
         }
 
         // Click on a hovered selection → remove it and restore crosshair
@@ -236,8 +233,7 @@ final class RulerWindow: NSWindow {
             selectionManager.removeSelection(hovered)
             if isHoveringSelection {
                 isHoveringSelection = false
-                NSCursor.pop()
-                NSCursor.hide()
+                CursorManager.shared.transitionBackToHidden()
             }
             // Restore crosshair at current position
             crosshairView.showAfterDrag()
@@ -255,16 +251,11 @@ final class RulerWindow: NSWindow {
         isDragging = true
         if isHoveringSelection {
             isHoveringSelection = false
-            NSCursor.pop()  // remove pointing hand
+            CursorManager.shared.transitionBackToHidden()
         }
         crosshairView.hideForDrag()
         selectionManager.startDrag(at: windowPoint)
-
-        // Show system crosshair cursor during drag
-        if hasReceivedFirstMove {
-            NSCursor.crosshair.push()
-            NSCursor.unhide()
-        }
+        CursorManager.shared.transitionToCrosshairDrag()
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -293,10 +284,7 @@ final class RulerWindow: NSWindow {
         }
 
         // Hide system cursor again (custom crosshair takes over)
-        if hasReceivedFirstMove {
-            NSCursor.pop()
-            NSCursor.hide()
-        }
+        CursorManager.shared.transitionBackToHidden()
     }
 
     override func keyDown(with event: NSEvent) {
