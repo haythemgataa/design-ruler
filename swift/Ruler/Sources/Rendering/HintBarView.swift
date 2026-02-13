@@ -8,7 +8,7 @@ final class HintBarView: NSView {
     // MARK: - Public key identifiers
 
     enum KeyID: Hashable, CaseIterable {
-        case up, down, left, right, shift, esc, backspace
+        case up, down, left, right, shift, esc
     }
 
     // MARK: - State & hosting

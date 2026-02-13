@@ -15,8 +15,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Debug Cleanup and Process Safety** - Gate debug output and add inactivity timeout to prevent zombie processes
 - [x] **Phase 2: Cursor State Machine** - Centralize all NSCursor management into a single state-tracked manager
 - [x] **Phase 3: Snap Failure Shake** - Shake animation for selection overlays when edge snap fails
-- [ ] **Phase 4: Selection Pill Clamping** - Clamp selection overlay dimension pill to screen bounds
-- [ ] **Phase 5: Help Toggle System** - Backspace to dismiss hint bar, "?" to re-enable, with session persistence
+- [x] **Phase 4: Selection Pill Clamping** - Clamp selection overlay dimension pill to screen bounds
+- [x] **Phase 5: Help Toggle System** - Backspace to dismiss hint bar, "?" to re-enable, with session persistence
 
 ## Phase Details
 
@@ -68,10 +68,10 @@ Plans:
   1. Creating a selection near any screen edge keeps the dimension pill entirely within screen bounds
   2. Creating a selection in a screen corner keeps the dimension pill visible (not clipped or off-screen)
   3. Pill clamping does not clip drop shadows or other decorative elements
-**Plans**: TBD
+**Plans:** 1 plan
 
 Plans:
-- [ ] 04-01: Selection pill bounds clamping
+- [x] 04-01-PLAN.md — Add screen-bounds clamping to selection pill in layoutPill()
 
 ### Phase 5: Help Toggle System
 **Goal**: Users can dismiss the hint bar for a clean workspace and rediscover it when needed
@@ -83,10 +83,10 @@ Plans:
   3. Quitting and relaunching remembers the dismissed state (hint bar stays hidden)
   4. Launching with a previously-dismissed hint bar shows "Press ? for help" briefly on startup
   5. The transient "Press ? for help" message auto-fades without user action
-**Plans**: TBD
+**Plans:** 1 plan
 
 Plans:
-- [ ] 05-01: Hint bar toggle with transient help message and persistence
+- [x] 05-01-PLAN.md — Add transient help label, "?" re-enable, and session persistence
 
 ## Progress
 
@@ -99,5 +99,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 1. Debug Cleanup and Process Safety | 1/1 | ✓ Complete | 2026-02-13 |
 | 2. Cursor State Machine | 1/1 | ✓ Complete | 2026-02-13 |
 | 3. Snap Failure Shake | 1/1 | ✓ Complete | 2026-02-13 |
-| 4. Selection Pill Clamping | 0/1 | Not started | - |
-| 5. Help Toggle System | 0/1 | Not started | - |
+| 4. Selection Pill Clamping | 1/1 | ✓ Complete | 2026-02-13 |
+| 5. Help Toggle System | 1/1 | ✓ Complete | 2026-02-13 |

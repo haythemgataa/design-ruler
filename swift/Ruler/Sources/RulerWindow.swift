@@ -3,8 +3,6 @@ import QuartzCore
 
 /// Fullscreen borderless window that captures mouse and keyboard events.
 final class RulerWindow: NSWindow {
-    private let kHintBarDismissedKey = "com.raycast.design-ruler.hintBarDismissed"
-
     private(set) var targetScreen: NSScreen!
     private var edgeDetector: EdgeDetector!
     private var crosshairView: CrosshairView!
@@ -15,12 +13,6 @@ final class RulerWindow: NSWindow {
     private var hasReceivedFirstMove = false
     private var isDragging = false
     private var isHoveringSelection = false
-
-    // Transient "Press ? for help" message
-    private var transientBgLayer: CAShapeLayer?
-    private var transientTextLayer: CATextLayer?
-    private var transientGeneration: Int = 0
-    private var hideHintBarPref: Bool = false
 
     // Callbacks for multi-monitor coordination
     var onActivate: ((RulerWindow) -> Void)?
@@ -61,7 +53,6 @@ final class RulerWindow: NSWindow {
     }
 
     private func setupViews(screenFrame: CGRect, edgeDetector: EdgeDetector, hideHintBar: Bool) {
-        self.hideHintBarPref = hideHintBar
         let size = screenFrame.size
         let containerView = NSView(frame: NSRect(origin: .zero, size: size))
 
@@ -80,20 +71,12 @@ final class RulerWindow: NSWindow {
 
         let hv = HintBarView(frame: .zero)
         self.hintBarView = hv
-        let dismissed = UserDefaults.standard.bool(forKey: kHintBarDismissedKey)
-        var showTransientOnLaunch = false
-        if !hideHintBar && !dismissed {
+        if !hideHintBar {
             hv.configure(screenWidth: size.width, screenHeight: size.height)
             containerView.addSubview(hv)
-        } else if !hideHintBar && dismissed {
-            showTransientOnLaunch = true
         }
 
         contentView = containerView
-
-        if showTransientOnLaunch {
-            showTransientHelp()
-        }
     }
 
     private func setupTrackingArea() {
@@ -325,22 +308,6 @@ final class RulerWindow: NSWindow {
             if !event.isARepeat && hintVisible { hintBarView.pressKey(.up) }
             let edges = shift ? edgeDetector.decrementSkip(.bottom) : edgeDetector.incrementSkip(.top)
             if let edges { crosshairView.update(cursor: crosshairView.cursorPosition, edges: edges) }
-        case 51: // Backspace — dismiss hint bar, show transient help
-            if hintVisible {
-                hintBarView.pressKey(.backspace)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
-                    guard let self, self.hintBarView.superview != nil else { return }
-                    NSAnimationContext.runAnimationGroup({ ctx in
-                        ctx.duration = 0.2
-                        self.hintBarView.animator().alphaValue = 0
-                    }, completionHandler: {
-                        self.hintBarView.removeFromSuperview()
-                        self.hintBarView.alphaValue = 1  // Reset for potential re-add
-                        self.showTransientHelp()
-                    })
-                }
-                UserDefaults.standard.set(true, forKey: kHintBarDismissedKey)
-            }
         case 53: // ESC
             if hintVisible { hintBarView.pressKey(.esc) }
             onRequestExit?()
@@ -348,10 +315,6 @@ final class RulerWindow: NSWindow {
             break
         }
 
-        // Layout-independent "?" detection (Shift+/ on US, varies by layout)
-        if event.characters == "?" {
-            showHintBar()
-        }
     }
 
     override func keyUp(with event: NSEvent) {
@@ -374,130 +337,4 @@ final class RulerWindow: NSWindow {
         }
     }
 
-    // MARK: - Help Toggle System
-
-    /// Show transient "Press ? for help" message at bottom center.
-    /// Auto-fades after ~2.5s. Generation counter prevents stale callbacks.
-    private func showTransientHelp() {
-        transientGeneration += 1
-        let gen = transientGeneration
-
-        // Remove any existing transient layers
-        transientBgLayer?.removeFromSuperlayer()
-        transientTextLayer?.removeFromSuperlayer()
-
-        guard let parentLayer = contentView?.layer else { return }
-
-        let text = "Press  ?  for help"
-        let font = NSFont.systemFont(ofSize: 16, weight: .medium)
-        let attrs: [NSAttributedString.Key: Any] = [
-            .font: font,
-            .foregroundColor: NSColor.white,
-            .kern: -0.4 as CGFloat,
-        ]
-        let attrStr = NSAttributedString(string: text, attributes: attrs)
-        let textSize = attrStr.size()
-
-        let padH: CGFloat = 16
-        let padV: CGFloat = 10
-        let bgWidth = ceil(textSize.width) + padH * 2
-        let bgHeight = ceil(textSize.height) + padV * 2
-        let bgX = floor((screenBounds.width - bgWidth) / 2)
-        let bgY: CGFloat = 20  // Bottom margin (AppKit coords)
-
-        let bgLayer = CAShapeLayer()
-        bgLayer.frame = CGRect(x: bgX, y: bgY, width: bgWidth, height: bgHeight)
-        bgLayer.path = CGPath(roundedRect: CGRect(origin: .zero, size: bgLayer.frame.size),
-                               cornerWidth: 12, cornerHeight: 12, transform: nil)
-        bgLayer.fillColor = CGColor(gray: 0, alpha: 0.7)
-        bgLayer.shadowColor = CGColor(gray: 0, alpha: 0.2)
-        bgLayer.shadowOffset = CGSize(width: 0, height: -1)
-        bgLayer.shadowRadius = 4
-        bgLayer.shadowOpacity = 1
-
-        let textLayer = CATextLayer()
-        textLayer.string = attrStr
-        textLayer.contentsScale = backingScaleFactor
-        textLayer.frame = CGRect(
-            x: bgX + padH,
-            y: bgY + round((bgHeight - ceil(textSize.height)) / 2),
-            width: ceil(textSize.width),
-            height: ceil(textSize.height)
-        )
-        textLayer.alignmentMode = .center
-        textLayer.isWrapped = false
-
-        // Start invisible
-        bgLayer.opacity = 0
-        textLayer.opacity = 0
-
-        parentLayer.addSublayer(bgLayer)
-        parentLayer.addSublayer(textLayer)
-        transientBgLayer = bgLayer
-        transientTextLayer = textLayer
-
-        // Fade in
-        CATransaction.begin()
-        CATransaction.setAnimationDuration(0.3)
-        CATransaction.setAnimationTimingFunction(CAMediaTimingFunction(name: .easeOut))
-        bgLayer.opacity = 1
-        textLayer.opacity = 1
-        CATransaction.commit()
-
-        // Schedule auto-fade with generation guard
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.3) { [weak self] in
-            guard let self, self.transientGeneration == gen else { return }
-            self.fadeOutTransientHelp()
-        }
-    }
-
-    /// Fade out and remove transient help layers.
-    private func fadeOutTransientHelp() {
-        transientGeneration += 1
-        guard transientBgLayer != nil || transientTextLayer != nil else { return }
-
-        CATransaction.begin()
-        CATransaction.setAnimationDuration(0.5)
-        CATransaction.setAnimationTimingFunction(CAMediaTimingFunction(name: .easeOut))
-        CATransaction.setCompletionBlock { [weak self] in
-            self?.transientBgLayer?.removeFromSuperlayer()
-            self?.transientTextLayer?.removeFromSuperlayer()
-            self?.transientBgLayer = nil
-            self?.transientTextLayer = nil
-        }
-        transientBgLayer?.opacity = 0
-        transientTextLayer?.opacity = 0
-        CATransaction.commit()
-    }
-
-    /// Re-enable the hint bar (triggered by "?" key).
-    private func showHintBar() {
-        guard hintBarView.superview == nil else { return }
-        guard !hideHintBarPref else { return }
-        guard let container = contentView else { return }
-
-        // Clear stale pressed key states
-        for key in HintBarView.KeyID.allCases {
-            hintBarView.releaseKey(key)
-        }
-
-        hintBarView.alphaValue = 0
-        hintBarView.configure(screenWidth: screenBounds.width, screenHeight: screenBounds.height)
-        container.addSubview(hintBarView)
-
-        // Update position for current cursor location
-        let mouse = NSEvent.mouseLocation
-        let wp = NSPoint(x: mouse.x - screenBounds.origin.x, y: mouse.y - screenBounds.origin.y)
-        hintBarView.updatePosition(cursorY: wp.y, screenHeight: screenBounds.height)
-
-        NSAnimationContext.runAnimationGroup({ ctx in
-            ctx.duration = 0.3
-            hintBarView.animator().alphaValue = 1
-        })
-
-        UserDefaults.standard.removeObject(forKey: kHintBarDismissedKey)
-
-        // Remove transient help if visible
-        fadeOutTransientHelp()
-    }
 }

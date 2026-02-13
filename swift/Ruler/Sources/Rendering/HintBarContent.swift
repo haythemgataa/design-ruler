@@ -68,15 +68,11 @@ private struct ExtraHintCard: View {
 
     var body: some View {
         HStack(spacing: 4) {
+            extraText("Press")
             KeyCap(.esc, symbol: "esc", width: 32, height: 20,
                    symbolFont: .system(size: 12, weight: .bold, design: .rounded),
                    symbolTracking: -0.2, align: .center, state: state)
             extraText("to exit.")
-                .padding(.trailing, 4)
-            KeyCap(.backspace, symbol: "\u{232B}", width: 32, height: 20,
-                   symbolFont: .system(size: 14, weight: .bold, design: .rounded),
-                   symbolTracking: -0.2, align: .bottomTrailing, state: state)
-            extraText("to not show this hint again.")
         }
         .padding(8)
         .background(

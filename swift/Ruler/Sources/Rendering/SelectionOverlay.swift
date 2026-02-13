@@ -190,7 +190,7 @@ final class SelectionOverlay {
         CATransaction.commit()
     }
 
-    /// Shake horizontally (macOS login rejection idiom) then fade out and remove.
+    /// Shake horizontally (macOS login rejection idiom) with overlapping fade out.
     func shakeAndRemove() {
         let shake = CAKeyframeAnimation(keyPath: "position.x")
         shake.values = [0, -10, 10, -6, 6, -2, 2, 0]
@@ -198,14 +198,28 @@ final class SelectionOverlay {
         shake.duration = 0.4
         shake.isAdditive = true
 
+        let fade = CABasicAnimation(keyPath: "opacity")
+        fade.fromValue = 1.0
+        fade.toValue = 0.0
+        fade.beginTime = 0.4
+        fade.duration = 0.2
+        fade.fillMode = .forwards
+
+        let group = CAAnimationGroup()
+        group.animations = [shake, fade]
+        group.duration = 0.4
+        group.fillMode = .forwards
+        group.isRemovedOnCompletion = false
+
         let layers: [CALayer] = [rectLayer, fillLayer, pillBgLayer, pillTextLayer]
 
         CATransaction.begin()
-        CATransaction.setCompletionBlock { [weak self] in
-            self?.remove(animated: true)
+        CATransaction.setCompletionBlock {
+            layers.forEach { $0.removeFromSuperlayer() }
         }
         for layer in layers {
-            layer.add(shake, forKey: "shake")
+            layer.opacity = 0  // model value matches final state
+            layer.add(group, forKey: "shakeAndFade")
         }
         CATransaction.commit()
     }
