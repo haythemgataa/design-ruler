@@ -187,6 +187,26 @@ final class SelectionOverlay {
         CATransaction.commit()
     }
 
+    /// Shake horizontally (macOS login rejection idiom) then fade out and remove.
+    func shakeAndRemove() {
+        let shake = CAKeyframeAnimation(keyPath: "position.x")
+        shake.values = [0, -10, 10, -6, 6, -2, 2, 0]
+        shake.keyTimes = [0, 0.1, 0.25, 0.4, 0.55, 0.7, 0.85, 1.0] as [NSNumber]
+        shake.duration = 0.4
+        shake.isAdditive = true
+
+        let layers: [CALayer] = [rectLayer, fillLayer, pillBgLayer, pillTextLayer]
+
+        CATransaction.begin()
+        CATransaction.setCompletionBlock { [weak self] in
+            self?.remove(animated: true)
+        }
+        for layer in layers {
+            layer.add(shake, forKey: "shake")
+        }
+        CATransaction.commit()
+    }
+
     func remove(animated: Bool) {
         let layers: [CALayer] = [rectLayer, fillLayer, pillBgLayer, pillTextLayer]
         if animated {
