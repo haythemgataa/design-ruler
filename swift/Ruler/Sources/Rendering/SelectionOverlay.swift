@@ -11,6 +11,7 @@ final class SelectionOverlay {
     private(set) var state: State = .normal
     private var dimensionW: Int = 0
     private var dimensionH: Int = 0
+    private let screenSize: CGSize
 
     // Layers
     let rectLayer = CAShapeLayer()
@@ -32,6 +33,7 @@ final class SelectionOverlay {
     private let pillRadius: CGFloat = 8
     private let pillGap: CGFloat = 6
     private let slideDistance: CGFloat = 4  // intro animation slide
+    private let clampMargin: CGFloat = 4   // shadow: radius=3 + offset.y=1
 
     // Squircle kappa (same as CrosshairView)
     private let k: CGFloat = 0.72
@@ -52,6 +54,7 @@ final class SelectionOverlay {
 
     init(rect: CGRect, parentLayer: CALayer, scale: CGFloat) {
         self.rect = rect
+        self.screenSize = parentLayer.bounds.size
         setupLayers(parentLayer: parentLayer, scale: scale)
         updateRect(rect, animated: false)
     }
@@ -269,11 +272,18 @@ final class SelectionOverlay {
         let textH = ceil(textSize.height)
 
         // Position pill below the selection rect (or above if near bottom)
-        let pillX = round(rect.midX - pillW / 2)
+        var pillX = round(rect.midX - pillW / 2)
         var pillY = round(rect.minY - pillGap - pillHeight)
-        if pillY < 8 {
+        if pillY < clampMargin {
             pillY = round(rect.maxY + pillGap)
         }
+
+        // Clamp to screen bounds (accounting for shadow)
+        let maxX = screenSize.width - pillW - clampMargin
+        pillX = min(max(pillX, clampMargin), max(clampMargin, maxX))
+
+        let maxY = screenSize.height - pillHeight - clampMargin
+        pillY = min(max(pillY, clampMargin), max(clampMargin, maxY))
 
         let pillRect = CGRect(x: pillX, y: pillY, width: pillW, height: pillHeight)
         pillBgLayer.frame = pillRect
