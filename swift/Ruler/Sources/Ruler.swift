@@ -18,6 +18,7 @@ final class Ruler {
     private var firstMoveReceived = false
     private var inactivityTimer: Timer?
     private let inactivityTimeout: TimeInterval = 600 // 10 minutes
+    private var sigTermSource: DispatchSourceSignal?
 
     private init() {}
 
@@ -106,6 +107,7 @@ final class Ruler {
         activeWindow = cursorWindow
 
         NSApp.activate(ignoringOtherApps: true)
+        setupSignalHandler()
         resetInactivityTimer()
         app.run()
     }
@@ -124,9 +126,7 @@ final class Ruler {
     }
 
     private func handleExit() {
-        if firstMoveReceived {
-            NSCursor.unhide()
-        }
+        CursorManager.shared.restore()
         for window in windows {
             window.close()
         }
@@ -135,6 +135,16 @@ final class Ruler {
 
     private func handleFirstMove() {
         firstMoveReceived = true
+    }
+
+    private func setupSignalHandler() {
+        signal(SIGTERM, SIG_IGN)
+        let source = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
+        source.setEventHandler { [weak self] in
+            self?.handleExit()
+        }
+        source.resume()
+        sigTermSource = source
     }
 
     private func resetInactivityTimer() {
