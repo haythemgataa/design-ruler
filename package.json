@@ -3,7 +3,7 @@
   "name": "design-ruler",
   "title": "Design Ruler",
   "description": "Measure UI with edge detection and add lines to verify alignment.",
-  "icon": "extension-icon.png",
+  "icon": "design-ruler-icon.png",
   "author": "haythem_gataa",
   "platforms": [
     "macOS"
