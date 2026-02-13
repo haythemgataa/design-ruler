@@ -33,8 +33,6 @@ final class EdgeDetector {
             [.bestResolution]
         ) else { return nil }
 
-        fputs("[DEBUG] screen.frame(AppKit)=\(frame) cgRect=\(cgRect) cgImage=\(cgImage.width)×\(cgImage.height) backing=\(screen.backingScaleFactor)\n", stderr)
-
         // screenFrame in AX/CG coords for ColorMap
         let screenFrame = cgRect
         applyCapture(cgImage: cgImage, screenFrame: screenFrame)
@@ -70,11 +68,7 @@ final class EdgeDetector {
         skipCounts = (0, 0, 0, 0)
         let axPoint = CoordinateConverter.appKitToAX(appKitPoint)
         lastCursorPosition = axPoint
-        let edges = currentEdges(at: axPoint)
-        if edges == nil {
-            fputs("[DEBUG] onMouseMoved: currentEdges returned nil (colorMap=\(colorMap == nil ? "nil" : "exists")) at \(axPoint)\n", stderr)
-        }
-        return edges
+        return currentEdges(at: axPoint)
     }
 
     /// Scan cached ColorMap at point (AX coords) with current skip counts.

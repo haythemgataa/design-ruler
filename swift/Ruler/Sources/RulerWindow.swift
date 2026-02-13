@@ -223,7 +223,6 @@ final class RulerWindow: NSWindow {
         // Reset stale drag state — if mouseUp was never delivered (e.g., system stole the event),
         // isDragging could be stuck true, preventing new drags from starting correctly
         if isDragging {
-            fputs("[DEBUG] mouseDown: isDragging was still true, resetting stale state\n", stderr)
             isDragging = false
             crosshairView.showAfterDrag()
             if hasReceivedFirstMove { NSCursor.pop(); NSCursor.hide() }
@@ -249,8 +248,6 @@ final class RulerWindow: NSWindow {
             return
         }
 
-        fputs("[DEBUG] mouseDown: starting drag at \(windowPoint), selections=\(selectionManager.hasSelections)\n", stderr)
-
         // Start drag
         isDragging = true
         if isHoveringSelection {
@@ -268,19 +265,13 @@ final class RulerWindow: NSWindow {
     }
 
     override func mouseDragged(with event: NSEvent) {
-        if !isDragging {
-            fputs("[DEBUG] mouseDragged: rejected — isDragging is false\n", stderr)
-            return
-        }
+        if !isDragging { return }
         let windowPoint = event.locationInWindow
         selectionManager.updateDrag(to: windowPoint)
     }
 
     override func mouseUp(with event: NSEvent) {
-        if !isDragging {
-            fputs("[DEBUG] mouseUp: rejected — isDragging is false\n", stderr)
-            return
-        }
+        if !isDragging { return }
         isDragging = false
 
         let windowPoint = event.locationInWindow
