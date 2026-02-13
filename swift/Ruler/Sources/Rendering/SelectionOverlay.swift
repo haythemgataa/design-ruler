@@ -201,8 +201,8 @@ final class SelectionOverlay {
         let fade = CABasicAnimation(keyPath: "opacity")
         fade.fromValue = 1.0
         fade.toValue = 0.0
-        fade.beginTime = 0.4
-        fade.duration = 0.2
+        fade.beginTime = 0.1
+        fade.duration = 0.3
         fade.fillMode = .forwards
 
         let group = CAAnimationGroup()
