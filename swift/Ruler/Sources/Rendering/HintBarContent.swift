@@ -54,6 +54,44 @@ struct HintBarContent: View {
     }
 }
 
+// MARK: - Collapsed Content Views
+
+struct CollapsedLeftContent: View {
+    @ObservedObject var state: HintBarState
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ArrowCluster(state: state)
+            KeyCap(.shift, symbol: "\u{21E7}", width: 40, height: 25,
+                   symbolFont: .system(size: 16, weight: .bold, design: .rounded),
+                   symbolTracking: -0.2, align: .bottomLeading, state: state)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+    }
+}
+
+struct CollapsedRightContent: View {
+    @ObservedObject var state: HintBarState
+
+    private var isDark: Bool { !state.isOnLightBackground }
+
+    private var escTint: Color {
+        isDark
+            ? Color(nsColor: NSColor(srgbRed: 0xFF / 255.0, green: 0xB2 / 255.0, blue: 0xB2 / 255.0, alpha: 1))
+            : Color(nsColor: NSColor(srgbRed: 0x80 / 255.0, green: 0, blue: 0, alpha: 1))
+    }
+
+    var body: some View {
+        KeyCap(.esc, symbol: "esc", width: 32, height: 25,
+               symbolFont: .system(size: 13, weight: .bold, design: .rounded),
+               symbolTracking: -0.2, align: .center, state: state,
+               tint: escTint, tintFill: Color(nsColor: NSColor(srgbRed: 1, green: 0, blue: 0, alpha: 0.1)))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+    }
+}
+
 // MARK: - Arrow Cluster
 
 private struct ArrowCluster: View {

@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-02-13)
 
 **Core value:** Instant, accurate pixel inspection of anything on screen — zero friction from Raycast invoke to dimension readout.
-**Current focus:** Phase 6 — Remove Help Toggle System
+**Current focus:** Phase 7 — Hint Bar Visual Redesign
 
 ## Current Position
 
-Phase: 6 of 8 — Remove Help Toggle System (COMPLETE)
-Plan: 1 of 1
-Status: Phase complete
-Last activity: 2026-02-14 — Phase 6 executed (06-01 remove help toggle artifacts)
+Phase: 7 of 8 — Hint Bar Visual Redesign
+Plan: 1 of 2
+Status: Plan 07-01 complete
+Last activity: 2026-02-14 — Plan 07-01 executed (glass panel + keycap redesign)
 
 ## Performance Metrics
 
@@ -26,12 +26,18 @@ Last activity: 2026-02-14 — Phase 6 executed (06-01 remove help toggle artifac
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
 | 06    | 01   | 43s      | 1     | 1     |
+| 07    | 01   | 31min    | 2     | 4     |
 
 ## Accumulated Context
 
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table.
+
+- 07-01: Use NSGlassEffectView on macOS 26+ with NSVisualEffectView fallback
+- 07-01: Sample screenshot brightness for adaptive glass tint instead of relying on system color scheme
+- 07-01: Merge MainHintCard and ExtraHintCard into single-row layout
+- 07-01: Add red tint to ESC keycap for visual distinction
 
 ### Pending Todos
 
@@ -44,5 +50,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-14
-Stopped at: Completed 06-01-PLAN.md — Phase 6 complete, ready for Phase 7
+Stopped at: Completed 07-01-PLAN.md — Plan 1 of 2 in Phase 7 complete, ready for 07-02
 Resume file: None
