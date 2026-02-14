@@ -14,6 +14,7 @@ final class HintBarView: NSView {
     // MARK: - State & hosting
 
     private let state = HintBarState()
+    private var glassPanel: NSVisualEffectView?
     private var hostingView: NSHostingView<HintBarContent>?
 
     // MARK: - Animation
@@ -38,10 +39,27 @@ final class HintBarView: NSView {
     }
 
     private func setupHostingView() {
+        let glass = makeGlassPanel()
+        self.glassPanel = glass
+        addSubview(glass)
+
         let content = HintBarContent(state: state)
         let hosting = NSHostingView(rootView: content)
-        addSubview(hosting)
+        hosting.autoresizingMask = [.width, .height]
+        glass.addSubview(hosting)
         self.hostingView = hosting
+    }
+
+    private func makeGlassPanel() -> NSVisualEffectView {
+        let vev = NSVisualEffectView()
+        vev.blendingMode = .withinWindow
+        vev.material = .hudWindow
+        vev.state = .active
+        vev.wantsLayer = true
+        vev.layer?.cornerRadius = 18
+        vev.layer?.cornerCurve = .continuous
+        vev.layer?.masksToBounds = true
+        return vev
     }
 
     // MARK: - Hit testing (pass all events through to the window)
@@ -57,11 +75,12 @@ final class HintBarView: NSView {
 
     /// Compute layout and set initial frame at bottom center.
     func configure(screenWidth: CGFloat, screenHeight: CGFloat) {
-        guard let hosting = hostingView else { return }
+        guard let hosting = hostingView, let glass = glassPanel else { return }
         let size = hosting.fittingSize
         let viewX = floor((screenWidth - size.width) / 2)
         frame = NSRect(x: viewX, y: barMargin, width: size.width, height: size.height)
-        hosting.frame = bounds
+        glass.frame = bounds
+        hosting.frame = glass.bounds
         isAtBottom = true
     }
 

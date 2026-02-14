@@ -34,22 +34,13 @@ private struct MainHintCard: View {
             ArrowCluster(state: state)
             mainText("to skip an edge.")
             mainText("Plus")
-            KeyCap(.shift, symbol: "\u{21E7}", width: 32, height: 20,
-                   symbolFont: .system(size: 14, weight: .bold, design: .rounded),
+            KeyCap(.shift, symbol: "\u{21E7}", width: 40, height: 25,
+                   symbolFont: .system(size: 16, weight: .bold, design: .rounded),
                    symbolTracking: -0.2, align: .bottomLeading, state: state)
             mainText("to invert.")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(colorScheme == .dark ? Color(nsColor: NSColor(srgbRed: 0x2C / 255.0, green: 0x2C / 255.0, blue: 0x2C / 255.0, alpha: 1)) : .white)
-                .shadow(color: .black.opacity(0.12), radius: 16, y: 8)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder((colorScheme == .dark ? Color.white : Color.black).opacity(0.10), lineWidth: 1)
-        )
     }
 
     private func mainText(_ string: String) -> Text {
@@ -69,29 +60,12 @@ private struct ExtraHintCard: View {
     var body: some View {
         HStack(spacing: 4) {
             extraText("Press")
-            KeyCap(.esc, symbol: "esc", width: 32, height: 20,
-                   symbolFont: .system(size: 12, weight: .bold, design: .rounded),
+            KeyCap(.esc, symbol: "esc", width: 32, height: 25,
+                   symbolFont: .system(size: 13, weight: .bold, design: .rounded),
                    symbolTracking: -0.2, align: .center, state: state)
             extraText("to exit.")
         }
         .padding(8)
-        .background(
-            UnevenRoundedRectangle(
-                topLeadingRadius: 0, bottomLeadingRadius: 12,
-                bottomTrailingRadius: 12, topTrailingRadius: 0,
-                style: .continuous
-            )
-            .fill(colorScheme == .dark ? Color(nsColor: NSColor(srgbRed: 0x1E / 255.0, green: 0x1E / 255.0, blue: 0x1E / 255.0, alpha: 1)) : .white)
-            .shadow(color: .black.opacity(0.10), radius: 8, y: 4)
-        )
-        .overlay(
-            UnevenRoundedRectangle(
-                topLeadingRadius: 0, bottomLeadingRadius: 12,
-                bottomTrailingRadius: 12, topTrailingRadius: 0,
-                style: .continuous
-            )
-            .strokeBorder((colorScheme == .dark ? Color.white : Color.black).opacity(0.10), lineWidth: 1)
-        )
     }
 
     private func extraText(_ string: String) -> Text {
@@ -107,17 +81,17 @@ private struct ExtraHintCard: View {
 private struct ArrowCluster: View {
     @ObservedObject var state: HintBarState
 
-    private let capW: CGFloat = 20
-    private let capH: CGFloat = 16
+    private let capW: CGFloat = 26
+    private let capH: CGFloat = 11
     private let hGap: CGFloat = 1
-    private let vGap: CGFloat = 3
+    private let vGap: CGFloat = 2
 
     var body: some View {
-        let font = Font.system(size: 9, weight: .bold, design: .rounded)
+        let font = Font.system(size: 7, weight: .bold, design: .rounded)
         VStack(spacing: vGap) {
             KeyCap(.up, symbol: "\u{25B2}", width: capW, height: capH,
                    symbolFont: font, symbolTracking: 0, align: .center, state: state)
-                .offset(y: 2)
+                .offset(y: 1)
             HStack(spacing: hGap) {
                 KeyCap(.left, symbol: "\u{25C0}\u{FE0E}", width: capW, height: capH,
                        symbolFont: font, symbolTracking: 0, align: .center, state: state)
