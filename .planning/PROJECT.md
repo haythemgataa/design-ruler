@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A macOS pixel inspector launched from Raycast. The user invokes it, a fullscreen overlay appears (frozen screenshot), and a crosshair follows the cursor showing detected edges in 4 directions with live W×H dimensions. Arrow keys skip past edges. Users can drag to select and snap regions. Multi-monitor support with per-screen capture.
+A macOS pixel inspector launched from Raycast. The user invokes it, a fullscreen overlay appears (frozen screenshot), and a crosshair follows the cursor showing detected edges in 4 directions with live W×H dimensions. Arrow keys skip past edges. Users can drag to select and snap regions. Multi-monitor support with per-screen capture. Hint bar with liquid glass morph animation on launch.
 
 ## Core Value
 
@@ -23,15 +23,22 @@ Instant, accurate pixel inspection of anything on screen — zero friction from 
 - ✓ Multi-monitor support (one window per screen, cursor-follows activation) — existing
 - ✓ GPU-composited rendering via CAShapeLayer (no draw() override, low CPU) — existing
 - ✓ System crosshair cursor on launch, hidden after first mouse move — existing
+- ✓ Clean production builds with zero stderr debug output — v1.0
+- ✓ Snap failure shake animation (macOS login rejection idiom) — v1.0
+- ✓ Selection pill clamped to screen bounds with shadow clearance — v1.0
+- ✓ ~~Help toggle: backspace dismiss, "?" re-enable, session persistence~~ — v1.0 (replaced in v1.1)
+- ✓ 10-minute inactivity watchdog preventing zombie processes — v1.0
+- ✓ Centralized CursorManager with SIGTERM handler — v1.0
+- ✓ Hint bar redesign with liquid glass background and launch-to-collapse animation — v1.1
+- ✓ New keycap sizes and layout (arrows 26x11, shift 40x25, esc 32x25) — v1.1
+- ✓ ESC keycap in main bar with reddish tint (dark/light mode aware) — v1.1
+- ✓ Bar split animation: full text → two keycap-only bars (arrows+shift left, esc right) — v1.1
+- ✓ Liquid glass on macOS 26+, vibrancy fallback on older versions — v1.1
+- ✓ Remove backspace-dismiss / ? re-enable system (preference-only hide) — v1.1
 
 ### Active
 
-- [ ] Remove debug fputs statements from production code
-- [ ] Selection snap failure shake animation (horizontal shake before fade-out)
-- [ ] Selection overlay pill — clamp to screen bounds
-- [ ] Hint bar toggle: backspace dismisses + brief "Press ? for help" + `?` re-enables
-- [ ] Process timeout safety valve (~10 min max lifetime)
-- [ ] Cursor state machine hardening (centralize push/pop/hide/unhide)
+(None — planning next milestone)
 
 ### Out of Scope
 
@@ -46,9 +53,10 @@ Instant, accurate pixel inspection of anything on screen — zero friction from 
 
 - Raycast extension: TypeScript thin wrapper calls Swift via `@raycast` macro bridge
 - Raycast only deploys the Swift binary — no `.bundle` directories, no `Bundle.module`
-- macOS 13+ minimum, Swift 5.9+, AppKit + CoreGraphics + QuartzCore
+- macOS 13+ minimum, Swift 5.9+, AppKit + CoreGraphics + QuartzCore + SwiftUI
 - CGWindowListCreateImage has a cold-start penalty on macOS 26; mitigated by 1x1 warmup capture
 - Coordinate system duality: AppKit (bottom-left origin) for UI, CG (top-left origin) for pixel scanning
+- Shipped v1.1 Hint Bar Redesign with 8,267 LOC Swift across 8 phases
 - Existing codebase map at `.planning/codebase/` (7 documents, mapped 2026-02-13)
 
 ## Constraints
@@ -68,6 +76,16 @@ Instant, accurate pixel inspection of anything on screen — zero friction from 
 | CAShapeLayer with difference blend for crosshair | GPU composited, visible on any background | ✓ Good |
 | Smart border correction as default | Automatically absorbs 1px CSS borders using 4px grid heuristic | ✓ Good |
 | Per-screen window creation (not lazy) | Simpler coordination, all screens ready immediately | — Pending |
+| Removed fputs entirely (not #if DEBUG gated) | Raycast always builds debug config, so the flag provides zero protection | ✓ Good |
+| Singleton CursorManager.shared | NSCursor is inherently global state; matches existing Ruler.shared pattern | ✓ Good |
+| State enum for cursor (4 cases) | Prevents impossible state combinations vs scattered boolean flags | ✓ Good |
+| Additive CAKeyframeAnimation for shake | Same animation works on all layers regardless of position; no model layer changes | ✓ Good |
+| Shadow-aware 4px clampMargin | Uniform margin simpler than per-edge computation; sufficient for shadowRadius=3 + offset=1 | ✓ Good |
+| NSGlassEffectView on macOS 26+ with NSVisualEffectView fallback | Native glass material on Tahoe, graceful degradation on older systems | ✓ Good |
+| Screenshot brightness sampling for adaptive glass tint | Adapts to frozen screenshot content, not system color scheme | ✓ Good |
+| SwiftUI GlassEffectContainer morph (macOS 26+) | Native liquid glass split animation; two-layer rendering hack enables smooth keycap sliding + glass split | ✓ Good |
+| 3-second minimum expanded display | Ensures users can read hint text before collapse on first mouse move | ✓ Good |
+| NSAnimationContext crossfade fallback (pre-macOS 26) | Simple, reliable animation without SwiftUI glass APIs | ✓ Good |
 
 ---
-*Last updated: 2026-02-13 after initialization*
+*Last updated: 2026-02-14 after v1.1 milestone*

@@ -1,173 +1,127 @@
-# Domain Pitfalls
+# Domain Pitfalls: Hint Bar Redesign with Liquid Glass and Split Animation
 
-**Domain:** macOS pixel inspector enhancement (Raycast extension, Swift/AppKit/CoreAnimation)
+**Domain:** macOS overlay window -- adding blur/glass effects and morphing animations to existing CALayer UI
 **Researched:** 2026-02-13
+**Milestone context:** Redesigning existing hint bar from SwiftUI (NSHostingView) to a liquid glass style with a bar-splitting animation
 
 ---
 
 ## Critical Pitfalls
 
-Mistakes that cause hard-to-debug regressions, stuck UI state, or crashes.
+Mistakes that cause visual breakage, performance regression, or require architectural rework.
 
 ---
 
-### Pitfall 1: NSCursor Push/Pop Stack Imbalance
+### Pitfall 1: NSVisualEffectView Cannot Blur an Opaque Window's Own Content
 
-**Enhancement affected:** Any code path that changes cursors (drag mode, hover mode, deactivate, exit)
+**What goes wrong:** The current window is opaque (`window.isOpaque = true`, RulerWindow.swift line 43) with a frozen screenshot as background. `NSVisualEffectView` with `.behindWindow` blending mode samples content *behind the window* from the window server -- not from sibling views within the same window. Since the window is opaque, the window server sees a solid rectangle, and the blur shows a solid rectangle. No blur effect is visible. Switching to `.withinWindow` blending mode *can* work but has constraints: it blurs content from behind the view within the window's layer tree, and the screenshot must be correctly positioned as a layer below the effect view.
 
-**What goes wrong:** `NSCursor.push()` and `NSCursor.pop()` maintain a stack. Every `push()` MUST have exactly one matching `pop()`. If a code path pushes a cursor but skips the pop (e.g., an early return, a guard clause, a deactivate call that interrupts a drag), the cursor stack accumulates stale entries. The visible symptom is either (a) the wrong cursor showing after an operation, or (b) `pop()` restoring a cursor you pushed three states ago instead of the one you expect.
-
-**Why it happens in THIS codebase:** RulerWindow already has 10+ NSCursor.push/pop/hide/unhide call sites across `deactivate()`, `mouseMoved()`, `mouseDown()`, `mouseUp()`, and the stale-drag-state reset. Adding new cursor states (e.g., a "shake feedback" state or additional interaction modes) multiplies the paths through this state machine. The existing code already has a defensive reset in `mouseDown` for stale drag state -- proof that event delivery can be interrupted by the system, leaving push/pop unbalanced.
+**Why it happens:** `NSVisualEffectView` relies on `CABackdropLayer`, a private Core Animation class that samples pixels from the window server's composited output. An opaque window tells the window server "there is nothing behind me" -- so `.behindWindow` backdrop sampling returns nothing meaningful. The frozen screenshot exists as a bitmap assigned to a `CALayer.contents` property (RulerWindow.swift line 98), which is within the window but requires the `.withinWindow` mode and proper layer ordering to sample.
 
 **Consequences:**
-- Cursor stuck as crosshair, pointing hand, or arrow after exiting the overlay
-- Cursor permanently hidden after exit (user has to wiggle mouse violently to recover)
-- Silent corruption: the stack seems fine during testing but breaks in edge cases (multi-monitor transition mid-drag, system alert interrupting the app)
+- Hint bar background appears as solid gray/black instead of frosted glass
+- Or the blur works during development (non-opaque test config) but breaks in production
+- Switching `isOpaque = false` to "fix" this destroys the frozen-screenshot illusion and introduces flicker on launch
 
 **Prevention:**
-1. Track cursor state with an enum, not implicit push/pop pairing:
-   ```swift
-   enum CursorState { case hidden, system, crosshair, pointingHand }
-   private var cursorState: CursorState = .system
+1. Do NOT use `NSVisualEffectView` with `.behindWindow` for this use case. The window must stay opaque.
+2. Use `.withinWindow` blending mode with careful view hierarchy ordering: place the `NSVisualEffectView` *above* the background image view so it can sample through the image content. Both must be in the same `NSView` subtree.
+3. Alternative: skip `NSVisualEffectView` entirely and implement blur manually -- render the screenshot region under the hint bar into a small `CIImage`, apply `CIGaussianBlur`, composite as `CALayer.contents` bitmap. One-time render (frozen screenshot), so performance is not a concern.
+4. Third option: use a separate non-opaque child `NSWindow` positioned over the hint bar area. The child window can use `.behindWindow` because the main window's content IS behind it from the window server's perspective. But this adds multi-window coordination complexity.
 
-   private func setCursor(_ newState: CursorState) {
-       guard newState != cursorState else { return }
-       // Pop previous push if needed
-       if cursorState == .crosshair || cursorState == .pointingHand {
-           NSCursor.pop()
-       }
-       // Hide/unhide balance
-       if cursorState == .hidden && newState != .hidden {
-           NSCursor.unhide()
-       }
-       // Apply new state
-       switch newState {
-       case .hidden: NSCursor.hide()
-       case .system: break  // unhide already handled above
-       case .crosshair: NSCursor.crosshair.push(); NSCursor.unhide()
-       case .pointingHand: NSCursor.pointingHand.push(); NSCursor.unhide()
-       }
-       cursorState = newState
-   }
-   ```
-2. In `handleExit()`, forcefully reset: pop any pushed cursor, call `NSCursor.unhide()` to zero-out the hide counter
-3. Add a debug assertion that `cursorState == .system` after exit in debug builds
+**Detection:** If the hint bar background is a solid color with no visible blur/transparency of the screenshot beneath it, this pitfall has been hit.
 
-**Detection:** After any interaction sequence (drag, hover selection, multi-monitor switch, ESC), check that the macOS cursor is visible and correct. Automate by logging cursor state transitions.
-
-**Confidence:** HIGH -- the existing code already has a defensive reset for stale drag state at RulerWindow.swift line 225, confirming that event delivery interruptions happen in practice.
+**Confidence:** HIGH -- based on [Apple NSVisualEffectView docs](https://developer.apple.com/documentation/appkit/nsvisualeffectview), [Reverse Engineering NSVisualEffectView](https://oskargroth.com/blog/reverse-engineering-nsvisualeffectview), and direct analysis of the codebase's opaque window setup.
 
 ---
 
-### Pitfall 2: NSCursor.hide()/unhide() Counter Mismatch
+### Pitfall 2: NSVisualEffectView and Layer-Hosting Views Are Incompatible
 
-**Enhancement affected:** Exit path, any new feature that hides/shows cursor
+**What goes wrong:** The CrosshairView uses `wantsLayer = true` and directly manipulates `CAShapeLayer` sublayers (CrosshairView.swift lines 141-183). Adding an `NSVisualEffectView` as a sibling that shares the same layer tree causes the visual effect view's internal `CABackdropLayer` to malfunction. The blur effect disappears entirely.
 
-**What goes wrong:** `NSCursor.hide()` and `NSCursor.unhide()` maintain an internal counter (not documented publicly, but confirmed by observed behavior and third-party investigation). Calling `hide()` twice requires calling `unhide()` twice. If the counts do not match at exit, the user's cursor remains invisible system-wide until they wiggle the mouse aggressively (which triggers macOS's "lost cursor" enlargement).
-
-**Why it happens in THIS codebase:** The code calls `NSCursor.hide()` in `hideSystemCrosshair()` (CrosshairView.swift line 117). Separately, various paths in RulerWindow call `NSCursor.hide()` when exiting hover state (lines 126, 132, 210, 238, 302). The exit handler in Ruler.swift line 121 calls `NSCursor.unhide()` only once. If the hide counter is 2 at exit, one unhide is insufficient.
+**Why it happens:** `NSVisualEffectView` creates its own internal layer hierarchy including `CABackdropLayer`. In a layer-hosting view hierarchy, the view system's layer management conflicts with manual layer management. The window server either cannot see the backdrop layer or the layer tree gets "flattened" after ~1 second of inactivity (documented WindowServer behavior for performance), destroying the backdrop's ability to sample live content.
 
 **Consequences:**
-- User's cursor disappears after closing the overlay
-- No crash, no error -- just an invisible cursor
-- Especially bad because this is a Raycast extension -- the user expects to return to normal desktop usage immediately
+- Blur effect silently fails (no error, no crash)
+- May appear to work initially, then breaks after 1 second of window idleness
+- Intermittent: works on some macOS versions but not others
 
 **Prevention:**
-1. Centralize hide/unhide through the cursor state enum described in Pitfall 1 -- only one code path ever calls `hide()`, so the counter is always 0 or 1
-2. In the exit handler, use `CGDisplayShowCursor(CGMainDisplayID())` as a nuclear reset that ignores the AppKit counter (call it in a loop if needed, or once since CGDisplay calls bypass the NSCursor counter)
-3. Never call `NSCursor.hide()` directly from multiple code paths -- route through a single function that tracks a local counter, so you can forcefully unhide by calling unhide that many times on exit
+1. Keep `NSVisualEffectView` in a *separate* NSView subtree from any layer-hosting views. The hint bar is already a separate NSView (HintBarView) added as a sibling of CrosshairView (RulerWindow.swift lines 72-77). This is the correct architecture.
+2. Verify that HintBarView itself does not become a layer-hosting view. The current `wantsLayer = true` (line 30) makes it layer-backed (safe). But adding CALayers directly to its `layer` property would make it layer-hosting (breaks blur).
+3. If you need both blur AND custom CALayers in the hint bar, stack them: `hintBarView > [NSVisualEffectView (bottom), customLayerView (top)]` where the blur view and the layer-hosting content view are siblings, not parent-child.
 
-**Detection:** Test the exit path from every possible state: mid-drag, hovering selection, normal crosshair mode, initial state before first mouse move.
+**Detection:** If blur works initially but disappears after the window has been idle for about one second, the WindowServer layer flattening is destroying the backdrop layer.
 
-**Confidence:** HIGH -- based on [Apple's NSCursor documentation](https://developer.apple.com/documentation/appkit/nscursor/hide()), [Sam Soffes's investigation](https://soff.es/blog/aggressively-hiding-the-cursor), and observed behavior in the existing codebase.
+**Confidence:** HIGH -- based on [NSVisualEffectView layer-hosting incompatibility](https://databasefaq.com/index.php/answer/164756/osx-calayer-nsview-nswindow-nsvisualeffectview-how-to-use-nsvisualeffectview-in-a-layer-host-nsview), [CABackdropLayer flattening behavior](https://medium.com/@avaidyam/capluginlayer-cabackdroplayer-f56e85d9dc2c).
 
 ---
 
-### Pitfall 3: DispatchSourceTimer Deallocation Crash ("BUG IN CLIENT OF LIBDISPATCH")
+### Pitfall 3: NSGlassEffectView / .glassEffect() Requires macOS 26 -- Breaks Deployment Target
 
-**Enhancement affected:** Any feature using DispatchSourceTimer (e.g., auto-dismiss timer, delayed animation trigger, process watchdog)
+**What goes wrong:** `NSGlassEffectView` (AppKit) and `.glassEffect()` (SwiftUI) are only available on macOS 26.0 (Tahoe). The project targets macOS 13+ (Package.swift line 7: `.macOS(.v13)`). Using these APIs without availability checks causes a compile error. Using them with `if #available(macOS 26.0, *)` means the glass effect is only visible to macOS 26+ users, while macOS 13-15 users see a fallback.
 
-**What goes wrong:** Deallocating a `DispatchSourceTimer` while it is suspended crashes with: `"BUG IN CLIENT OF LIBDISPATCH: Release of an inactive object"`. Similarly, calling `cancel()` on a suspended timer without first resuming it crashes. Calling `resume()` on an already-resumed timer crashes with `"Over-resume of an object"`.
-
-**Why it happens:** DispatchSource uses a suspend/resume reference counting model inherited from libdispatch. Suspending increments a retain count; resuming decrements it. If the source is deallocated while suspended (retain count > 0), libdispatch considers this a bug and traps. This is not an edge case -- it happens any time the object holding the timer is deallocated before the timer fires (e.g., user presses ESC quickly after triggering the timer).
+**Additional regression risk:** On macOS 26.2+, a known regression (FB21375029) causes `.glassEffect()` to stop working in floating/non-standard windows (which the Ruler uses -- `.statusBar` level, `.borderless`, `isOpaque = true`). The glass effect may degrade to a simple blur or disappear entirely.
 
 **Consequences:**
-- Hard crash (SIGABRT) with a confusing libdispatch error message
-- Crash happens during deallocation, so stack traces point to ARC release code, not your logic
-- Difficult to reproduce because it depends on timing (fast ESC after starting a timer)
+- Compile error if used unconditionally
+- Two completely different code paths to maintain (glass vs. fallback)
+- Even on macOS 26, glass may not work in this window configuration
 
 **Prevention:**
-1. Always resume a timer immediately after creation. Never leave it in a suspended state:
-   ```swift
-   private var timer: DispatchSourceTimer?
+1. Do NOT use `NSGlassEffectView` or `.glassEffect()` as the primary implementation. The project targets macOS 13+ and the Ruler's window configuration may trigger the 26.2 regression.
+2. Implement the "liquid glass" visual style manually using `NSVisualEffectView` (`.withinWindow`, `.hudWindow` or `.popover` material) or CIFilter-based blur. Both work on macOS 13+.
+3. If native Liquid Glass is desired as a future enhancement, add it behind `if #available(macOS 26.0, *)` with the manual implementation as the fallback. But do not make it the primary path for this milestone.
 
-   func startTimer() {
-       let t = DispatchSource.makeTimerSource(queue: .main)
-       t.schedule(deadline: .now() + 2.0)
-       t.setEventHandler { [weak self] in self?.timerFired() }
-       t.resume()  // MUST resume immediately
-       timer = t
-   }
+**Detection:** Build fails with "NSGlassEffectView is only available in macOS 26 or newer." Or: glass appears as opaque panel on macOS 26.2+.
 
-   func cleanup() {
-       timer?.cancel()  // safe because timer was resumed
-       timer = nil
-   }
-   ```
-2. If implementing pause/resume, track state with a boolean:
-   ```swift
-   private var timerIsSuspended = false
-   func cancelTimer() {
-       if timerIsSuspended { timer?.resume() }
-       timer?.cancel()
-       timer = nil
-   }
-   ```
-3. Prefer `DispatchQueue.main.asyncAfter` for one-shot delays -- it has no suspend/resume lifecycle and cannot crash on deallocation
-
-**Detection:** Test rapid ESC during any timed operation. Run with Address Sanitizer enabled.
-
-**Confidence:** HIGH -- [documented libdispatch behavior](https://github.com/apple/swift-corelibs-libdispatch/issues/604) and [Apple Developer Forums](https://developer.apple.com/forums/thread/15902).
+**Confidence:** HIGH -- [Apple NSGlassEffectView docs](https://developer.apple.com/documentation/appkit/nsglasseffectview) confirm `@available(macOS 26.0, *)`. Regression documented via FB21375029.
 
 ---
 
-### Pitfall 4: CALayer Shake Animation Position Drift
+### Pitfall 4: Replacing Bitmap-Cached View with Live Rendering Causes CPU Regression
 
-**Enhancement affected:** Shake animation on the dimension pill (error feedback, invalid selection feedback)
+**What goes wrong:** The current HintBarView uses NSHostingView wrapping SwiftUI. SwiftUI only redraws on state changes (key press/release). If the redesign replaces this with live CALayer rendering that recalculates blur, redraws text, or updates tint colors on every mouse move, the hint bar goes from ~0% CPU to continuous work on every mouse event.
 
-**What goes wrong:** After a CAKeyframeAnimation completes, the layer snaps back to its model-layer position, which was never updated by the animation. If `isRemovedOnCompletion` is set to `false` and `fillMode` to `.forwards` to "fix" the snap-back, the model layer and presentation layer diverge permanently. Subsequent frame calculations use the wrong (model) position, causing the layer to appear in one place but report coordinates from another.
+**Why it happens:** The current architecture is efficient: `updatePosition()` animates `position.y` via CAAnimation (zero CPU per frame); `pressKey()`/`releaseKey()` trigger SwiftUI diffing (rare, lightweight). Replacing this with per-frame custom rendering is a regression.
 
-**Why it happens:** Core Animation maintains two parallel layer trees. Explicit animations (CABasicAnimation, CAKeyframeAnimation) only affect the presentation layer. The model layer retains whatever value it had before the animation started. When the animation is removed (default behavior), the presentation layer reverts to the model layer's values.
+**Consequences:**
+- CPU during mouse movement increases from <5% to 15-30%
+- Battery drain, potential frame drops in edge detection
+- CLAUDE.md testing checklist requires "CPU stays low (<5%) during mouse movement"
 
-**Consequences for a shake animation specifically:**
-- If you animate `position` with absolute values, the layer teleports to the shake's starting position, shakes, then snaps back to its pre-animation position
-- If you use `fillMode = .forwards` + `isRemovedOnCompletion = false`, hit-testing and subsequent layout calculations use the stale model-layer position
-- The pill's flip animation (which relies on `pillIsOnLeft`/`pillIsBelow` and frame calculations in CrosshairView.swift `layoutPill()`) breaks because the pill's actual position no longer matches its model position
+**Prevention:**
+1. Render blur background ONCE when hint bar is created (screenshot is frozen). Assign to `layer.contents` as bitmap.
+2. If using `NSVisualEffectView`, it caches internally -- but verify with Instruments.
+3. Text content should be rendered once and cached. Only re-render on state changes.
+4. Split/merge animation should use CALayer property animations (frame, opacity, path) -- NOT per-frame redraws.
+5. Profile before and after with Instruments Core Animation template.
 
-**Prevention:** Use `isAdditive = true` with zero-centered values. This is the correct approach for shake:
-```swift
-func shake(layer: CALayer) {
-    let anim = CAKeyframeAnimation(keyPath: "position.x")
-    anim.values = [0, 10, -10, 10, -5, 5, -2, 0]
-    anim.keyTimes = [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 1.0]
-    anim.duration = 0.4
-    anim.isAdditive = true  // KEY: offsets added to current position
-    // isRemovedOnCompletion defaults to true -- leave it
-    // No fillMode needed -- animation returns to 0 offset naturally
-    layer.add(anim, forKey: "shakeEffect")
-}
-```
-With `isAdditive = true`:
-- Values are offsets from the model layer's current position, not absolute positions
-- The final value of 0 means "no offset" -- the layer naturally returns to its correct position
-- No model/presentation divergence
-- Works regardless of where the layer is positioned (pill can be on left or right side)
+**Detection:** Activity Monitor shows Ruler >5% CPU during mouse movement.
 
-**Critical detail for this codebase:** The pill uses `layer.frame` for positioning (CrosshairView.swift lines 316-341), which sets both `position` and `bounds`. An additive shake on `position.x` is safe because it does not interfere with the frame-based layout. But do NOT shake using `transform.translation.x` while the code sets `frame` -- the `frame` property is undefined when `transform` is not identity.
+**Confidence:** HIGH -- CLAUDE.md Section 8 ("HintBarView (static, renders ONCE)"), MEMORY.md documents previous CPU issues with SVG rendering.
 
-**Detection:** After a shake animation completes, verify that `layer.position` and `layer.presentation()?.position` match. Log both in debug builds.
+---
 
-**Confidence:** HIGH -- well-documented Core Animation behavior. See [objc.io Animations Explained](https://www.objc.io/issues/12-animations/animations-explained/) and [Ole Begemann's snap-back prevention](https://oleb.net/blog/2012/11/prevent-caanimation-snap-back/).
+### Pitfall 5: CAShapeLayer Path Morphing Requires Identical Point Counts
+
+**What goes wrong:** Animating `CAShapeLayer.path` from one shape to another (single bar morphing into two bars) produces undefined behavior if the paths have different control point counts. A single rounded rect has ~12-16 control points; two separate rounded rects have ~24-32. These cannot be directly morphed.
+
+**Consequences:**
+- Animation looks like a melting blob instead of a clean split
+- No runtime error -- just visually broken
+- May vary across macOS versions
+
+**Prevention:**
+1. Do NOT animate `CAShapeLayer.path` for the split/merge animation. Use two separate `CAShapeLayer` instances (left bar, right bar) that are always present.
+2. In "merged" state, they overlap perfectly (same frame, same path). In "split" state, they separate via `frame` animation.
+3. Animate `frame` of each layer, not `path`. This is already the pattern used for the pill in CrosshairView.swift (lines 316-341): section backgrounds use `layer.frame` for position and local-origin `path` for shape.
+4. If corner radii must change during animation (outer vs inner as bars separate), ensure both path versions have exactly the same number of `moveTo`, `addLine`, and `addCurve` calls.
+5. CLAUDE.md Section 3 explicitly warns: "Use `layer.frame` for position + local-origin `path` so Core Animation can interpolate the frame's position."
+
+**Detection:** Split animation shows distortion, warping, or flickering of bar shapes.
+
+**Confidence:** HIGH -- [Apple CAShapeLayer docs](https://developer.apple.com/documentation/quartzcore/cashapelayer): "The result of animating a path is undefined if the two paths have a different number of control points or segments." Confirmed by [calayer.com guide](https://www.calayer.com/core-animation/2017/12/25/cashapelayer-in-depth-part-ii.html).
 
 ---
 
@@ -175,107 +129,114 @@ With `isAdditive = true`:
 
 ---
 
-### Pitfall 5: CATransaction Completion Block Timing with Nested Transactions
+### Pitfall 6: Appearance Detection Returns Wrong Value in Overlay Window Context
 
-**Enhancement affected:** Shake animation, any animation that chains with existing pill flip animation
+**What goes wrong:** Using `NSApp.effectiveAppearance` or `NSAppearance.current` to determine light/dark mode for tinting may return the wrong appearance. The window is borderless with no titlebar, so it may not inherit system appearance changes. Additionally, the `appearance` property may be nil, and `effectiveAppearance` may not reflect the user's setting because the window was created before an appearance change.
 
-**What goes wrong:** `CATransaction.setCompletionBlock` fires when ALL animations in that transaction complete. If you nest transactions (the codebase already uses two separate CATransaction blocks in `update()` -- one for lines/feet at line 191, one for the pill at line 305), a completion block on an outer transaction waits for inner animations too. If you add a shake animation inside the pill transaction, the completion block fires after the longer of the shake and the flip animation, not just the shake.
-
-**Prevention:**
-- Add shake animations in a separate `CATransaction.begin()/commit()` block, not inside the existing pill transaction
-- Use the animation's `delegate` (`animationDidStop(_:finished:)`) instead of `CATransaction.setCompletionBlock` when you need per-animation completion
-- Keep the existing two-transaction structure (lines instant, pill animated) and add shake as a third transaction
-
-**Detection:** Log timestamps in completion blocks. Verify they fire at expected times.
-
-**Confidence:** MEDIUM -- based on [CATransaction documentation](https://www.calayer.com/core-animation/2016/05/17/catransaction-in-depth.html) and the codebase's existing multi-transaction pattern.
-
----
-
-### Pitfall 6: DispatchSourceTimer on Main Queue During Heavy Event Processing
-
-**Enhancement affected:** Any timer-based feature (auto-dismiss, delayed feedback, watchdog)
-
-**What goes wrong:** `DispatchSourceTimer` on `DispatchQueue.main` fires by posting a message to the main run loop. This works in common run loop modes (including event tracking). However, when the run loop is heavily loaded with mouse events (60fps+ mouse tracking, as in this app), timer callbacks can be delayed significantly -- [500ms delays on a 15ms timer have been reported](https://developer.apple.com/forums/thread/106501).
-
-**Why it matters for THIS app:** The app uses `NSApplication.shared.run()` as its event loop (Ruler.swift line 104). Mouse events arrive at 60fps+ with throttling to ~60fps (RulerWindow.swift line 179). A timer intended to fire after 2 seconds for auto-dismiss might fire 2.5 seconds later, or not at all if the user exits before it fires.
-
-**Prevention:**
-1. For one-shot delays, prefer `DispatchQueue.main.asyncAfter` -- same queue behavior but simpler lifecycle
-2. For repeating timers, use `DispatchSourceTimer` on `DispatchQueue.main` but accept ~100ms timing imprecision
-3. Do NOT use `Timer.scheduledTimer` -- it only fires in `.default` mode and will NOT fire during mouse dragging (the run loop enters event tracking mode during drags)
-4. For time-critical operations, schedule on a background queue and dispatch UI updates back to main
-
-**Detection:** Add logging around timer creation, expected fire time, and actual fire time. Test while rapidly moving the mouse.
-
-**Confidence:** MEDIUM -- based on [Lapcat Software's investigation](https://lapcatsoftware.com/articles/dispatch-queues-and-run-loop-modes.html) and [Apple Developer Forums reports](https://developer.apple.com/forums/thread/106501). The specific interaction with `NSApplication.run()` in a no-view Raycast extension is not widely documented.
-
----
-
-### Pitfall 7: UserDefaults Domain in Raycast Swift Extension Process
-
-**Enhancement affected:** Persisting user state (e.g., hint bar dismissed flag)
-
-**What goes wrong:** The Raycast Swift binary runs as a child process spawned by Raycast. `UserDefaults.standard` writes to the process's default domain, which is determined by the process's bundle identifier. For Raycast extension Swift binaries, this is NOT `com.raycast.macos` -- it is the binary's own identifier (or the generic domain if no bundle identifier is set). This means:
-1. Preferences written via `UserDefaults.standard` in Swift are invisible to the TypeScript side (which uses Raycast's `LocalStorage` API)
-2. The UserDefaults plist file may be written to an unexpected location
-3. Different launches of the same extension may or may not share the same defaults domain depending on how the binary is invoked
-
-**Why it matters for THIS app:** The codebase already uses `UserDefaults.standard` for `"com.raycast.design-ruler.hintBarDismissed"` (RulerWindow.swift line 339, Ruler.swift line 31). This DOES work in practice because the key is fully qualified and `UserDefaults.standard` persists to the same plist across launches. But the mechanism is fragile -- if Raycast changes how it spawns Swift binaries, or if the binary's bundle identifier changes, the defaults could be lost.
+**Why it matters:** The current HintBarContent.swift uses `@Environment(\.colorScheme)` (lines 29, 67). SwiftUI handles this correctly via NSHostingView. If you replace SwiftUI with manual CALayer rendering, you lose automatic propagation.
 
 **Consequences:**
-- Data loss: user dismisses hint bar, next launch it reappears (defaults written to wrong domain or file gets cleaned up)
-- Not a crash, but a degraded user experience
-- Silent failure -- no error, just lost state
+- Hint bar tint colors wrong (dark on light or vice versa)
+- Does not update when user toggles dark mode while overlay is open
 
 **Prevention:**
-1. The current approach (fully qualified key with `UserDefaults.standard`) works and is the pragmatic choice for simple boolean flags
-2. For anything more complex, use a file-based approach: write to a known path (e.g., `~/.config/design-ruler/state.json`) that is independent of the process's bundle identifier
-3. Do NOT use `UserDefaults(suiteName:)` with the Raycast bundle identifier -- the extension process likely lacks entitlements for app group containers
-4. Do NOT try to synchronize with Raycast's own preference storage -- the TypeScript preferences API is read-only from the extension's perspective
+1. If keeping SwiftUI (NSHostingView), rely on `@Environment(\.colorScheme)` -- it works.
+2. If using manual CALayer rendering, detect at creation:
+   ```swift
+   let isDark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+   ```
+3. For mid-session changes, observe via KVO:
+   ```swift
+   NSApp.observe(\.effectiveAppearance) { [weak self] _, _ in
+       self?.updateAppearance()
+   }
+   ```
+4. Since overlay is short-lived, static appearance at creation time is usually sufficient.
 
-**Detection:** After writing to UserDefaults, read back immediately and log. Test across extension reinstalls and `ray build` cycles (specifically after `rm -rf swift/Ruler/.raycast-swift-build`).
-
-**Confidence:** MEDIUM -- the current code works empirically, but the UserDefaults domain for Raycast Swift binaries is not officially documented. Based on [Raycast blog on extension architecture](https://www.raycast.com/blog/how-raycast-api-extensions-work) and [Apple documentation on sandbox UserDefaults](https://developer.apple.com/forums/thread/659448).
+**Confidence:** MEDIUM -- current SwiftUI hint bar works correctly, suggesting propagation works. Concern is for the case where the view hierarchy changes significantly.
 
 ---
 
-### Pitfall 8: Removing fputs Debug Calls -- Accidentally Removing Diagnostic Context
+### Pitfall 7: Split Animation and Mouse-Move Position Update Race Condition
 
-**Enhancement affected:** Code cleanup, production hardening
+**What goes wrong:** The hint bar split animation fires after a timeout (e.g., 3 seconds). If the user moves the mouse during the split, `updatePosition(cursorY:screenHeight:)` is called, which may try to slide the hint bar to top/bottom. The slide animation and split animation compete for the same layers' `frame`/`position` properties.
 
-**What goes wrong:** Bulk-removing all `fputs("[DEBUG]..."` lines seems safe because they are "just debug output." But some of these calls are inside error-handling paths that provide the ONLY diagnostic information when something goes wrong in production. Removing them means that when a user reports "the ruler didn't appear" or "the crosshair disappeared," you have zero information about what happened.
+**Why it happens:** The existing `isAnimating` guard (HintBarView.swift line 75) prevents overlapping slide animations. But the split animation is new and does not set `isAnimating`. The slide code runs, sees `isAnimating == false`, and starts a slide mid-split.
 
-**Current fputs calls in the codebase and their actual value:**
-
-| Location | Content | Diagnostic Value |
-|----------|---------|-----------------|
-| EdgeDetector.swift:36 | screen.frame, cgRect, cgImage size, backing | **HIGH** -- critical for diagnosing multi-monitor capture bugs |
-| EdgeDetector.swift:75 | currentEdges returned nil | **HIGH** -- the only diagnostic for the "crosshair disappears" bug class |
-| RulerWindow.swift:226 | isDragging was still true, resetting stale state | **MEDIUM** -- detects stale state (already a known issue) |
-| RulerWindow.swift:252 | starting drag at point, selection count | **LOW** -- pure trace, safe to remove |
-| RulerWindow.swift:272 | mouseDragged rejected, isDragging is false | **LOW** -- informational, rare |
-| RulerWindow.swift:281 | mouseUp rejected, isDragging is false | **LOW** -- informational, rare |
+**Consequences:**
+- Layers teleport to unexpected positions
+- Partial split + partial slide = visual mess
+- Model values and presentation values diverge
 
 **Prevention:**
-1. Do NOT blanket-remove all fputs calls. Evaluate each one against the table above.
-2. Keep the HIGH-value diagnostics but gate them behind a compile-time flag:
+1. Extend the animation guard to cover ALL animation types:
    ```swift
-   #if DEBUG
-   fputs("[DEBUG] ...\n", stderr)
-   #endif
+   enum AnimationState { case idle, sliding, splitting, merging }
+   private var animationState: AnimationState = .idle
    ```
-3. For the stale-state detection in mouseDown (`isDragging was still true` at line 226), the fputs is secondary -- the real risk is accidentally removing the `isDragging = false` reset and `crosshairView.showAfterDrag()` call on the lines immediately following it when cleaning up debug output. These lines FIX a real bug. The fputs is just the diagnostic; the code around it is the fix.
-4. Consider replacing fputs with `os_log` for production diagnostics -- it has negligible performance cost when not actively observed, persists to the unified log, and can be filtered:
-   ```swift
-   import os
-   private let log = Logger(subsystem: "com.raycast.design-ruler", category: "EdgeDetection")
-   log.debug("capture: screen=\(frame) cgImage=\(cgImage.width)x\(cgImage.height)")
-   ```
+2. Block `updatePosition()` during split/merge: `guard animationState == .idle else { return }`
+3. Use `CATransaction.setCompletionBlock` to reset to `.idle` after any animation completes
+4. If cursor moves near bottom during split, DEFER the slide until split completes (queue it)
 
-**Detection:** Before removing any fputs line, check if the surrounding code contains error handling or state correction. If the fputs is the only way to know that code path executed, keep it (or replace with os_log).
+**Detection:** Move cursor to bottom of screen immediately after launching overlay. If hint bar jumps or shows partial split, race condition is present.
 
-**Confidence:** HIGH -- direct analysis of the codebase. This is a code review concern, not a research question.
+**Confidence:** MEDIUM -- the existing `isAnimating` guard (HintBarView.swift line 75) proves this bug class is known; the split animation is a new animation state not covered.
+
+---
+
+### Pitfall 8: CIFilter Blur on Main Thread Blocks Edge Detection
+
+**What goes wrong:** If implementing manual blur using `CIGaussianBlur`, applying the filter on the main thread blocks mouse event processing. A blur on a Retina region (800x60 points = 1600x120 pixels at 2x) takes 5-20ms. During this time, the first mouse move is delayed.
+
+**Consequences:**
+- 5-20ms delay on first appearance
+- Stacks with CGWindowListCreateImage cold-start penalty (MEMORY.md)
+- On older Macs, 50-100ms
+
+**Prevention:**
+1. Apply blur during window setup, BEFORE `makeKeyAndOrderFront`. User sees window with blur already applied.
+2. Use `CIContext(options: [.useSoftwareRenderer: false])` for GPU rendering.
+3. Crop screenshot to ONLY the hint bar region before blurring.
+4. Use small blur radius (8-12px) -- larger radii are exponentially more expensive.
+5. Pre-render on background queue during capture phase if needed.
+6. Alternative: use `NSVisualEffectView` with `.withinWindow`, which delegates blur to the window server (zero main-thread cost).
+
+**Detection:** Instruments Time Profiler shows `CIGaussianBlur` or `CIContext.createCGImage` in the launch hot path.
+
+**Confidence:** MEDIUM -- impact depends on crop region size and hardware. One-time cost is tolerable if kept under 10ms.
+
+---
+
+### Pitfall 9: GlassEffectContainer Spacing Animation May Not Produce Fluid Morphing
+
+**What goes wrong:** If using the macOS 26 Liquid Glass path, the bar split animation relies on `GlassEffectContainer` / `NSGlassEffectContainerView` with animated spacing. However, the liquid morphing effect is documented for views appearing/disappearing (via `glassEffectID` + conditional rendering), not for spacing changes alone. Animating the `spacing` parameter may not trigger the liquid join/separate effect.
+
+**Consequences:**
+- Split shows cards moving apart with no glass morphing between them
+- Looks like a plain spacing animation, not a liquid glass effect
+- The "wow factor" is lost
+
+**Prevention:**
+1. Test spacing animation approach first with a minimal prototype
+2. If spacing does not produce morphing, use the alternative: conditionally show/hide a "joined" single-card state vs. "split" two-card state with `glassEffectID` tracking
+3. This requires two view structures (joined and split) toggled with `withAnimation` -- more code but the documented morphing pattern
+
+**Detection:** Visual inspection. Does the glass between cards create a fluid "liquid pulling apart" effect, or do cards simply move apart with independent backgrounds?
+
+**Confidence:** MEDIUM -- documented morphing uses conditional view insertion/removal, not spacing animation. Spacing is a reasonable hypothesis but unverified.
+
+---
+
+### Pitfall 10: NSHostingView Reentrant Layout Warning During Rapid State Updates
+
+**What goes wrong:** If keeping NSHostingView for hint bar content and triggering `@Published` state changes from mouse event handlers, the warning fires: "NSHostingView is being laid out reentrantly while rendering its SwiftUI content." The view shows stale content for one or more frames.
+
+**Prevention:**
+1. Do NOT update SwiftUI state from within `mouseMoved`. Position updates already use CAAnimation, not SwiftUI state.
+2. Batch state updates with `DispatchQueue.main.async { }` to defer them out of event handlers.
+3. Better: keep SwiftUI content static and use CALayer for all dynamic elements.
+
+**Confidence:** MEDIUM -- [documented issue](https://github.com/onmyway133/notes/issues/551), and the codebase already triggers SwiftUI updates from keyboard handlers.
 
 ---
 
@@ -283,47 +244,74 @@ With `isAdditive = true`:
 
 ---
 
-### Pitfall 9: CAKeyframeAnimation Key Collision with Existing Animations
+### Pitfall 11: compositingFilter String Typo Causes Silent Failure
 
-**Enhancement affected:** Shake animation on the pill
+**What goes wrong:** New blend modes for the glass effect (e.g., `"screenBlendMode"`, `"multiplyBlendMode"`) silently fail if the string has a typo. No error, no warning.
 
-**What goes wrong:** Adding an animation with the same key as an existing animation replaces it. If you use `layer.add(anim, forKey: "position")` for the shake, and the pill flip animation also animates position (it currently uses implicit animations via `CATransaction`), the animations can collide.
+**Prevention:** Define as constants:
+```swift
+enum BlendMode {
+    static let difference = "differenceBlendMode"
+    static let screen = "screenBlendMode"
+    static let multiply = "multiplyBlendMode"
+}
+```
 
-**Prevention:**
-- Use a unique, descriptive key: `layer.add(anim, forKey: "shakeEffect")`
-- The existing pill flip uses `CATransaction`-based implicit animations (no explicit key), so explicit animations with any custom key will coexist -- but verify this assumption
-- If a second shake is triggered while the first is still running, the key-based replacement actually prevents double-shake (desirable behavior)
-
-**Confidence:** MEDIUM -- standard Core Animation behavior.
-
----
-
-### Pitfall 10: Shake Animation During Pill Flip Transition
-
-**Enhancement affected:** Shake animation timing
-
-**What goes wrong:** If the user triggers a shake (e.g., invalid edge skip) while the pill is mid-flip-animation (transitioning from right to left side via the `flipped` path in `layoutPill()`), the shake's `isAdditive` offsets are added to the in-flight animation position. This creates a visually jarring compound motion instead of a clean shake.
-
-**Prevention:**
-- Check if a flip is in progress before starting a shake (track via `isFlipping` boolean set in `layoutPill` and cleared in a CATransaction completion block)
-- Alternatively, apply the shake to a wrapper layer that contains all pill layers, so the shake and flip operate on different layers in the hierarchy
-- Or: simply do not shake -- if the pill just flipped, the user is near a screen edge and the shake feedback is less important
-
-**Confidence:** LOW -- theoretical concern, would need to be tested visually.
+**Confidence:** HIGH -- documented in MEMORY.md.
 
 ---
 
-### Pitfall 11: CAKeyframeAnimation keyTimes/values Count Mismatch
+### Pitfall 12: CATransaction Completion Block Fires After ALL Animations
 
-**Enhancement affected:** Any CAKeyframeAnimation (shake, bounce, etc.)
+**What goes wrong:** If split and slide animations share a `CATransaction`, the completion block fires after BOTH complete. State transitions gated on completion are delayed.
 
-**What goes wrong:** If the `keyTimes` array count does not match the `values` array count, Core Animation falls back to equal spacing or produces unexpected interpolation. No runtime error -- just wrong animation.
-
-**Prevention:** Define values and keyTimes as paired constants. Assert `values.count == keyTimes.count` in debug builds.
-
-**Detection:** Animation looks jerky or has unexpected pauses.
+**Prevention:**
+1. Use separate `CATransaction.begin()/commit()` blocks for independent animations.
+2. Use `CAAnimationDelegate.animationDidStop(_:finished:)` for per-animation completion.
+3. Follow existing codebase pattern: CrosshairView uses separate transactions for lines/feet vs. pill.
 
 **Confidence:** HIGH -- standard Core Animation behavior.
+
+---
+
+### Pitfall 13: Coordinate System Bug When Cropping Blur Region
+
+**What goes wrong:** Cropping the screenshot for the hint bar blur region: hint bar position is AppKit coords (origin bottom-left), `CGImage.cropping(to:)` expects CG coords (origin top-left). Wrong vertical position if not converted.
+
+**Prevention:**
+```swift
+let cgY = screenHeight - (hintBarFrame.origin.y + hintBarFrame.height)
+let cropRect = CGRect(x: hintBarFrame.origin.x * scale, y: cgY * scale,
+                       width: hintBarFrame.width * scale, height: hintBarFrame.height * scale)
+```
+Account for Retina scale factor. Use CoordinateConverter.swift.
+
+**Confidence:** HIGH -- CLAUDE.md Section 4 documents coordinate system differences.
+
+---
+
+### Pitfall 14: Solid Background Interfering with Glass Material
+
+**What goes wrong:** The current `MainHintCard` and `ExtraHintCard` have `.background(RoundedRectangle(...).fill(...))` modifiers rendering solid backgrounds. If `.glassEffect()` is added ON TOP, the glass has a solid color behind it instead of the screenshot, defeating translucency.
+
+**Prevention:**
+1. When using glass/blur, remove `.background()` and `.overlay()` (border) from the cards.
+2. Use conditional modifiers: either glass OR solid background, never both.
+3. Remove `.shadow()` when using glass -- glass provides its own depth cues.
+
+**Confidence:** HIGH -- straightforward view modifier conflict.
+
+---
+
+### Pitfall 15: Multi-Monitor Animation State Desynchronization
+
+**What goes wrong:** The hint bar currently exists only on the cursor screen (Ruler.swift line 76). If a split animation is mid-flight when the user switches screens, the animation continues on the old window while the new window has no hint bar. This is fine with the current design. But if the design changes to show hint bars on all screens, animation state must synchronize.
+
+**Prevention:**
+1. Keep hint bar on cursor screen only (current approach). No sync needed.
+2. If hint bar follows active screen: store animation state in shared model, cancel in-progress animations on `deactivate()`, restore to current logical state on `activate()`.
+
+**Confidence:** LOW -- only matters if design changes to span multiple monitors.
 
 ---
 
@@ -331,30 +319,61 @@ With `isAdditive = true`:
 
 | Phase Topic | Likely Pitfall | Mitigation |
 |-------------|---------------|------------|
-| Shake animation on pill | Position drift (Pitfall 4), key collision (Pitfall 9), flip conflict (Pitfall 10) | Use `isAdditive = true` with zero-centered values. Use unique animation keys. Check for in-progress flip. |
-| Cursor state management | Push/pop imbalance (Pitfall 1), hide/unhide counter (Pitfall 2) | Centralize cursor management behind a state enum. Force-unhide on exit. |
-| Timer-based features | Deallocation crash (Pitfall 3), timing imprecision (Pitfall 6) | Use `asyncAfter` for one-shot delays. Always resume before cancel. |
-| UserDefaults persistence | Domain fragility (Pitfall 7) | Keep fully-qualified keys. Accept empirical behavior. Use files for complex state. |
-| Debug cleanup | Losing diagnostics (Pitfall 8) | Evaluate each fputs individually. Migrate HIGH-value calls to `#if DEBUG` or `os_log`. |
-| Animation chaining | Transaction completion timing (Pitfall 5) | Use separate CATransaction blocks for independent animations. |
+| Glass/blur background | Opaque window blocks blur (Pitfall 1), layer-hosting conflict (Pitfall 2) | Use `.withinWindow` with proper view ordering, OR one-time CIFilter blur of cropped screenshot |
+| Deployment target | NSGlassEffectView requires macOS 26 (Pitfall 3) | Do NOT use NSGlassEffectView as primary. Implement blur manually. Add glass as macOS 26+ enhancement. |
+| Bitmap cache to live layers | CPU regression (Pitfall 4), reentrant layout (Pitfall 10) | Render blur once, cache as bitmap. Keep text static. Use CALayer animations, not per-frame redraws. |
+| Split/merge animation | Path point mismatch (Pitfall 5), race with slide (Pitfall 7) | Two separate layers with frame animation, NOT single path morph. Extend isAnimating to all animation types. |
+| Appearance-aware tinting | Wrong appearance in overlay (Pitfall 6) | Use NSApp.effectiveAppearance at creation. Observe via KVO if mid-session updates needed. |
+| CIFilter manual blur | Main thread blocking (Pitfall 8) | Crop to hint bar region only. Apply during setup before window appears. |
+| macOS 26 glass morphing | Spacing animation may not morph (Pitfall 9) | Prototype early. Fall back to conditional view toggle with glassEffectID. |
+| Animation completion | Transaction scoping (Pitfall 12), coordinate bugs (Pitfall 13) | Separate CATransaction blocks. Use CoordinateConverter for crop rects. |
+| SwiftUI glass backgrounds | Solid fill under glass (Pitfall 14) | Remove .background/.shadow when glass/blur is active. |
+
+---
+
+## Recommended Architecture for Blur + Split
+
+Based on the pitfalls above, the safest architecture is:
+
+### Primary Path (macOS 13+, no API availability issues)
+
+1. **Blur background:** One-time `CIGaussianBlur` of the cropped screenshot region under the hint bar, assigned to a `CALayer.contents` bitmap. Zero per-frame cost. No NSVisualEffectView layer-hosting conflicts. Alternatively, `NSVisualEffectView` with `.withinWindow` as a sibling view below the content layers (NOT inside the layer-hosting tree).
+
+2. **Split animation:** Two `CAShapeLayer` instances (main card bg, extra card bg) that are ALWAYS present. In "merged" state, they overlap perfectly with combined dimensions. In "split" state, they separate via `frame` animation. Use the existing `sectionPath()` squircle approach from CrosshairView.swift.
+
+3. **Content rendering:** Keep NSHostingView for text content (key caps, labels) -- it handles appearance, text rendering, and layout correctly. Position via `frame` (no per-frame updates). OR render text into bitmap and use `CATextLayer`, matching the CrosshairView pattern.
+
+4. **Appearance:** Detect once at creation via `NSApp.effectiveAppearance`. Use for tint colors on the blur layer.
+
+### Enhancement Path (macOS 26+, optional)
+
+5. **Native glass:** Behind `if #available(macOS 26.0, *)`, replace the CIFilter blur with `.glassEffect()` on the SwiftUI content views. Test in the exact window configuration first (Pitfall 3). If the 26.2 regression affects this window type, skip until Apple fixes it.
+
+6. **Glass morphing:** Use `GlassEffectContainer` + `glassEffectID` with conditional view toggle (not spacing animation) for the split. Test that liquid morphing actually triggers.
+
+This architecture avoids all critical pitfalls while maintaining the <5% CPU target and working on macOS 13+.
 
 ---
 
 ## Sources
 
-- [Apple NSCursor.hide() documentation](https://developer.apple.com/documentation/appkit/nscursor/hide())
-- [Apple NSCursor.push() documentation](https://developer.apple.com/documentation/appkit/nscursor/1532500-push)
-- [Aggressively Hiding the Cursor -- Sam Soffes](https://soff.es/blog/aggressively-hiding-the-cursor)
-- [Apple DispatchSourceTimer documentation](https://developer.apple.com/documentation/dispatch/dispatchsourcetimer)
-- [libdispatch issue #604: Crash when deallocating never-resumed timer](https://github.com/apple/swift-corelibs-libdispatch/issues/604)
-- [Apple Developer Forums: Dispatch Source deallocated](https://developer.apple.com/forums/thread/15902)
-- [Apple Developer Forums: GCD Timer not calling Event Handler](https://developer.apple.com/forums/thread/106501)
+- [Apple NSVisualEffectView documentation](https://developer.apple.com/documentation/appkit/nsvisualeffectview)
+- [Apple NSVisualEffectView.BlendingMode documentation](https://developer.apple.com/documentation/appkit/nsvisualeffectview/blendingmode)
+- [Reverse Engineering NSVisualEffectView -- Oskar Groth](https://oskargroth.com/blog/reverse-engineering-nsvisualeffectview)
+- [CAPluginLayer & CABackdropLayer -- Aditya Vaidyam](https://medium.com/@avaidyam/capluginlayer-cabackdroplayer-f56e85d9dc2c)
+- [NSVisualEffectView in Layer-Hosting Views](https://databasefaq.com/index.php/answer/164756/osx-calayer-nsview-nswindow-nsvisualeffectview-how-to-use-nsvisualeffectview-in-a-layer-host-nsview)
+- [Apple NSGlassEffectView documentation (macOS 26+)](https://developer.apple.com/documentation/appkit/nsglasseffectview)
+- [Apple NSGlassEffectContainerView documentation](https://developer.apple.com/documentation/appkit/nsglasseffectcontainerview)
+- [Liquid Glass Reference -- conorluddy](https://github.com/conorluddy/LiquidGlassReference)
+- [Apple CAShapeLayer documentation](https://developer.apple.com/documentation/quartzcore/cashapelayer)
+- [CAShapeLayer in Depth, Part II -- calayer.com](https://www.calayer.com/core-animation/2017/12/25/cashapelayer-in-depth-part-ii.html)
+- [CATransaction in Depth -- calayer.com](https://www.calayer.com/core-animation/2016/05/17/catransaction-in-depth.html)
+- [Apple Core Animation: Advanced Animation Tricks](https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/CoreAnimation_guide/AdvancedAnimationTricks/AdvancedAnimationTricks.html)
 - [objc.io: Animations Explained](https://www.objc.io/issues/12-animations/animations-explained/)
-- [Ole Begemann: Prevent CAAnimation Snap Back](https://oleb.net/blog/2012/11/prevent-caanimation-snap-back/)
-- [CALayer: CATransaction in Depth](https://www.calayer.com/core-animation/2016/05/17/catransaction-in-depth.html)
-- [Lapcat Software: Dispatch Queues and Run Loop Modes](https://lapcatsoftware.com/articles/dispatch-queues-and-run-loop-modes.html)
-- [Raycast Blog: How the Raycast API and extensions work](https://www.raycast.com/blog/how-raycast-api-extensions-work)
-- [Apple Developer Forums: UserDefaults in sandboxed apps](https://developer.apple.com/forums/thread/659448)
-- [Cocoa with Love: Design patterns for safe timer usage](https://www.cocoawithlove.com/blog/2016/07/30/timer-problems.html)
-- [NSCursor push/pop stack discussion -- GNUstep](https://lists.gnu.org/archive/html/gnustep-dev/2013-10/msg00012.html)
-- [Apple Developer Forums: Assertion failure during deinit due to DispatchSourceTimer](https://developer.apple.com/forums/thread/759042)
+- [Apple NSAppearance documentation](https://developer.apple.com/documentation/appkit/nsappearancecustomization/choosing_a_specific_appearance_for_your_macos_app)
+- [Observing NSAppearance changes -- Derrick Ho](https://derrickho328.medium.com/observing-nsappearance-changes-in-macos-29fc4f44b0c4)
+- [NSHostingView reentrant layout issue](https://github.com/onmyway133/notes/issues/551)
+- [Apple CATransaction setCompletionBlock docs](https://developer.apple.com/documentation/quartzcore/catransaction/1448281-setcompletionblock)
+- [Build an AppKit app with the new design -- WWDC25](https://developer.apple.com/videos/play/wwdc2025/310/)
+- [GlassEffectTest regression demo -- FB21375029](https://github.com/siracusa/GlassEffectTest)
+- [Adopting Liquid Glass -- Apple Developer Documentation](https://developer.apple.com/documentation/TechnologyOverviews/adopting-liquid-glass)

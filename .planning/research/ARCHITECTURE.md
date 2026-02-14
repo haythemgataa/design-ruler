@@ -1,514 +1,736 @@
-# Architecture Patterns
+# Architecture Patterns: Hint Bar Redesign
 
-**Domain:** macOS pixel inspector (Raycast extension) -- integration of enhancements into existing architecture
+**Domain:** macOS pixel inspector (Raycast extension) -- hint bar redesign with liquid glass, split animation, multi-state
 **Researched:** 2026-02-13
-
-## Current Architecture (As-Is)
-
-```
-TypeScript (design-ruler.ts)
-  |
-  +-- inspect(hideHintBar, corrections) --> Swift binary
-        |
-        Ruler (singleton)
-          +-- captures all screens
-          +-- creates RulerWindow[] (one per monitor)
-          +-- wires callbacks: onActivate / onRequestExit / onFirstMove
-          +-- manages firstMoveReceived, NSCursor.unhide() on exit
-          |
-          RulerWindow (NSWindow subclass, per screen)
-            +-- owns: CrosshairView, HintBarView, SelectionManager, EdgeDetector
-            +-- routes: sendEvent() intercepts mouse events
-            +-- state: isDragging, isHoveringSelection, hasReceivedFirstMove
-            +-- cursor mgmt: push/pop/hide/unhide scattered across 9 call sites
-            |
-            CrosshairView (NSView, GPU-composited via CAShapeLayer)
-              +-- linesLayer, 4x foot layers, pill layers (wBg, hBg, labels, values)
-              +-- showSystemCrosshair bool + resetCursorRects()
-              +-- hideSystemCrosshair() / skipSystemCrosshairPhase()
-              +-- hideForDrag() / showAfterDrag()
-              |
-            HintBarView (NSView + NSHostingView<HintBarContent>)
-              +-- slide animation (bottom <-> top)
-              +-- key press/release visual feedback
-              +-- backspace dismissal with UserDefaults persistence
-              |
-            SelectionManager
-              +-- manages SelectionOverlay[] collection
-              +-- drag lifecycle: start/update/end/cancel
-              +-- hit testing + hover state
-              |
-            SelectionOverlay (pure CALayer composition)
-              +-- rectLayer, fillLayer, pillBgLayer, pillTextLayer
-              +-- snap animation, hover state transitions
-              +-- added to CrosshairView.layer (parent)
-```
-
-### Key Design Invariants
-
-1. **Ruler singleton** owns the lifecycle: capture -> window creation -> exit
-2. **RulerWindow** is the sole event router (sendEvent override for mouse; keyDown/keyUp for keyboard)
-3. **CrosshairView** never calls NSCursor directly except in `hideSystemCrosshair()` and `resetCursorRects()`
-4. **SelectionOverlay** layers are children of CrosshairView's root layer
-5. **No NSApplication delegate** -- Ruler calls `NSApp.run()` directly, `NSApp.terminate(nil)` to exit
-6. **All rendering is GPU-composited** -- CAShapeLayer + CATextLayer, no `draw()` overrides
+**Overall confidence:** MEDIUM (NSGlassEffectView is macOS 26+ only; within-overlay blur behavior unverified)
 
 ---
 
-## Enhancement 1: Centralized CursorManager
+## 1. Current Architecture (As-Is)
 
-### Problem
-
-NSCursor push/pop/hide/unhide calls are scattered across 3 files with 18 total call sites:
-
-| File | Call Sites | Operations |
-|------|-----------|------------|
-| `Ruler.swift` | 1 | `unhide()` on exit |
-| `RulerWindow.swift` | 14 | `push()`, `pop()`, `hide()`, `unhide()` in mouseDown/Up/Moved, deactivate |
-| `CrosshairView.swift` | 3 | `hide()` in hideSystemCrosshair, `resetCursorRects` + `invalidateCursorRects` |
-
-The push/pop stack is fragile -- a missed `pop()` (e.g., when drag state gets stuck) leaves the wrong cursor visible. The existing `mouseDown` stale-state reset is evidence of this fragility.
-
-### Recommended Architecture
+### HintBarView Layer Stack
 
 ```
-CursorManager (new, in Utilities/)
-  +-- enum CursorState: hidden, system, crosshair, pointingHand
-  +-- private var stack: [CursorState] (replaces NSCursor stack)
-  +-- transition(to:) -- handles all push/pop/hide/unhide
-  +-- reset() -- force-unwind to known state (exit cleanup)
+RulerWindow (NSWindow, borderless, fullscreen per-screen)
+  contentView (NSView container)
+    +-- bgView (NSView, frozen screenshot as layer.contents)
+    +-- CrosshairView (NSView, CAShapeLayer hierarchy)
+    +-- HintBarView (NSView, peer of CrosshairView)
+          +-- NSHostingView<HintBarContent> (SwiftUI)
+               +-- VStack(spacing: -2)
+                    +-- MainHintCard (arrows + shift text, dark bg, shadow)
+                    +-- ExtraHintCard (esc text, darker bg, shadow)
 ```
 
-**Where it lives:** `swift/Ruler/Sources/Utilities/CursorManager.swift`
+### Current Rendering Approach
 
-**Who owns it:** `Ruler` singleton creates it, passes it to each `RulerWindow` at creation time. This matches the existing pattern where Ruler owns shared state (like `firstMoveReceived`) and windows receive references.
+- HintBarView is an `NSView` hosting SwiftUI content via `NSHostingView`
+- SwiftUI handles all rendering: `RoundedRectangle` fills, shadows, text layout
+- Background colors are hardcoded per `colorScheme` (.dark/.light environment)
+- No blur, no vibrancy, no glass -- solid opaque backgrounds with shadows
+- Key press feedback via `@Published pressedKeys` set on `HintBarState` ObservableObject
 
-**Integration points:**
+### Current Animation
 
-| Current Call Site | New Call |
-|-------------------|----------|
-| `CrosshairView.hideSystemCrosshair()` | `cursorManager.transition(to: .hidden)` + invalidate cursor rects |
-| `RulerWindow.mouseMoved` (hover enter) | `cursorManager.transition(to: .pointingHand)` |
-| `RulerWindow.mouseMoved` (hover exit) | `cursorManager.transition(to: .hidden)` |
-| `RulerWindow.mouseDown` (start drag) | `cursorManager.transition(to: .crosshair)` |
-| `RulerWindow.mouseUp` (end drag) | `cursorManager.transition(to: .hidden)` |
-| `RulerWindow.deactivate` | `cursorManager.transition(to: .hidden)` |
-| `Ruler.handleExit` | `cursorManager.reset()` |
+- Slide animation: `CAKeyframeAnimation` on `position.y` with 4 keyframes (current -> offscreen -> offscreen-opposite -> final)
+- Duration: 0.3s, ease-in for exit, custom cubic for entry
+- `isAnimating` guard prevents overlapping animations
+- Frame-based positioning: `frame.origin.y` set immediately, animation overrides presentation
+
+### Current Integration Points
+
+| Caller | Method | Purpose |
+|--------|--------|---------|
+| `RulerWindow.setupViews()` | `HintBarView(frame: .zero)` | Creation |
+| `RulerWindow.setupViews()` | `hv.configure(screenWidth:screenHeight:)` | Initial positioning |
+| `RulerWindow.mouseMoved()` | `hintBarView.updatePosition(cursorY:screenHeight:)` | Proximity-based top/bottom swap |
+| `RulerWindow.keyDown()` | `hintBarView.pressKey(.left/.right/.up/.down/.esc)` | Visual key feedback |
+| `RulerWindow.keyUp()` | `hintBarView.releaseKey(...)` | Release visual feedback |
+| `RulerWindow.flagsChanged()` | `hintBarView.pressKey/releaseKey(.shift)` | Modifier tracking |
+| `Ruler.run()` | `hideHintBar` parameter on `RulerWindow.create()` | Hide preference |
+
+---
+
+## 2. Design Decision: Glass Technology
+
+### The Core Question
+
+The window has a **frozen screenshot as background** (not desktop content). This fundamentally affects which blur technology works.
+
+### Option A: NSVisualEffectView (behindWindow)
+
+**Problem:** `behindWindow` blending samples content from behind the *window*, i.e., the actual desktop. But the RulerWindow is opaque (`window.isOpaque = true`) with a screenshot background. The blur would sample the real desktop (which may have changed since capture), not the frozen screenshot. This creates a visual mismatch -- the blurred glass would show different content than the screenshot behind it.
+
+**Verdict: NOT SUITABLE.** The window is intentionally opaque with a static screenshot. Behind-window blur defeats the "frozen frame" illusion.
+
+### Option B: NSVisualEffectView (withinWindow)
+
+**How it works:** `withinWindow` blending samples content from sibling views *within the same window*. The blur would sample the screenshot bgView that sits behind it in the view hierarchy.
+
+**This is the correct approach.** The frozen screenshot IS the content to blur. `withinWindow` blending will blur the screenshot pixels beneath the hint bar, creating a frosted glass appearance that matches the frozen frame.
+
+**Setup:**
+```swift
+let vev = NSVisualEffectView(frame: barFrame)
+vev.blendingMode = .withinWindow
+vev.material = .hudWindow    // dark translucent, good for overlays
+vev.state = .active           // always active, don't follow window state
+vev.wantsLayer = true
+```
+
+**Confidence: MEDIUM.** `withinWindow` should sample the bgView's screenshot content, but this is unverified in practice with the specific window setup (opaque borderless window, CALayer contents-based background). Needs a prototype to confirm the blur actually samples the screenshot and not just black.
+
+### Option C: NSGlassEffectView (macOS 26+)
+
+**What it is:** New in macOS 26 Tahoe. `NSGlassEffectView` is an NSView subclass that provides Apple's new "Liquid Glass" material -- translucent with refraction, specular highlights, and adaptive shadows.
 
 **API surface:**
-
 ```swift
-final class CursorManager {
-    enum CursorState { case system, hidden, crosshair, pointingHand }
-
-    private(set) var state: CursorState = .system
-    private var hideCount = 0  // tracks NSCursor.hide() balance
-
-    /// Transition to a new cursor state. Handles all push/pop/hide/unhide.
-    func transition(to newState: CursorState) {
-        guard newState != state else { return }
-        // Unhide if currently hidden and moving to visible cursor
-        // Pop previous pushed cursor if needed
-        // Push new cursor or hide as appropriate
-        state = newState
-    }
-
-    /// Force-reset to clean state (call on exit).
-    func reset() {
-        // Unwind hideCount, pop all pushed cursors
-        while hideCount > 0 { NSCursor.unhide(); hideCount -= 1 }
-        state = .system
-    }
-}
+let glass = NSGlassEffectView()
+glass.contentView = myContentView  // content rendered ON the glass
+glass.cornerRadius = 18
+glass.tintColor = .systemBlue.withAlphaComponent(0.3)
 ```
 
-**Critical detail:** `CrosshairView` still owns `resetCursorRects()` because that is an NSView override tied to the view's window. CursorManager does NOT handle cursor rects -- it only handles the imperative push/pop/hide/unhide stack. CrosshairView calls `window?.invalidateCursorRects(for: self)` as before, but instead of also calling `NSCursor.hide()`, it calls `cursorManager.transition(to: .hidden)`.
+**Key constraint:** NSGlassEffectView works by setting its `contentView` property. You do NOT place it behind content as a sibling -- you place content INSIDE it. This is different from NSVisualEffectView.
 
-**What NOT to do:**
-- Do NOT make CursorManager a global singleton. It should be passed as a dependency.
-- Do NOT try to replace `resetCursorRects()` -- that is an NSView lifecycle method.
-- Do NOT add cursor logic to SelectionManager. Keep SelectionManager focused on selection state.
+**Problem 1 -- Deployment target:** Package.swift currently targets `.macOS(.v13)` (Ventura). NSGlassEffectView requires macOS 26. Bumping the minimum deployment target would exclude users on macOS 13-25.
 
-### Breaking Change Risk: NONE
+**Problem 2 -- Overlay context unknown:** NSGlassEffectView is documented for standard application UI (toolbars, sidebars, HUDs). Whether it produces correct visuals in a borderless fullscreen overlay with a screenshot background is undocumented. It may try to sample desktop content (like `behindWindow`) rather than the in-window screenshot.
 
-CursorManager wraps existing calls without changing any public API. RulerWindow and CrosshairView gain a `cursorManager` property but their existing public interfaces (`hideForDrag`, `showAfterDrag`, etc.) remain unchanged internally.
+**Problem 3 -- Raycast compatibility:** Raycast extensions must work on the Raycast-supported macOS versions. Requiring macOS 26 for the hint bar would break on older systems.
+
+**Verdict: NOT YET.** Use NSVisualEffectView (withinWindow) as the primary approach. NSGlassEffectView can be adopted later via `#available(macOS 26, *)` runtime check once: (a) the behavior in overlay windows is verified, and (b) a fallback path for macOS 13-25 is implemented.
+
+### Recommendation
+
+**Use NSVisualEffectView with `.withinWindow` blending and `.hudWindow` material.** This:
+- Works on macOS 13+ (current deployment target)
+- Blurs the frozen screenshot (within-window content)
+- Provides a frosted glass look that adapts to the screenshot underneath
+- Is well-documented and widely used in overlay/HUD contexts
+
+**Future enhancement:** Add `NSGlassEffectView` behind `#available(macOS 26, *)` for true liquid glass on Tahoe+.
 
 ---
 
-## Enhancement 2: Shake Animation on SelectionOverlay
+## 3. Recommended Architecture: New HintBarView
 
-### Problem
+### State Machine
 
-When a user drags a selection rectangle that is too small (< 4px) or fails to snap to edges, the selection simply disappears. There is no visual feedback explaining why.
-
-### Current Layer Hierarchy
+The hint bar has three visual states:
 
 ```
-CrosshairView.layer (root)
-  +-- linesLayer (CAShapeLayer, difference blend)
-  +-- leftFoot, rightFoot, topFoot, bottomFoot (CAShapeLayer)
-  +-- wBgLayer, hBgLayer (CAShapeLayer, pill backgrounds)
-  +-- wLabelLayer, hLabelLayer, wValueLayer, hValueLayer (CATextLayer)
-  +-- [SelectionOverlay layers, added by SelectionManager]
-       +-- fillLayer (CAShapeLayer)
-       +-- rectLayer (CAShapeLayer, difference blend)
-       +-- pillBgLayer (CAShapeLayer)
-       +-- pillTextLayer (CATextLayer)
+                    mouse idle 3s                    cursor near hint
+[EXPANDED] -----------------------> [COLLAPSED] <---------------------- [REPOSITIONING]
+    ^                                    |                                     |
+    |                                    |                                     |
+    +--- any key press ------------------+                                     |
+    +--- cursor near hint (hover) -------+                                     |
+                                                                               |
+    position swap (bottom <-> top) triggers REPOSITIONING, which resolves      |
+    back to EXPANDED or COLLAPSED depending on prior state                     |
 ```
 
-### Recommended Architecture
+| State | Visual | Content |
+|-------|--------|---------|
+| `expanded` | Single bar, full width | "Use [arrows] to skip an edge. Plus [shift] to invert." + ESC hint below |
+| `collapsed` | Two small floating bars | Left: arrow cluster only. Right: ESC keycap only (tinted). |
+| `repositioning` | Animating position | Slide animation (existing pattern), then resolve to prior content state |
 
-Add the shake animation directly to `SelectionOverlay`. It already owns its layer hierarchy and has an `animateSnap(to:w:h:)` method -- a `shakeAndRemove()` method is the natural counterpart.
+### Component Hierarchy (New)
 
-**Integration point:** `SelectionManager.endDrag()` currently calls `sel.remove(animated: true)` on snap failure. Replace with `sel.shakeAndRemove()`.
-
-```swift
-// In SelectionOverlay:
-func shakeAndRemove() {
-    // Remove dash pattern for visual consistency during shake
-    rectLayer.lineDashPattern = nil
-
-    // Shake uses CAKeyframeAnimation on position.x of all layers
-    let duration: CFTimeInterval = 0.35
-    let amplitude: CGFloat = 6.0
-
-    // Group all 4 layers into a temporary container for single animation target
-    let containerLayer = CALayer()
-    containerLayer.frame = CGRect(
-        x: rect.origin.x, y: rect.origin.y,
-        width: rect.width, height: rect.height + pillHeight + pillGap
-    )
-
-    // ... OR animate each layer's position individually (simpler, no re-parenting):
-    let shake = CAKeyframeAnimation(keyPath: "transform.translation.x")
-    shake.values = [0, -amplitude, amplitude, -amplitude * 0.6, amplitude * 0.6, 0]
-    shake.keyTimes = [0, 0.15, 0.35, 0.55, 0.75, 1.0]
-    shake.duration = duration
-    shake.timingFunction = CAMediaTimingFunction(name: .easeOut)
-
-    let fade = CABasicAnimation(keyPath: "opacity")
-    fade.fromValue = 1.0
-    fade.toValue = 0.0
-    fade.beginTime = duration * 0.5  // start fading halfway through shake
-    fade.duration = duration * 0.5
-
-    let group = CAAnimationGroup()
-    group.animations = [shake, fade]
-    group.duration = duration
-
-    CATransaction.begin()
-    CATransaction.setCompletionBlock { [weak self] in
-        self?.removeLayers()
-    }
-    for layer in [rectLayer, fillLayer, pillBgLayer, pillTextLayer] as [CALayer] {
-        layer.opacity = 0  // final model value
-        layer.add(group, forKey: "shakeRemove")
-    }
-    CATransaction.commit()
-}
+```
+HintBarView (NSView, container -- NO SwiftUI)
+  +-- NSVisualEffectView (withinWindow, hudWindow material)
+  |     +-- contentStack (NSView, hosts expanded content)
+  |           +-- mainCardHost: NSHostingView<MainHintCard>
+  |           +-- extraCardHost: NSHostingView<ExtraHintCard>
+  |
+  +-- leftGlassBar (NSVisualEffectView, withinWindow)  -- collapsed state
+  |     +-- arrowClusterHost: NSHostingView<ArrowCluster>
+  |
+  +-- rightGlassBar (NSVisualEffectView, withinWindow) -- collapsed state
+        +-- escKeyHost: NSHostingView<EscKeyCap>
 ```
 
-**Why animate each layer individually instead of a container layer:**
-SelectionOverlay's layers are added directly to CrosshairView's root layer (not grouped). Re-parenting them into a container layer during animation would require removing and re-adding sublayers, which risks flicker and complicates the layer tree. Applying the same animation to each layer independently is simpler and matches the existing pattern used in `animateSnap()` and `remove(animated:)`.
+**Wait -- why NOT just use SwiftUI for everything like the current design?**
 
-**What NOT to do:**
-- Do NOT add a wrapper CALayer/CATransformLayer as a permanent parent for SelectionOverlay's layers. The flat hierarchy is intentional -- it keeps z-ordering simple and avoids nested coordinate transforms.
-- Do NOT animate `position` directly -- use `transform.translation.x` to avoid conflicting with the layer's actual position (same pattern Core Animation uses for UIKit spring animations).
+The current design wraps everything in a single `NSHostingView<HintBarContent>`. This works when there is one continuous bar. But the split animation requires:
 
-### Breaking Change Risk: NONE
+1. Two independent views that move to different positions
+2. Glass blur backgrounds that respond to position changes (blur samples different screenshot regions as they move)
+3. Frame-based position animation (CAKeyframeAnimation on `position.y`)
 
-`shakeAndRemove()` is a new method on SelectionOverlay. The only call site change is in `SelectionManager.endDrag()`.
+SwiftUI's `matchedGeometryEffect` could handle the morph, but it cannot control `NSVisualEffectView` backgrounds, and NSHostingView within a CALayer animation context has known performance issues. The split animation is fundamentally a frame/position animation, which is Core Animation's strength.
+
+### Revised Approach: Hybrid SwiftUI + AppKit
+
+Keep SwiftUI for **content rendering** (keycaps, text) but use AppKit `NSView` + `NSVisualEffectView` for **glass backgrounds and positioning**.
+
+```
+HintBarView (NSView, manages state + animations)
+  |
+  [EXPANDED state]:
+  +-- expandedBar (NSVisualEffectView, rounded rect mask, withinWindow)
+  |     +-- NSHostingView<ExpandedHintContent> (text + keycaps)
+  |
+  [COLLAPSED state]:
+  +-- leftBar (NSVisualEffectView, pill-shaped mask, withinWindow)
+  |     +-- NSHostingView<ArrowClusterContent>
+  |
+  +-- rightBar (NSVisualEffectView, pill-shaped mask, withinWindow)
+        +-- NSHostingView<EscContent>
+```
+
+Only one set of views is visible at a time. The split animation crossfades + repositions.
 
 ---
 
-## Enhancement 3: Process Timeout
+## 4. Split Animation Design
 
-### Problem
+### Animation: Expanded to Collapsed
 
-Per MEMORY.md: "Ruler processes don't auto-terminate if NSApp.terminate(nil) never fires." If the user switches away from the overlay via Mission Control or a system dialog steals focus, the process hangs forever consuming resources.
+When the user is idle for 3 seconds, the expanded bar splits into two collapsed bars.
 
-### Current Exit Flow
+**Approach: Cross-fade with position interpolation**
 
-```
-RulerWindow.keyDown(ESC) --> onRequestExit callback --> Ruler.handleExit()
-  --> NSCursor.unhide()
-  --> close all windows
-  --> NSApp.terminate(nil)
-```
-
-There is no fallback if ESC is never pressed.
-
-### Recommended Architecture
-
-The timeout belongs in the **Ruler singleton**, not in RulerWindow or an NSApplication delegate. Rationale:
-
-1. Ruler owns the lifecycle (`run()` and `handleExit()`)
-2. Ruler has access to all windows (can check if any are key/visible)
-3. No NSApplication delegate exists, and adding one would change the architecture unnecessarily
-4. A simple DispatchSource timer in Ruler is lightweight and self-contained
-
-```swift
-// In Ruler:
-private var watchdogTimer: DispatchSourceTimer?
-
-func run(hideHintBar: Bool, corrections: String) {
-    // ... existing setup ...
-    startWatchdog()
-    app.run()
-}
-
-private func startWatchdog() {
-    let timer = DispatchSource.makeTimerSource(queue: .main)
-    timer.schedule(deadline: .now() + 300, repeating: 60)  // first check at 5min, then every 1min
-    timer.setEventHandler { [weak self] in
-        guard let self else { return }
-        // If no window is key, the user has navigated away -- exit
-        let anyWindowKey = self.windows.contains { $0.isKeyWindow }
-        if !anyWindowKey {
-            self.handleExit()
-        }
-    }
-    timer.resume()
-    watchdogTimer = timer
-}
-
-private func handleExit() {
-    watchdogTimer?.cancel()
-    watchdogTimer = nil
-    // ... existing exit logic ...
-}
-```
-
-**Why 5 minutes initial delay:** The user might intentionally Cmd+Tab away briefly (e.g., to compare). A 5-minute grace period covers this. After that, 1-minute checks catch zombie processes quickly.
-
-**Alternative considered -- NSApplication delegate:** Adding `NSApplicationDelegate` with `applicationDidResignActive()` would exit immediately when focus is lost. This is too aggressive -- the user might switch apps briefly. The timer approach is more forgiving.
-
-**Alternative considered -- `applicationShouldTerminateAfterLastWindowClosed`:** Requires an NSApplication delegate and only fires when ALL windows close, not when focus is lost.
-
-### Breaking Change Risk: NONE
-
-Purely additive. Timer is created in `run()` and cancelled in `handleExit()`.
-
----
-
-## Enhancement 4: "Press ? for help" Transient Hint
-
-### Problem
-
-The current HintBarView is always visible (unless dismissed). A lighter alternative is a transient "Press ? for help" hint that appears briefly, then fades out -- only showing the full hint bar when the user presses `?`.
-
-### Current HintBarView Architecture
+The split cannot be a literal "one view tears into two" because NSVisualEffectView cannot be clipped mid-animation in a way that maintains blur sampling. Instead:
 
 ```
-HintBarView (NSView)
-  +-- NSHostingView<HintBarContent> (SwiftUI)
-       +-- MainHintCard (arrows + shift explanation)
-       +-- ExtraHintCard (ESC + backspace explanation)
-  +-- slide animation (bottom <-> top)
-  +-- pressKey/releaseKey for visual feedback
-  +-- configure() sets initial frame
-  +-- updatePosition() handles cursor proximity
+Phase 1 (0.0s - 0.15s): Expanded bar fades out, shrinks slightly (scaleX: 0.95)
+Phase 2 (0.1s - 0.3s):  Two collapsed bars fade in at their target positions
+                          Left bar slides in from center-left
+                          Right bar slides in from center-right
 ```
-
-HintBarView is created in `RulerWindow.setupViews()` and added to the container view if not hidden. It is a peer of CrosshairView in the view hierarchy (not a child).
-
-### Recommended Architecture
-
-Add a **separate lightweight layer** for the transient hint, NOT modify HintBarView. Rationale:
-
-1. HintBarView is a full SwiftUI-hosted NSView with key press animations -- it is the "full help overlay"
-2. The transient hint is a simple text that fades in/out -- it does not need SwiftUI
-3. Mixing a transient fade-out into HintBarView's slide animation system would add complexity to an already-nuanced animation state machine
-
-**New component:** `TransientHintLayer` -- a pair of CALayers (background + text) managed by RulerWindow.
-
-```
-CrosshairView.layer (root)
-  +-- ... existing layers ...
-  +-- transientHintBg (CAShapeLayer)
-  +-- transientHintText (CATextLayer)
-```
-
-**Or, simpler:** Add it to the container view as a separate thin NSView (like HintBarView is), positioned at bottom center.
-
-**Recommended approach:** CALayer on CrosshairView's root layer. This matches the pill pattern (CAShapeLayer bg + CATextLayer text) and avoids creating another NSView.
-
-**Lifecycle:**
-
-```
-1. Ruler.run() creates windows
-2. RulerWindow.showInitialState() shows transient hint: "Press ? for help" at bottom center
-3. After 3s, fade out (CABasicAnimation opacity 1->0, duration 0.5)
-4. On "?" keyDown: remove transient hint, show full HintBarView (add to containerView + configure)
-5. Full HintBarView from that point behaves exactly as it does today
-```
-
-**Where to add the layers:** CrosshairView gets two new optional layers (`transientHintBg`, `transientHintText`). CrosshairView gets `showTransientHint()` and `hideTransientHint(animated:)` methods. RulerWindow calls these at the appropriate times and handles the `?` key in `keyDown`.
-
-**Integration with existing hint bar dismissal:**
-
-| State | Transient Hint | Full HintBar |
-|-------|---------------|--------------|
-| hideHintBar=true | Not shown | Not shown |
-| hideHintBar=false, hintBarDismissed=false | Shown on launch, fades after 3s | Shown on "?" press |
-| hideHintBar=false, hintBarDismissed=true | Shown on launch, fades after 3s | Not shown (dismissed) |
-
-The transient hint is independent of the dismiss state. Even if the user previously dismissed the full hint bar, the transient "Press ? for help" still appears (it is non-intrusive).
-
-**What NOT to do:**
-- Do NOT make HintBarView responsible for the transient state. The two are different UI elements with different lifecycles.
-- Do NOT use SwiftUI for the transient hint. It is 2 layers (bg + text). SwiftUI hosting overhead is not justified.
-- Do NOT show the transient hint AND the full hint bar simultaneously.
-
-### Breaking Change Risk: LOW
-
-New layers on CrosshairView and new key handler in RulerWindow. The only subtle change is that `hideHintBar` preference now controls both systems, but the behavior is strictly additive.
-
----
-
-## Enhancement 5: Debug Logging Strategy
-
-### Current State
-
-6 `fputs("[DEBUG]...", stderr)` calls in production code:
-
-| File | Count | Content |
-|------|-------|---------|
-| `EdgeDetector.swift` | 2 | Screen capture diagnostics, nil edge detection |
-| `RulerWindow.swift` | 4 | Drag state transitions |
-
-### Recommended Architecture: `#if DEBUG` Guards
-
-**Use `#if DEBUG` because:**
-
-1. **Zero runtime cost in release builds.** The compiler strips guarded code entirely. `os_log` with `.debug` level still evaluates string interpolation arguments even when the log is not displayed.
-2. **No import needed.** `os_log` requires `import os`, adding a framework dependency to files that currently only import AppKit.
-3. **Matches Raycast extension constraints.** The Swift binary runs as a standalone process -- there is no persistent subsystem to log to. `os_log` is designed for long-running processes where Console.app filtering is valuable. For a tool that runs for seconds, stderr during development is more practical.
-4. **Complete removal is the wrong choice.** These debug logs document important state transitions (drag lifecycle, capture diagnostics). Removing them means re-adding them every time debugging is needed.
 
 **Implementation:**
 
 ```swift
-// Replace all fputs calls with:
-#if DEBUG
-fputs("[DEBUG] mouseDown: starting drag at \(windowPoint)\n", stderr)
-#endif
+func animateToCollapsed() {
+    guard currentState == .expanded else { return }
+    currentState = .collapsed
+
+    // Position collapsed bars at center (where expanded bar was)
+    let centerX = expandedBar.frame.midX
+    leftBar.frame.origin.x = centerX - leftBar.frame.width
+    rightBar.frame.origin.x = centerX
+    leftBar.alphaValue = 0
+    rightBar.alphaValue = 0
+    leftBar.isHidden = false
+    rightBar.isHidden = false
+
+    // Animate expanded bar out
+    NSAnimationContext.runAnimationGroup { ctx in
+        ctx.duration = 0.2
+        ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
+        expandedBar.animator().alphaValue = 0
+    }
+
+    // Animate collapsed bars in (slight delay)
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+        NSAnimationContext.runAnimationGroup({ ctx in
+            ctx.duration = 0.25
+            ctx.timingFunction = CAMediaTimingFunction(controlPoints: 0.23, 1, 0.32, 1)
+            self.leftBar.animator().frame.origin.x = self.leftBarTargetX
+            self.leftBar.animator().alphaValue = 1
+            self.rightBar.animator().frame.origin.x = self.rightBarTargetX
+            self.rightBar.animator().alphaValue = 1
+        })
+    }
+}
 ```
 
-**What NOT to do:**
-- Do NOT use `os_log`. The overhead of `import os` + subsystem/category setup + OSLogMessage formatting is not justified for 6 log statements in a short-lived process.
-- Do NOT create a logging wrapper/protocol. 6 call sites do not warrant abstraction.
-- Do NOT remove the logs entirely. They document non-obvious state transitions that will need debugging again.
+**Why NOT use CAKeyframeAnimation (like the current slide)?**
 
-**Alternative considered -- `os_log`:** Would be appropriate if the extension had persistent background processes, many logging call sites, or needed Console.app filtering. None of these apply.
+The current slide animation uses `CAKeyframeAnimation` on `position.y` because it needs teleport behavior (exit one side, enter the other). The split animation is a standard ease-in/ease-out transition -- `NSAnimationContext` (which wraps Core Animation) is simpler and sufficient. The slide animation should remain as `CAKeyframeAnimation` because the teleport pattern cannot be expressed with `NSAnimationContext`.
 
-### Breaking Change Risk: NONE
+### Animation: Collapsed to Expanded
 
-Purely a code change within method bodies. No API changes.
+Reverse of the above. On any key press or cursor hover near the bars:
+
+```
+Phase 1 (0.0s - 0.15s): Collapsed bars fade out, slide toward center
+Phase 2 (0.1s - 0.3s):  Expanded bar fades in at position
+```
+
+### Position Swap During Collapsed State
+
+When the cursor approaches the bottom (or top) and the bars need to swap position, BOTH collapsed bars must move together. The existing `updatePosition()` logic applies to both bars simultaneously:
+
+```swift
+func updatePosition(cursorY: CGFloat, screenHeight: CGFloat) {
+    // Same proximity logic as before
+    let shouldBeAtTop = cursorY < threshold
+    guard shouldBeAtTop != isAtTop, !isAnimating else { return }
+
+    let targetY: CGFloat = shouldBeAtTop
+        ? screenHeight - barHeight - topMargin
+        : barMargin
+
+    // Animate ALL visible bars (expanded or both collapsed)
+    animateSlide(to: targetY, screenHeight: screenHeight, exitDown: shouldBeAtTop)
+}
+
+private func animateSlide(to finalY: CGFloat, ...) {
+    // Apply the SAME CAKeyframeAnimation to all visible bar layers
+    let visibleBars = currentState == .expanded
+        ? [expandedBar]
+        : [leftBar, rightBar].compactMap { $0 }
+
+    for bar in visibleBars {
+        bar.layer?.add(slideAnimation, forKey: "hintBarSlide")
+        bar.frame.origin.y = finalY
+    }
+}
+```
 
 ---
 
-## Component Boundaries Summary
+## 5. ESC Tint and Appearance Changes
+
+### Problem
+
+The ESC keycap in collapsed state needs a distinctive tint (e.g., red/warm) to signal "exit". This tint must respond to `NSAppearance` changes (system dark/light mode switches while the overlay is active).
+
+### Current Appearance Handling
+
+The existing SwiftUI content uses `@Environment(\.colorScheme)`. This automatically updates when the hosting window's `effectiveAppearance` changes. Since the overlay window follows system appearance, SwiftUI views inside `NSHostingView` will re-render when appearance changes.
+
+### Implementation
+
+```swift
+// In the SwiftUI EscContent view:
+struct EscContent: View {
+    @ObservedObject var state: HintBarState
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var escTint: Color {
+        colorScheme == .dark
+            ? Color(nsColor: NSColor(srgbRed: 1.0, green: 0.35, blue: 0.35, alpha: 1.0))
+            : Color(nsColor: NSColor(srgbRed: 0.9, green: 0.2, blue: 0.2, alpha: 1.0))
+    }
+
+    var body: some View {
+        KeyCap(.esc, symbol: "esc", ...)
+            .overlay(
+                RoundedRectangle(cornerRadius: 5)
+                    .strokeBorder(escTint, lineWidth: 1.5)
+            )
+    }
+}
+```
+
+For the NSVisualEffectView tint on the right collapsed bar:
+
+```swift
+// NSVisualEffectView does NOT have a tintColor property (that's NSGlassEffectView).
+// Instead, add a semi-transparent color overlay layer:
+private func updateEscBarTint() {
+    let isDark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+    escTintLayer.backgroundColor = isDark
+        ? CGColor(srgbRed: 1.0, green: 0.3, blue: 0.3, alpha: 0.08)
+        : CGColor(srgbRed: 0.9, green: 0.2, blue: 0.2, alpha: 0.06)
+}
+
+// Called from:
+override func viewDidChangeEffectiveAppearance() {
+    super.viewDidChangeEffectiveAppearance()
+    updateEscBarTint()
+}
+```
+
+**Key insight:** `viewDidChangeEffectiveAppearance()` is called automatically by AppKit when the system appearance changes. The SwiftUI `@Environment(\.colorScheme)` will also update because `NSHostingView` bridges this automatically.
+
+---
+
+## 6. Performance Analysis: Bitmap vs Live Layers
+
+### Current: Static Bitmap (layer.contents)
+
+The CLAUDE.md originally described a bitmap-cached approach (`wantsUpdateLayer = true`, render once into `NSBitmapImageRep`, set as `layer.contents`). The current implementation has already departed from this -- it uses `NSHostingView<HintBarContent>` which is a live SwiftUI view tree. So the performance concern about "switching from bitmap to live layers" is somewhat moot -- the codebase already uses live SwiftUI rendering.
+
+### New: NSVisualEffectView + Live SwiftUI
+
+**Additional cost:**
+- NSVisualEffectView creates a `CABackdropLayer` internally that samples content behind it
+- `withinWindow` mode: WindowServer composites the layer hierarchy to produce the blur
+- This is GPU-accelerated and handled by WindowServer, not the app's CPU
+- **Idle cost:** After WindowServer flattens the layer tree (~1s of no changes), the blur is composited into a bitmap automatically. CPU cost returns to ~0.
+
+**During animation:**
+- While the hint bar is animating (slide, split), WindowServer must recomposite each frame
+- For a 0.3s animation at 60fps = ~18 frames of compositing
+- This is identical to the current slide animation cost (layer position changes already trigger recompositing)
+
+**During mouse movement:**
+- The hint bar does NOT change on mouse movement (only position-swaps when cursor is near bottom/top)
+- Normal mouse movement only updates CrosshairView layers -- HintBarView layers are untouched
+- **No additional CPU cost during normal mouse tracking**
+
+### Performance Verdict
+
+| Scenario | Current (SwiftUI) | New (NSVisualEffectView + SwiftUI) | Delta |
+|----------|-------------------|-------------------------------------|-------|
+| Idle (no cursor near bar) | ~0% CPU | ~0% CPU (flattened by WindowServer) | None |
+| Mouse movement | ~0% (bar untouched) | ~0% (bar untouched) | None |
+| Key press (keycap animation) | SwiftUI re-render | SwiftUI re-render + blur resample | Negligible |
+| Position swap | CAKeyframeAnimation | CAKeyframeAnimation + blur resample | Negligible |
+| Split/merge animation | N/A (new) | ~18 frames of compositing | Brief spike, acceptable |
+
+**Conclusion:** The switch to NSVisualEffectView adds negligible overhead. The `<5% CPU during mouse movement` constraint is maintained because the hint bar layers are not touched during mouse movement.
+
+---
+
+## 7. New Component Breakdown
+
+### Files to Modify
+
+| File | Changes |
+|------|---------|
+| `HintBarView.swift` | Major rewrite: replace NSHostingView wrapper with multi-bar NSVisualEffectView architecture, state machine, split animation |
+| `HintBarContent.swift` | Refactor: extract `MainHintCard`, `ExtraHintCard`, `ArrowCluster`, `KeyCap` into reusable components; add `EscContent` for collapsed state |
+| `RulerWindow.swift` | Minor: add idle timer for auto-collapse, wire new state transitions |
+
+### Files to Create
+
+None. All changes fit within existing files. The hint bar is already a self-contained NSView -- expanding its internal complexity does not require new files.
+
+### HintBarView New API Surface
+
+```swift
+final class HintBarView: NSView {
+    // MARK: - State
+    enum BarState { case expanded, collapsed, animating }
+    private(set) var barState: BarState = .expanded
+
+    // MARK: - Existing Public API (unchanged)
+    func pressKey(_ key: KeyID)
+    func releaseKey(_ key: KeyID)
+    func configure(screenWidth: CGFloat, screenHeight: CGFloat)
+    func updatePosition(cursorY: CGFloat, screenHeight: CGFloat)
+
+    // MARK: - New Public API
+    func collapse(animated: Bool)     // expanded -> collapsed
+    func expand(animated: Bool)       // collapsed -> expanded
+
+    // MARK: - Internal
+    private var expandedBar: NSVisualEffectView    // glass bg for expanded
+    private var leftBar: NSVisualEffectView        // glass bg for collapsed arrows
+    private var rightBar: NSVisualEffectView       // glass bg for collapsed ESC
+    private var expandedHost: NSHostingView<...>   // SwiftUI content
+    private var arrowHost: NSHostingView<...>      // SwiftUI collapsed left
+    private var escHost: NSHostingView<...>        // SwiftUI collapsed right
+    private var escTintLayer: CALayer              // appearance-reactive tint
+    private var idleTimer: Timer?                  // auto-collapse timer
+}
+```
+
+### RulerWindow Integration Changes
+
+```swift
+// In RulerWindow:
+
+// New: reset idle timer on mouse move
+override func mouseMoved(with event: NSEvent) {
+    // ... existing logic ...
+    hintBarView.resetIdleTimer()  // or handle in RulerWindow with a timer
+}
+
+// New: expand on key press
+override func keyDown(with event: NSEvent) {
+    // ... existing logic ...
+    if hintBarView.barState == .collapsed {
+        hintBarView.expand(animated: true)
+    }
+}
+```
+
+**Alternative:** Keep the idle timer inside HintBarView itself (it already manages its own animation state). RulerWindow just calls `hintBarView.noteActivity()` on mouse move, and HintBarView internally resets its idle timer. This keeps the timer logic encapsulated.
+
+---
+
+## 8. NSVisualEffectView Configuration Details
+
+### Material Choice
+
+| Material | Appearance | Use Case |
+|----------|-----------|----------|
+| `.hudWindow` | Dark translucent | Best for floating overlays on arbitrary backgrounds |
+| `.popover` | Lighter, more opaque | Too opaque for a hint bar |
+| `.menu` | System menu appearance | Wrong semantic context |
+| `.sidebar` | Sidebar appearance | Wrong semantic context |
+| `.underWindowBackground` | Very subtle | Too transparent |
+
+**Recommendation: `.hudWindow`** -- designed specifically for heads-up display elements floating over arbitrary content. Matches the overlay context perfectly.
+
+### Rounded Corners
+
+NSVisualEffectView does not have a `cornerRadius` property. Use a mask layer:
+
+```swift
+expandedBar.wantsLayer = true
+expandedBar.layer?.cornerRadius = 18
+expandedBar.layer?.cornerCurve = .continuous  // squircle
+expandedBar.layer?.masksToBounds = true
+```
+
+**`cornerCurve = .continuous`** gives the iOS-style squircle corners that match the current `RoundedRectangle(cornerRadius:style:.continuous)` in SwiftUI.
+
+### State Management
+
+Set `state = .active` to prevent the visual effect from deactivating when the window loses focus (which should not happen in this fullscreen overlay, but guards against edge cases):
+
+```swift
+vev.state = .active
+```
+
+---
+
+## 9. Appearance-Reactive Design
+
+### Dark/Light Mode in Overlay Context
+
+The overlay window uses `.isOpaque = true` and does not set an explicit appearance. It inherits the system appearance. When the system switches between dark and light mode:
+
+1. `NSView.viewDidChangeEffectiveAppearance()` fires on all views
+2. SwiftUI `@Environment(\.colorScheme)` updates in all `NSHostingView` instances
+3. `NSVisualEffectView` automatically adjusts its material rendering
+
+The hint bar needs to handle:
+
+| Element | Dark Mode | Light Mode |
+|---------|-----------|------------|
+| Glass background | `.hudWindow` auto-adjusts | `.hudWindow` auto-adjusts |
+| Text color | White (existing) | Black (existing) |
+| Keycap colors | Dark caps, white border (existing) | Light caps, black border (existing) |
+| ESC tint overlay | Red at 8% opacity | Red at 6% opacity |
+
+**SwiftUI handles most of this automatically** via `@Environment(\.colorScheme)`. The only manual handling needed is the ESC tint layer on the NSVisualEffectView (see Section 5).
+
+---
+
+## 10. Multi-Monitor Considerations
+
+### Current Behavior
+
+- Hint bar is created only on the cursor's screen at launch
+- Other screens get `hideHintBar: true`
+- When cursor moves to another screen, `activate(firstMoveAlreadyReceived:)` is called but hint bar is not transferred
+
+### New Behavior (Unchanged)
+
+The hint bar stays on the original screen. This is correct -- the hint bar is informational, not interactive. Moving it between screens would be disorienting during the split animation.
+
+### Collapsed Bars Positioning
+
+Both collapsed bars must maintain consistent positioning relative to each other across the bottom/top swap:
 
 ```
-Ruler (singleton)
-  |-- owns: CursorManager (NEW), windows[], watchdogTimer (NEW)
-  |-- creates: RulerWindow per screen
-  |-- provides: CursorManager to each RulerWindow
+[BOTTOM position]:
+  Screen edge
+  |  16px margin  |  [leftBar]  24px gap  [rightBar]  |  16px margin  |
+                         centered on screen width
+
+[TOP position]:
+  Same horizontal layout, y = screenHeight - barHeight - 48px (notch clearance)
+```
+
+---
+
+## 11. Data Flow Diagram
+
+```
+User Activity                    HintBarView State Machine              Visual Output
+============                     ========================              =============
+
+Launch                           .expanded                              Full hint bar visible
   |
-  RulerWindow
-    |-- owns: CrosshairView, HintBarView, SelectionManager, EdgeDetector
-    |-- receives: CursorManager from Ruler
-    |-- routes: all events (sendEvent, mouseMoved, keyDown)
-    |-- handles: "?" key for transient->full hint transition (NEW)
+  v
+Mouse idle 3s ------timer------> .collapsed                             Split: two small bars
+  |
+  v
+Arrow key press ------------------> .expanded                           Merge: full bar
+  |
+  v
+Mouse idle 3s ------timer------> .collapsed                             Split again
+  |
+  v
+Cursor near bottom ------------> .collapsed + repositioning             Both bars slide to top
+  |
+  v
+ESC --------------------------> [exit, no state change needed]          Window closes
+```
+
+### Idle Timer Flow
+
+```
+mouseMoved in RulerWindow
+  --> hintBarView.noteActivity()
+    --> idleTimer?.invalidate()
+    --> if barState == .collapsed { expand(animated: true) }
+    --> idleTimer = Timer(3s) { self.collapse(animated: true) }
+
+keyDown in RulerWindow
+  --> hintBarView.noteActivity()  (same as above)
+  --> if barState == .collapsed { expand(animated: true) }
+```
+
+**Note:** `noteActivity()` both resets the timer AND expands if collapsed. This means any user interaction immediately shows the full hint bar, and inactivity collapses it.
+
+---
+
+## 12. Build Order (Suggested Phases)
+
+### Phase 1: Glass Background Prototype
+
+**Goal:** Verify NSVisualEffectView with `.withinWindow` blending works correctly in the overlay context.
+
+**What to build:**
+1. Replace HintBarView's solid SwiftUI backgrounds with NSVisualEffectView
+2. Keep existing SwiftUI content as-is (hosted inside the NSVisualEffectView)
+3. Keep existing single-bar layout
+4. Keep existing slide animation
+
+**Why first:** This is the highest-risk unknown. If `.withinWindow` does not correctly blur the screenshot background, the entire glass approach needs rethinking. Validate this before building the split animation.
+
+**Verification:**
+- Glass bar should show blurred screenshot content underneath
+- Blur should be consistent whether bar is at top or bottom
+- Moving bar (slide animation) should maintain correct blur sampling
+- CPU should remain under 5% during mouse movement
+
+**Fallback if withinWindow fails:** Use a solid semi-transparent background (what we essentially have now but with alpha). This is visually inferior but functionally correct.
+
+### Phase 2: State Machine + Collapse/Expand
+
+**Goal:** Add the expanded/collapsed state machine without the split animation.
+
+**What to build:**
+1. Add `BarState` enum to HintBarView
+2. Create collapsed content views (arrow cluster, ESC keycap)
+3. Implement `collapse(animated:)` / `expand(animated:)` with simple fade transitions
+4. Add idle timer
+5. Wire `noteActivity()` from RulerWindow
+
+**Why second:** The state machine is the foundation for the split animation. Getting the states and transitions right with simple fades first avoids debugging state logic and animation simultaneously.
+
+### Phase 3: Split Animation
+
+**Goal:** Replace fade transitions with the split/merge animation.
+
+**What to build:**
+1. Create separate `leftBar` and `rightBar` NSVisualEffectView instances
+2. Implement split animation (expanded -> two bars sliding apart)
+3. Implement merge animation (two bars sliding together -> expanded)
+4. Ensure position swap works with both single and dual bars
+
+**Why third:** This is purely visual polish. The state machine from Phase 2 already handles all the logic -- this phase only changes HOW the transitions look.
+
+### Phase 4: ESC Tint + Appearance Polish
+
+**Goal:** Add the ESC tint, appearance reactivity, and visual refinements.
+
+**What to build:**
+1. Add ESC tint overlay layer on rightBar
+2. Implement `viewDidChangeEffectiveAppearance()` handler
+3. Tune animation curves and timings
+4. Verify multi-monitor behavior (hint bar only on cursor screen)
+
+**Why last:** Appearance handling and tint are cosmetic details. They do not affect the structural architecture and can be tuned independently.
+
+### Dependency Graph
+
+```
+Phase 1 (Glass Prototype)
     |
-    CrosshairView
-      |-- owns: crosshair layers, pill layers, transient hint layers (NEW)
-      |-- receives: CursorManager from RulerWindow
-      |-- provides: showTransientHint() / hideTransientHint() (NEW)
-      |
-    HintBarView (unchanged)
-      |
-    SelectionManager
-      |-- owns: SelectionOverlay[]
-      |-- calls: SelectionOverlay.shakeAndRemove() on failed snap (NEW)
-      |
-    SelectionOverlay
-      |-- provides: shakeAndRemove() (NEW)
+    v
+Phase 2 (State Machine)
+    |
+    v
+Phase 3 (Split Animation)
+    |
+    v
+Phase 4 (ESC Tint + Polish)
 ```
 
-## Data Flow for New Interactions
-
-### Shake on Failed Selection
-
-```
-User drags < 4px or snap fails
-  --> SelectionManager.endDrag()
-    --> SelectionOverlay.shakeAndRemove()
-      --> CAKeyframeAnimation on all 4 layers
-      --> CATransaction completionBlock removes layers
-    --> SelectionManager removes from selections[]
-```
-
-### Cursor State Transitions
-
-```
-Launch: .system (resetCursorRects shows crosshair)
-First mouse move: .hidden (CursorManager.transition)
-Hover selection: .pointingHand (CursorManager.transition)
-Leave selection: .hidden (CursorManager.transition)
-Start drag: .crosshair (CursorManager.transition)
-End drag: .hidden (CursorManager.transition)
-Deactivate window: .hidden (CursorManager.transition)
-Exit: CursorManager.reset() (unwinds everything)
-```
-
-### Transient Hint Flow
-
-```
-Launch: showTransientHint() on cursor screen's CrosshairView
-3s timer: hideTransientHint(animated: true) -- fades out
-User presses "?": hideTransientHint(animated: false) + add HintBarView to container
-ESC: handleExit() (no special cleanup needed -- layers removed with window)
-```
+Strictly sequential. Each phase builds on the previous.
 
 ---
 
-## Build Order (Dependencies Between Enhancements)
+## 13. Anti-Patterns to Avoid
 
-```
-1. #if DEBUG guards        -- Zero dependencies, trivial, do first
-2. Process timeout         -- Zero dependencies on other enhancements
-3. CursorManager           -- Zero dependencies but touches many files
-4. Shake animation         -- Independent of CursorManager
-5. Transient hint          -- Should be done after CursorManager (new key handler
-                              in RulerWindow benefits from cleaner cursor state)
-```
+### Anti-Pattern 1: Using behindWindow Blending
 
-**Rationale:**
-- Items 1-2 are isolated changes that reduce noise and risk
-- Item 3 (CursorManager) is the most invasive refactor -- doing it before items 4-5 means those enhancements write against the cleaner cursor API from the start
-- Item 4 (shake) is self-contained within SelectionOverlay/SelectionManager
-- Item 5 (transient hint) touches RulerWindow's keyDown handler and CrosshairView, which are the same files CursorManager modifies -- so doing it after CursorManager avoids merge conflicts
+**What:** Setting `NSVisualEffectView.blendingMode = .behindWindow`
+**Why bad:** The overlay window has a screenshot as its background. `behindWindow` would blur the *actual desktop* behind the window, not the screenshot. This creates a visual mismatch where the blur shows different content than what the user sees.
+**Instead:** Use `.withinWindow` which blurs sibling view content within the same window.
 
-**Items 1 and 2 can be done in parallel.** Items 3, 4, 5 should be sequential.
+### Anti-Pattern 2: Animating NSVisualEffectView's frame During Blur
+
+**What:** Changing the frame of an NSVisualEffectView while expecting real-time blur updates during animation.
+**Why bad:** WindowServer may not resample the backdrop on every frame of a Core Animation animation. The blur could show stale content or artifacts during movement.
+**Instead:** Test the slide animation thoroughly. If blur lags during animation, consider temporarily setting `state = .inactive` during the animation and re-enabling `.active` in the completion block.
+
+### Anti-Pattern 3: Creating NSGlassEffectView Without Availability Check
+
+**What:** Using `NSGlassEffectView` directly without `#available(macOS 26, *)`.
+**Why bad:** Crashes on macOS 13-25. The deployment target is macOS 13.
+**Instead:** Always guard with availability checks. Provide NSVisualEffectView fallback.
+
+### Anti-Pattern 4: Putting the Idle Timer in RulerWindow
+
+**What:** Managing the collapse/expand idle timer in RulerWindow's mouseMoved.
+**Why bad:** RulerWindow already has complex mouse event handling (drag, hover, multi-monitor). Adding timer management clutters it further. HintBarView should own its own animation state.
+**Instead:** HintBarView exposes `noteActivity()`. RulerWindow calls it. Timer logic stays inside HintBarView.
+
+### Anti-Pattern 5: Using matchedGeometryEffect for the Split
+
+**What:** Using SwiftUI's `matchedGeometryEffect` to morph the expanded bar into two collapsed bars.
+**Why bad:** `matchedGeometryEffect` works within SwiftUI's view diffing system. It cannot control `NSVisualEffectView` backgrounds. The glass backgrounds are AppKit views, not SwiftUI views. Trying to bridge these systems creates complexity without benefit.
+**Instead:** Use explicit AppKit frame animations for the bars and let SwiftUI handle only the content rendering inside them.
+
+### Anti-Pattern 6: Rendering Glass with CALayer Filters
+
+**What:** Using `CALayer.compositingFilter` or `CALayer.filters` with `CIGaussianBlur` to simulate glass.
+**Why bad:** As documented in MEMORY.md, `CIFilter(name:)` can return nil silently. Even when it works, layer-based blur filters are not GPU-accelerated the same way NSVisualEffectView's `CABackdropLayer` is. They cause significant CPU overhead for real-time blur.
+**Instead:** Use NSVisualEffectView, which uses the private `CABackdropLayer` for hardware-accelerated WindowServer compositing.
 
 ---
 
-## Scalability Considerations
+## 14. Risk Assessment
 
-| Concern | Current (1-3 monitors) | At 6+ monitors | Notes |
-|---------|----------------------|----------------|-------|
-| Window count | 1 RulerWindow per screen | Same | No issue -- each window is independent |
-| CursorManager | Shared across windows | Same | Single instance, transitions are serialized on main thread |
-| Watchdog timer | 1 timer in Ruler | Same | Checks all windows in array |
-| Memory | ~50MB per screen capture | ~100MB+ | Already the main constraint, not affected by enhancements |
+| Risk | Severity | Likelihood | Mitigation |
+|------|----------|------------|------------|
+| `withinWindow` blur does not sample screenshot bgView | HIGH | MEDIUM | Phase 1 prototype validates this first. Fallback: semi-transparent solid bg |
+| WindowServer overhead during split animation | LOW | LOW | Animation is brief (0.3s). Monitor with Instruments. |
+| Blur lag during position swap (slide) | MEDIUM | MEDIUM | Test thoroughly. Fallback: disable blur during animation. |
+| NSHostingView performance in collapsed state | LOW | LOW | Collapsed bars host tiny SwiftUI views (1-2 keycaps). Negligible overhead. |
+| macOS 26.3 borderless window regression | HIGH | LOW | This is a general macOS 26.3 issue affecting all borderless windows, not specific to this change. Monitor Apple Developer Forums for fixes. |
+| Idle timer conflicts with position swap animation | MEDIUM | MEDIUM | Guard: do not collapse/expand while `isAnimating` for slide. |
+
+---
 
 ## Sources
 
-- All findings derived from direct codebase analysis of the existing source files
-- NSCursor documentation: Apple Developer Documentation (push/pop/hide/unhide stack semantics)
-- CAKeyframeAnimation: Apple Developer Documentation (keyPath, values, keyTimes)
-- `#if DEBUG` vs `os_log`: Swift compiler documentation (conditional compilation blocks are stripped at compile time; os_log evaluates arguments at runtime even when level is filtered)
+### Official Documentation
+- [NSVisualEffectView](https://developer.apple.com/documentation/appkit/nsvisualeffectview) -- Apple Developer Documentation
+- [NSVisualEffectView.BlendingMode.withinWindow](https://developer.apple.com/documentation/appkit/nsvisualeffectview/blendingmode-swift.enum/withinwindow) -- Apple Developer Documentation
+- [NSGlassEffectView](https://developer.apple.com/documentation/appkit/nsglasseffectview) -- Apple Developer Documentation (macOS 26+)
+- [NSGlassEffectContainerView](https://developer.apple.com/documentation/appkit/nsglasseffectcontainerview) -- Apple Developer Documentation (macOS 26+)
+- [Build an AppKit app with the new design - WWDC25 Session 310](https://developer.apple.com/videos/play/wwdc2025/310/) -- NSGlassEffectView usage patterns
+- [Applying Liquid Glass to custom views](https://developer.apple.com/documentation/SwiftUI/Applying-Liquid-Glass-to-custom-views) -- SwiftUI glassEffect modifier
 
-**Confidence: HIGH** -- all recommendations are based on reading the actual source code and understanding the existing patterns. No external libraries or APIs are being introduced.
+### Technical References
+- [Reverse Engineering NSVisualEffectView](https://oskargroth.com/blog/reverse-engineering-nsvisualeffectview) -- Internal layer hierarchy (CABackdropLayer), compositor behavior
+- [CABackdropLayer & CAPluginLayer](https://medium.com/@avaidyam/capluginlayer-cabackdroplayer-f56e85d9dc2c) -- Private API details, WindowServer interaction
+- [NSWindow Styles showcase](https://github.com/lukakerr/NSWindowStyles) -- Borderless window + NSVisualEffectView configurations
+- [WindowServer on macOS](https://andreafortuna.org/2025/10/05/macos-windowserver) -- Compositor performance, layer flattening behavior
+- [LiquidGlassReference](https://github.com/conorluddy/LiquidGlassReference) -- Community-maintained Liquid Glass API reference
+
+### macOS 26 Specific
+- [macOS 26.3 borderless window regression](https://developer.apple.com/forums/thread/814798) -- Apple Developer Forums thread on mouse event interception changes
+- [AppKit macOS xcode26.0 API diff](https://github.com/dotnet/macios/wiki/AppKit-macOS-xcode26.0-b1) -- NSGlassEffectView API surface
+
+### Codebase
+- All current architecture analysis derived from direct source code reading of HintBarView.swift, HintBarContent.swift, RulerWindow.swift, CrosshairView.swift, Ruler.swift
