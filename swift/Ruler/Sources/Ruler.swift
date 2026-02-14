@@ -130,6 +130,8 @@ final class Ruler {
 
     private func handleFirstMove() {
         firstMoveReceived = true
+        // Collapse hint bar from expanded (instructional text) to compact keycap-only bars
+        activeWindow?.collapseHintBar()
     }
 
     private func setupSignalHandler() {

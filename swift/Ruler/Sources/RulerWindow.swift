@@ -101,6 +101,12 @@ final class RulerWindow: NSWindow {
         container.addSubview(bgView, positioned: .below, relativeTo: crosshairView)
     }
 
+    /// Collapse the hint bar from expanded to compact keycap-only layout.
+    func collapseHintBar() {
+        guard hintBarView.superview != nil else { return }
+        hintBarView.animateToCollapsed()
+    }
+
     /// Show initial pill at cursor position before first mouse move.
     func showInitialState() {
         let mouseLocation = NSEvent.mouseLocation

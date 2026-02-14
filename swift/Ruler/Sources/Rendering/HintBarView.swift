@@ -32,10 +32,11 @@ final class HintBarView: NSView {
 
     // MARK: - Animation
 
-    private let barMargin: CGFloat = 16
-    private let topMargin: CGFloat = 48
+    private let barMargin: CGFloat = 24
+    private let topMargin: CGFloat = 56
     private var isAtBottom = true
     private var isAnimating = false
+    private var isAnimatingCollapse = false
 
     // MARK: - Adaptive appearance
 
@@ -96,7 +97,7 @@ final class HintBarView: NSView {
         rightGlass.isHidden = true
     }
 
-    private func makeGlassPanel(cornerRadius: CGFloat = 18) -> NSView {
+    private func makeGlassPanel(cornerRadius: CGFloat = 14) -> NSView {
         if #available(macOS 26.0, *) {
             let glass = NSGlassEffectView()
             glass.cornerRadius = cornerRadius
@@ -145,6 +146,50 @@ final class HintBarView: NSView {
             leftCollapsedPanel?.isHidden = false
             rightCollapsedPanel?.isHidden = false
         }
+    }
+
+    // MARK: - Public API: collapse animation
+
+    /// Animate from expanded to collapsed state with a crossfade.
+    /// Expanded panel fades out while collapsed panels fade in (0.35s easeOut).
+    /// Call once on first mouse move; once collapsed, stays collapsed for the session.
+    func animateToCollapsed(duration: TimeInterval = 0.35) {
+        guard currentBarState == .expanded else { return }
+        guard !isAnimatingCollapse else { return }
+        isAnimatingCollapse = true
+
+        // Accessibility: instant toggle if reduce motion is enabled
+        if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            setBarState(.collapsed)
+            isAnimatingCollapse = false
+            return
+        }
+
+        // Set collapsed panels visible but fully transparent BEFORE unhiding
+        // (prevents single-frame flash at final position -- Pitfall 3 from research)
+        leftCollapsedPanel?.alphaValue = 0
+        rightCollapsedPanel?.alphaValue = 0
+        leftCollapsedPanel?.isHidden = false
+        rightCollapsedPanel?.isHidden = false
+
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = duration
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            context.allowsImplicitAnimation = true
+
+            // Fade out expanded bar
+            self.glassPanel?.animator().alphaValue = 0
+
+            // Fade in collapsed bars
+            self.leftCollapsedPanel?.animator().alphaValue = 1
+            self.rightCollapsedPanel?.animator().alphaValue = 1
+        }, completionHandler: { [weak self] in
+            guard let self else { return }
+            self.glassPanel?.isHidden = true
+            self.glassPanel?.alphaValue = 1  // reset for potential reuse
+            self.currentBarState = .collapsed
+            self.isAnimatingCollapse = false
+        })
     }
 
     // MARK: - Position & animation
@@ -210,6 +255,9 @@ final class HintBarView: NSView {
     }
 
     func updatePosition(cursorY: CGFloat, screenHeight: CGFloat) {
+        // Block position updates during collapse animation to prevent overlap
+        guard !isAnimatingCollapse else { return }
+
         let viewH = bounds.height
         let nearBottom = cursorY < viewH + barMargin * 3
         let shouldBeAtTop = nearBottom
