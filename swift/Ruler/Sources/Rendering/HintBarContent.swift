@@ -67,7 +67,7 @@ struct CollapsedLeftContent: View {
                    symbolTracking: -0.2, align: .bottomLeading, state: state)
         }
         .padding(.horizontal, 10)
-        .padding(.vertical, 8)
+        .frame(height: 48)
     }
 }
 
@@ -88,7 +88,7 @@ struct CollapsedRightContent: View {
                symbolTracking: -0.2, align: .center, state: state,
                tint: escTint, tintFill: Color(nsColor: NSColor(srgbRed: 1, green: 0, blue: 0, alpha: 0.1)))
             .padding(.horizontal, 10)
-            .padding(.vertical, 8)
+            .frame(height: 48)
     }
 }
 
