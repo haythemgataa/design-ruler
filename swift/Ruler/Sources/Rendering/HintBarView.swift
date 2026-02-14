@@ -172,7 +172,7 @@ final class HintBarView: NSView {
         hosting.frame = glass.bounds
 
         // Center collapsed panels within container
-        let gap: CGFloat = 24
+        let gap: CGFloat = 4
         if let leftHosting = leftHostingView, let leftGlass = leftCollapsedPanel,
            let rightHosting = rightHostingView, let rightGlass = rightCollapsedPanel {
             let leftSize = leftHosting.fittingSize
