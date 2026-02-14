@@ -11,11 +11,24 @@ final class HintBarView: NSView {
         case up, down, left, right, shift, esc
     }
 
+    enum BarState {
+        case expanded   // full text + keycaps (default, shown on launch)
+        case collapsed  // keycaps only, two separate bars
+    }
+
     // MARK: - State & hosting
 
     private let state = HintBarState()
     private var glassPanel: NSView?
     private var hostingView: NSHostingView<HintBarContent>?
+
+    // Collapsed panels
+    private var leftCollapsedPanel: NSView?
+    private var leftHostingView: NSHostingView<CollapsedLeftContent>?
+    private var rightCollapsedPanel: NSView?
+    private var rightHostingView: NSHostingView<CollapsedRightContent>?
+    private var escTintLayer = CALayer()
+    private(set) var currentBarState: BarState = .expanded
 
     // MARK: - Animation
 
@@ -44,6 +57,7 @@ final class HintBarView: NSView {
     }
 
     private func setupHostingView() {
+        // Expanded panel (default visible)
         let glass = makeGlassPanel()
         self.glassPanel = glass
         addSubview(glass)
@@ -53,12 +67,39 @@ final class HintBarView: NSView {
         hosting.autoresizingMask = [.width, .height]
         glass.addSubview(hosting)
         self.hostingView = hosting
+
+        // Left collapsed panel (arrows + shift)
+        let leftGlass = makeGlassPanel(cornerRadius: 14)
+        self.leftCollapsedPanel = leftGlass
+        addSubview(leftGlass)
+
+        let leftContent = NSHostingView(rootView: CollapsedLeftContent(state: state))
+        leftContent.autoresizingMask = [.width, .height]
+        leftGlass.addSubview(leftContent)
+        self.leftHostingView = leftContent
+
+        // Right collapsed panel (ESC)
+        let rightGlass = makeGlassPanel(cornerRadius: 14)
+        self.rightCollapsedPanel = rightGlass
+        addSubview(rightGlass)
+
+        let rightContent = NSHostingView(rootView: CollapsedRightContent(state: state))
+        rightContent.autoresizingMask = [.width, .height]
+        rightGlass.addSubview(rightContent)
+        self.rightHostingView = rightContent
+
+        // ESC tint overlay on right panel
+        setupEscTint()
+
+        // Start with collapsed panels hidden (expanded is default)
+        leftGlass.isHidden = true
+        rightGlass.isHidden = true
     }
 
-    private func makeGlassPanel() -> NSView {
+    private func makeGlassPanel(cornerRadius: CGFloat = 18) -> NSView {
         if #available(macOS 26.0, *) {
             let glass = NSGlassEffectView()
-            glass.cornerRadius = 18
+            glass.cornerRadius = cornerRadius
             return glass
         } else {
             let vev = NSVisualEffectView()
@@ -66,7 +107,7 @@ final class HintBarView: NSView {
             vev.material = .hudWindow
             vev.state = .active
             vev.wantsLayer = true
-            vev.layer?.cornerRadius = 18
+            vev.layer?.cornerRadius = cornerRadius
             vev.layer?.cornerCurve = .continuous
             vev.layer?.masksToBounds = true
             return vev
@@ -89,27 +130,75 @@ final class HintBarView: NSView {
     func pressKey(_ key: KeyID) { state.pressedKeys.insert(key) }
     func releaseKey(_ key: KeyID) { state.pressedKeys.remove(key) }
 
+    // MARK: - Public API: bar state
+
+    func setBarState(_ newState: BarState) {
+        guard newState != currentBarState else { return }
+        currentBarState = newState
+        switch newState {
+        case .expanded:
+            glassPanel?.isHidden = false
+            leftCollapsedPanel?.isHidden = true
+            rightCollapsedPanel?.isHidden = true
+        case .collapsed:
+            glassPanel?.isHidden = true
+            leftCollapsedPanel?.isHidden = false
+            rightCollapsedPanel?.isHidden = false
+        }
+    }
+
     // MARK: - Position & animation
 
     /// Compute layout and set initial frame at bottom center.
     func configure(screenWidth: CGFloat, screenHeight: CGFloat, screenshot: CGImage? = nil) {
         guard let hosting = hostingView, let glass = glassPanel else { return }
-        let size = hosting.fittingSize
-        let viewX = floor((screenWidth - size.width) / 2)
-        frame = NSRect(x: viewX, y: barMargin, width: size.width, height: size.height)
-        glass.frame = bounds
+        let expandedSize = hosting.fittingSize
+
+        // Container spans full screen width; height is tallest panel
+        var maxHeight = expandedSize.height
+
+        // Compute collapsed layout
+        if let leftHosting = leftHostingView, let rightHosting = rightHostingView {
+            let leftSize = leftHosting.fittingSize
+            let rightSize = rightHosting.fittingSize
+            maxHeight = max(maxHeight, max(leftSize.height, rightSize.height))
+        }
+
+        frame = NSRect(x: 0, y: barMargin, width: screenWidth, height: maxHeight)
+
+        // Center expanded panel within container
+        let expandedX = floor((screenWidth - expandedSize.width) / 2)
+        glass.frame = NSRect(x: expandedX, y: 0, width: expandedSize.width, height: expandedSize.height)
         hosting.frame = glass.bounds
+
+        // Center collapsed panels within container
+        let gap: CGFloat = 24
+        if let leftHosting = leftHostingView, let leftGlass = leftCollapsedPanel,
+           let rightHosting = rightHostingView, let rightGlass = rightCollapsedPanel {
+            let leftSize = leftHosting.fittingSize
+            let rightSize = rightHosting.fittingSize
+            let totalWidth = leftSize.width + gap + rightSize.width
+            let startX = floor((screenWidth - totalWidth) / 2)
+
+            leftGlass.frame = NSRect(x: startX, y: 0, width: leftSize.width, height: leftSize.height)
+            leftHosting.frame = leftGlass.bounds
+
+            rightGlass.frame = NSRect(x: startX + leftSize.width + gap, y: 0, width: rightSize.width, height: rightSize.height)
+            rightHosting.frame = rightGlass.bounds
+            escTintLayer.frame = rightGlass.bounds
+        }
+
         isAtBottom = true
 
         // Sample brightness at both bar positions
         if let image = screenshot {
             let scale = CGFloat(image.width) / screenWidth
-            let sampleW = size.width * scale
-            let sampleH = size.height * scale
+            let sampleW = expandedSize.width * scale
+            let sampleH = expandedSize.height * scale
             let sampleX = floor(CGFloat(image.width - Int(sampleW)) / 2)
 
             // Bottom position (CG coords: y increases downward, bottom of screen = large y)
-            let bottomY = CGFloat(image.height) - (barMargin + size.height) * scale
+            let bottomY = CGFloat(image.height) - (barMargin + expandedSize.height) * scale
             bottomIsLight = regionIsLight(image, x: sampleX, y: bottomY, w: sampleW, h: sampleH)
 
             // Top position (CG coords: top of screen = small y)
@@ -150,12 +239,40 @@ final class HintBarView: NSView {
         // not the system theme. Without this, NSGlassEffectView auto-adapts
         // to the system dark/light mode and ignores our tint on launch.
         let appearanceName: NSAppearance.Name = isLight ? .aqua : .darkAqua
-        glassPanel?.appearance = NSAppearance(named: appearanceName)
-        if #available(macOS 26.0, *), let glass = glassPanel as? NSGlassEffectView {
-            glass.tintColor = isLight
-                ? NSColor(white: 1, alpha: 0.4)
-                : NSColor(white: 0, alpha: 0.4)
+        let appearance = NSAppearance(named: appearanceName)
+        let tintColor: NSColor = isLight
+            ? NSColor(white: 1, alpha: 0.4)
+            : NSColor(white: 0, alpha: 0.4)
+
+        // Apply to all glass panels
+        for panel in [glassPanel, leftCollapsedPanel, rightCollapsedPanel] {
+            panel?.appearance = appearance
+            if #available(macOS 26.0, *), let glass = panel as? NSGlassEffectView {
+                glass.tintColor = tintColor
+            }
         }
+        updateEscTint()
+    }
+
+    // MARK: - ESC tint
+
+    private func setupEscTint() {
+        escTintLayer.cornerRadius = 14
+        escTintLayer.cornerCurve = .continuous
+        rightCollapsedPanel?.layer?.addSublayer(escTintLayer)
+        updateEscTint()
+    }
+
+    private func updateEscTint() {
+        let isDark = !state.isOnLightBackground
+        escTintLayer.backgroundColor = isDark
+            ? CGColor(srgbRed: 1.0, green: 0.3, blue: 0.3, alpha: 0.08)
+            : CGColor(srgbRed: 0.9, green: 0.2, blue: 0.2, alpha: 0.06)
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        updateEscTint()
     }
 
     private func regionIsLight(_ image: CGImage, x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat) -> Bool {
