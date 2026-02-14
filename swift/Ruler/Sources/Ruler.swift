@@ -16,6 +16,8 @@ final class Ruler {
     private var windows: [RulerWindow] = []
     private weak var activeWindow: RulerWindow?
     private var firstMoveReceived = false
+    private var launchTime: CFAbsoluteTime = 0
+    private let minExpandedDuration: TimeInterval = 3
     private var inactivityTimer: Timer?
     private let inactivityTimeout: TimeInterval = 600 // 10 minutes
     private var sigTermSource: DispatchSourceSignal?
@@ -101,6 +103,7 @@ final class Ruler {
         cursorWindow.showInitialState()
         activeWindow = cursorWindow
 
+        launchTime = CFAbsoluteTimeGetCurrent()
         NSApp.activate(ignoringOtherApps: true)
         setupSignalHandler()
         resetInactivityTimer()
@@ -130,8 +133,17 @@ final class Ruler {
 
     private func handleFirstMove() {
         firstMoveReceived = true
-        // Collapse hint bar from expanded (instructional text) to compact keycap-only bars
-        activeWindow?.collapseHintBar()
+        // Collapse hint bar from expanded (instructional text) to compact keycap-only bars,
+        // but ensure the expanded bar is visible for at least minExpandedDuration seconds
+        let elapsed = CFAbsoluteTimeGetCurrent() - launchTime
+        let remaining = minExpandedDuration - elapsed
+        if remaining > 0 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + remaining) { [weak self] in
+                self?.activeWindow?.collapseHintBar()
+            }
+        } else {
+            activeWindow?.collapseHintBar()
+        }
     }
 
     private func setupSignalHandler() {

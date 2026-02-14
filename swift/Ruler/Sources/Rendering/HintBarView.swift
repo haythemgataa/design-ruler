@@ -19,15 +19,20 @@ final class HintBarView: NSView {
     // MARK: - State & hosting
 
     private let state = HintBarState()
+
+    // Morph path (macOS 26+): single SwiftUI hosting view with GlassEffectContainer
+    private var morphHostingView: NSView?  // NSHostingView<HintBarGlassRoot>, type-erased
+    private var isMorphPath = false
+
+    // Fallback path (pre-macOS 26): three AppKit glass panels
     private var glassPanel: NSView?
     private var hostingView: NSHostingView<HintBarContent>?
-
-    // Collapsed panels
     private var leftCollapsedPanel: NSView?
     private var leftHostingView: NSHostingView<CollapsedLeftContent>?
     private var rightCollapsedPanel: NSView?
     private var rightHostingView: NSHostingView<CollapsedRightContent>?
     private var escTintLayer = CALayer()
+
     private(set) var currentBarState: BarState = .expanded
 
     // MARK: - Animation
@@ -58,6 +63,24 @@ final class HintBarView: NSView {
     }
 
     private func setupHostingView() {
+        if #available(macOS 26.0, *) {
+            setupMorphPath()
+        } else {
+            setupFallbackPath()
+        }
+    }
+
+    @available(macOS 26.0, *)
+    private func setupMorphPath() {
+        isMorphPath = true
+        let root = HintBarGlassRoot(state: state)
+        let hosting = NSHostingView(rootView: root)
+        hosting.autoresizingMask = [.width, .height]
+        addSubview(hosting)
+        self.morphHostingView = hosting
+    }
+
+    private func setupFallbackPath() {
         // Expanded panel (default visible)
         let glass = makeGlassPanel()
         self.glassPanel = glass
@@ -136,23 +159,28 @@ final class HintBarView: NSView {
     func setBarState(_ newState: BarState) {
         guard newState != currentBarState else { return }
         currentBarState = newState
-        switch newState {
-        case .expanded:
-            glassPanel?.isHidden = false
-            leftCollapsedPanel?.isHidden = true
-            rightCollapsedPanel?.isHidden = true
-        case .collapsed:
-            glassPanel?.isHidden = true
-            leftCollapsedPanel?.isHidden = false
-            rightCollapsedPanel?.isHidden = false
+
+        if isMorphPath {
+            state.isCollapsed = (newState == .collapsed)
+        } else {
+            switch newState {
+            case .expanded:
+                glassPanel?.isHidden = false
+                leftCollapsedPanel?.isHidden = true
+                rightCollapsedPanel?.isHidden = true
+            case .collapsed:
+                glassPanel?.isHidden = true
+                leftCollapsedPanel?.isHidden = false
+                rightCollapsedPanel?.isHidden = false
+            }
         }
     }
 
     // MARK: - Public API: collapse animation
 
-    /// Animate from expanded to collapsed state with a crossfade.
-    /// Expanded panel fades out while collapsed panels fade in (0.35s easeOut).
-    /// Call once on first mouse move; once collapsed, stays collapsed for the session.
+    /// Animate from expanded to collapsed state.
+    /// On macOS 26+, triggers a liquid glass morph via SwiftUI GlassEffectContainer.
+    /// On older systems, uses an NSAnimationContext crossfade between panels.
     func animateToCollapsed(duration: TimeInterval = 0.35) {
         guard currentBarState == .expanded else { return }
         guard !isAnimatingCollapse else { return }
@@ -165,6 +193,24 @@ final class HintBarView: NSView {
             return
         }
 
+        if isMorphPath {
+            animateToCollapsedMorph()
+        } else {
+            animateToCollapsedFallback(duration: duration)
+        }
+    }
+
+    private func animateToCollapsedMorph() {
+        guard #available(macOS 26.0, *) else { return }
+        currentBarState = .collapsed
+        withAnimation(.bouncy(duration: 0.6)) {
+            state.isCollapsed = true
+        } completion: { [weak self] in
+            self?.isAnimatingCollapse = false
+        }
+    }
+
+    private func animateToCollapsedFallback(duration: TimeInterval) {
         // Set collapsed panels visible but fully transparent BEFORE unhiding
         // (prevents single-frame flash at final position -- Pitfall 3 from research)
         leftCollapsedPanel?.alphaValue = 0
@@ -196,6 +242,41 @@ final class HintBarView: NSView {
 
     /// Compute layout and set initial frame at bottom center.
     func configure(screenWidth: CGFloat, screenHeight: CGFloat, screenshot: CGImage? = nil) {
+        if isMorphPath {
+            configureMorph(screenWidth: screenWidth, screenHeight: screenHeight, screenshot: screenshot)
+        } else {
+            configureFallback(screenWidth: screenWidth, screenHeight: screenHeight, screenshot: screenshot)
+        }
+    }
+
+    private func configureMorph(screenWidth: CGFloat, screenHeight: CGFloat, screenshot: CGImage?) {
+        guard let hosting = morphHostingView else { return }
+        let contentHeight: CGFloat = 48
+
+        frame = NSRect(x: 0, y: barMargin, width: screenWidth, height: contentHeight)
+        hosting.frame = bounds
+
+        isAtBottom = true
+
+        // Sample brightness at both bar positions
+        if let image = screenshot {
+            let contentSize = hosting.fittingSize
+            let scale = CGFloat(image.width) / screenWidth
+            let sampleW = contentSize.width * scale
+            let sampleH = contentHeight * scale
+            let sampleX = floor(CGFloat(image.width - Int(sampleW)) / 2)
+
+            let bottomY = CGFloat(image.height) - (barMargin + contentHeight) * scale
+            bottomIsLight = regionIsLight(image, x: sampleX, y: bottomY, w: sampleW, h: sampleH)
+
+            let topY = topMargin * scale
+            topIsLight = regionIsLight(image, x: sampleX, y: topY, w: sampleW, h: sampleH)
+        }
+
+        applyAppearance(isLight: bottomIsLight)
+    }
+
+    private func configureFallback(screenWidth: CGFloat, screenHeight: CGFloat, screenshot: CGImage?) {
         guard let hosting = hostingView, let glass = glassPanel else { return }
         let expandedSize = hosting.fittingSize
 
@@ -283,26 +364,29 @@ final class HintBarView: NSView {
 
     private func applyAppearance(isLight: Bool) {
         state.isOnLightBackground = isLight
-        // Force the appearance so the glass material matches the background,
-        // not the system theme. Without this, NSGlassEffectView auto-adapts
-        // to the system dark/light mode and ignores our tint on launch.
-        let appearanceName: NSAppearance.Name = isLight ? .aqua : .darkAqua
-        let appearance = NSAppearance(named: appearanceName)
-        let tintColor: NSColor = isLight
-            ? NSColor(white: 1, alpha: 0.4)
-            : NSColor(white: 0, alpha: 0.4)
 
-        // Apply to all glass panels
-        for panel in [glassPanel, leftCollapsedPanel, rightCollapsedPanel] {
-            panel?.appearance = appearance
-            if #available(macOS 26.0, *), let glass = panel as? NSGlassEffectView {
-                glass.tintColor = tintColor
+        if isMorphPath {
+            // SwiftUI glass auto-adapts; just force appearance for correct material
+            let appearanceName: NSAppearance.Name = isLight ? .aqua : .darkAqua
+            morphHostingView?.appearance = NSAppearance(named: appearanceName)
+        } else {
+            let appearanceName: NSAppearance.Name = isLight ? .aqua : .darkAqua
+            let appearance = NSAppearance(named: appearanceName)
+            let tintColor: NSColor = isLight
+                ? NSColor(white: 1, alpha: 0.4)
+                : NSColor(white: 0, alpha: 0.4)
+
+            for panel in [glassPanel, leftCollapsedPanel, rightCollapsedPanel] {
+                panel?.appearance = appearance
+                if #available(macOS 26.0, *), let glass = panel as? NSGlassEffectView {
+                    glass.tintColor = tintColor
+                }
             }
+            updateEscTint()
         }
-        updateEscTint()
     }
 
-    // MARK: - ESC tint
+    // MARK: - ESC tint (fallback path only)
 
     private func setupEscTint() {
         escTintLayer.cornerRadius = 14
@@ -312,6 +396,7 @@ final class HintBarView: NSView {
     }
 
     private func updateEscTint() {
+        guard !isMorphPath else { return }
         let isDark = !state.isOnLightBackground
         escTintLayer.backgroundColor = isDark
             ? CGColor(srgbRed: 1.0, green: 0.3, blue: 0.3, alpha: 0.08)
@@ -320,8 +405,10 @@ final class HintBarView: NSView {
 
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
-        updateEscTint()
+        if !isMorphPath { updateEscTint() }
     }
+
+    // MARK: - Brightness sampling
 
     private func regionIsLight(_ image: CGImage, x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat) -> Bool {
         let rect = CGRect(

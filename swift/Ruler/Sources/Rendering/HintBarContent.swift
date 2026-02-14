@@ -5,6 +5,7 @@ import SwiftUI
 final class HintBarState: ObservableObject {
     @Published var pressedKeys: Set<HintBarView.KeyID> = []
     @Published var isOnLightBackground: Bool = false
+    @Published var isCollapsed: Bool = false
 }
 
 // MARK: - Root Content
@@ -89,6 +90,132 @@ struct CollapsedRightContent: View {
                tint: escTint, tintFill: Color(nsColor: NSColor(srgbRed: 1, green: 0, blue: 0, alpha: 0.1)))
             .padding(.horizontal, 10)
             .frame(height: 48)
+    }
+}
+
+// MARK: - Glass Morph Root (macOS 26+)
+
+@available(macOS 26.0, *)
+struct HintBarGlassRoot: View {
+    @ObservedObject var state: HintBarState
+    @Namespace private var morphNS
+
+    private var isDark: Bool { !state.isOnLightBackground }
+
+    private var escTint: Color {
+        isDark
+            ? Color(nsColor: NSColor(srgbRed: 0xFF / 255.0, green: 0xB2 / 255.0, blue: 0xB2 / 255.0, alpha: 1))
+            : Color(nsColor: NSColor(srgbRed: 0x80 / 255.0, green: 0, blue: 0, alpha: 1))
+    }
+
+    var body: some View {
+        ZStack {
+            // Bottom: glass morph — text visible, keycaps invisible (sizing only)
+            glassLayer
+            // Top: keycap slide — keycaps visible, text invisible (spacing only)
+            keycapLayer
+        }
+    }
+
+    /// Glass background + visible text. Uses if/else branching so glassEffectID
+    /// can morph one bar into two. Keycaps are `.opacity(0)` placeholders for sizing.
+    private var glassLayer: some View {
+        GlassEffectContainer {
+            if !state.isCollapsed {
+                HStack(spacing: 6) {
+                    text("Use")
+                    ArrowCluster(state: state).opacity(0)
+                    text("to skip edges, plus")
+                    shiftCap.opacity(0)
+                    text("to reverse.")
+                    escCap.opacity(0)
+                    exitText("to exit.")
+                }
+                .padding(.horizontal, 16)
+                .frame(height: 48)
+                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .glassEffectID("bar", in: morphNS)
+            } else {
+                HStack(spacing: 8) {
+                    HStack(spacing: 6) {
+                        ArrowCluster(state: state).opacity(0)
+                        shiftCap.opacity(0)
+                    }
+                    .padding(.horizontal, 10)
+                    .frame(height: 48)
+                    .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .glassEffectID("left", in: morphNS)
+
+                    escCap.opacity(0)
+                        .padding(.horizontal, 10)
+                        .frame(height: 48)
+                        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .glassEffectID("right", in: morphNS)
+                }
+            }
+        }
+    }
+
+    /// Visible keycaps in a single stable view tree (no if/else around keycaps).
+    /// Text is `.opacity(0)` for spacing; when removed, keycaps slide together.
+    private var keycapLayer: some View {
+        HStack(spacing: state.isCollapsed ? 8 : 6) {
+            HStack(spacing: 6) {
+                if !state.isCollapsed {
+                    text("Use").opacity(0)
+                }
+                ArrowCluster(state: state)
+                if !state.isCollapsed {
+                    text("to skip edges, plus").opacity(0)
+                }
+                shiftCap
+                if !state.isCollapsed {
+                    text("to reverse.").opacity(0)
+                }
+            }
+            .padding(.horizontal, state.isCollapsed ? 10 : 0)
+
+            HStack(spacing: 6) {
+                escCap
+                if !state.isCollapsed {
+                    exitText("to exit.").opacity(0)
+                }
+            }
+            .padding(.horizontal, state.isCollapsed ? 10 : 0)
+        }
+        .padding(.horizontal, state.isCollapsed ? 0 : 16)
+        .frame(height: 48)
+    }
+
+    // MARK: - Shared keycap builders
+
+    private var shiftCap: some View {
+        KeyCap(.shift, symbol: "\u{21E7}", width: 40, height: 25,
+               symbolFont: .system(size: 16, weight: .bold, design: .rounded),
+               symbolTracking: -0.2, align: .bottomLeading, state: state)
+    }
+
+    private var escCap: some View {
+        KeyCap(.esc, symbol: "esc", width: 32, height: 25,
+               symbolFont: .system(size: 13, weight: .bold, design: .rounded),
+               symbolTracking: -0.2, align: .center, state: state,
+               tint: escTint, tintFill: Color(nsColor: NSColor(srgbRed: 1, green: 0, blue: 0, alpha: 0.1)))
+    }
+
+    // MARK: - Text helpers
+
+    private func text(_ string: String) -> some View {
+        Text(string)
+            .font(.system(size: 16, weight: .semibold))
+            .tracking(-0.48)
+            .foregroundColor(isDark ? .white : .black)
+    }
+
+    private func exitText(_ string: String) -> some View {
+        Text(string)
+            .font(.system(size: 16, weight: .semibold))
+            .tracking(-0.48)
+            .foregroundColor(escTint)
     }
 }
 
