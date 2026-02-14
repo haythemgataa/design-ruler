@@ -30,7 +30,7 @@ struct HintBarContent: View {
             exitText("to exit.")
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 14)
+        .frame(height: 48)
     }
 
     private var escTint: Color {
