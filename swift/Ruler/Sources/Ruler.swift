@@ -65,7 +65,8 @@ final class Ruler {
             let rulerWindow = RulerWindow.create(
                 for: capture.screen,
                 edgeDetector: capture.detector,
-                hideHintBar: isCursorScreen ? hideHintBar : true
+                hideHintBar: isCursorScreen ? hideHintBar : true,
+                screenshot: capture.image
             )
 
             if let cgImage = capture.image {

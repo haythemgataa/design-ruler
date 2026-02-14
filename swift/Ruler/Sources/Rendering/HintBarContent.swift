@@ -4,6 +4,7 @@ import SwiftUI
 
 final class HintBarState: ObservableObject {
     @Published var pressedKeys: Set<HintBarView.KeyID> = []
+    @Published var isOnLightBackground: Bool = false
 }
 
 // MARK: - Root Content
@@ -11,68 +12,45 @@ final class HintBarState: ObservableObject {
 struct HintBarContent: View {
     @ObservedObject var state: HintBarState
 
-    var body: some View {
-        VStack(spacing: -2) {
-            MainHintCard(state: state)
-                .zIndex(1)
-            ExtraHintCard(state: state)
-                .zIndex(0)
-        }
-        .padding(0)
-    }
-}
-
-// MARK: - Main Hint Card
-
-private struct MainHintCard: View {
-    @ObservedObject var state: HintBarState
-    @Environment(\.colorScheme) private var colorScheme
+    private var isDark: Bool { !state.isOnLightBackground }
 
     var body: some View {
         HStack(spacing: 6) {
-            mainText("Use")
+            text("Use")
             ArrowCluster(state: state)
-            mainText("to skip an edge.")
-            mainText("Plus")
+            text("to skip edges, plus")
             KeyCap(.shift, symbol: "\u{21E7}", width: 40, height: 25,
                    symbolFont: .system(size: 16, weight: .bold, design: .rounded),
                    symbolTracking: -0.2, align: .bottomLeading, state: state)
-            mainText("to invert.")
+            text("to reverse.")
+            KeyCap(.esc, symbol: "esc", width: 32, height: 25,
+                   symbolFont: .system(size: 13, weight: .bold, design: .rounded),
+                   symbolTracking: -0.2, align: .center, state: state,
+                   tint: escTint, tintFill: Color(nsColor: NSColor(srgbRed: 1, green: 0, blue: 0, alpha: 0.1)))
+            exitText("to exit.")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
     }
 
-    private func mainText(_ string: String) -> Text {
-        Text(string)
-            .font(.system(size: 20, weight: .semibold))
-            .tracking(-0.6)
-            .foregroundColor(colorScheme == .dark ? .white : .black)
-    }
-}
-
-// MARK: - Extra Hint Card
-
-private struct ExtraHintCard: View {
-    @ObservedObject var state: HintBarState
-    @Environment(\.colorScheme) private var colorScheme
-
-    var body: some View {
-        HStack(spacing: 4) {
-            extraText("Press")
-            KeyCap(.esc, symbol: "esc", width: 32, height: 25,
-                   symbolFont: .system(size: 13, weight: .bold, design: .rounded),
-                   symbolTracking: -0.2, align: .center, state: state)
-            extraText("to exit.")
-        }
-        .padding(8)
+    private var escTint: Color {
+        isDark
+            ? Color(nsColor: NSColor(srgbRed: 0xFF / 255.0, green: 0xB2 / 255.0, blue: 0xB2 / 255.0, alpha: 1))
+            : Color(nsColor: NSColor(srgbRed: 0x80 / 255.0, green: 0, blue: 0, alpha: 1))
     }
 
-    private func extraText(_ string: String) -> Text {
+    private func text(_ string: String) -> Text {
         Text(string)
-            .font(.system(size: 14, weight: .semibold))
-            .tracking(-0.42)
-            .foregroundColor(colorScheme == .dark ? .white : .black)
+            .font(.system(size: 16, weight: .semibold))
+            .tracking(-0.48)
+            .foregroundColor(isDark ? .white : .black)
+    }
+
+    private func exitText(_ string: String) -> Text {
+        Text(string)
+            .font(.system(size: 16, weight: .semibold))
+            .tracking(-0.48)
+            .foregroundColor(escTint)
     }
 }
 
@@ -116,26 +94,32 @@ private struct KeyCap: View {
     let symbolFont: Font
     let symbolTracking: CGFloat
     let align: Align
+    let tint: Color?
+    let tintFill: Color?
     @ObservedObject var state: HintBarState
-    @Environment(\.colorScheme) private var colorScheme
 
     private let cornerRadius: CGFloat = 5
     private let borderWidth: CGFloat = 1.5
     private let shadowOffset: CGFloat = 2
 
+    private var isDark: Bool { !state.isOnLightBackground }
+
     private var normalColor: Color {
-        colorScheme == .dark
+        isDark
             ? Color(nsColor: NSColor(srgbRed: 0x44 / 255.0, green: 0x44 / 255.0, blue: 0x44 / 255.0, alpha: 1))
             : Color(nsColor: NSColor(srgbRed: 0xDD / 255.0, green: 0xDD / 255.0, blue: 0xDD / 255.0, alpha: 1))
     }
     private var pressedColor: Color {
-        colorScheme == .dark
+        isDark
             ? Color(nsColor: NSColor(srgbRed: 0x2C / 255.0, green: 0x2C / 255.0, blue: 0x2C / 255.0, alpha: 1))
             : Color(nsColor: NSColor(srgbRed: 0xAA / 255.0, green: 0xAA / 255.0, blue: 0xAA / 255.0, alpha: 1))
     }
 
+    private var accentColor: Color { tint ?? (isDark ? .white : .black) }
+
     init(_ id: HintBarView.KeyID, symbol: String, width: CGFloat, height: CGFloat,
-         symbolFont: Font, symbolTracking: CGFloat, align: Align, state: HintBarState) {
+         symbolFont: Font, symbolTracking: CGFloat, align: Align, state: HintBarState,
+         tint: Color? = nil, tintFill: Color? = nil) {
         self.id = id
         self.symbol = symbol
         self.width = width
@@ -143,6 +127,8 @@ private struct KeyCap: View {
         self.symbolFont = symbolFont
         self.symbolTracking = symbolTracking
         self.align = align
+        self.tint = tint
+        self.tintFill = tintFill
         self._state = ObservedObject(wrappedValue: state)
     }
 
@@ -152,7 +138,7 @@ private struct KeyCap: View {
         ZStack(alignment: .bottom) {
             // Shadow rect (sits at the bottom for 3D depth)
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(colorScheme == .dark ? .white : .black)
+                .fill(accentColor)
                 .frame(width: width, height: height)
                 .opacity(isPressed ? 0 : 1)
 
@@ -160,8 +146,12 @@ private struct KeyCap: View {
             ZStack {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .fill(isPressed ? pressedColor : normalColor)
+                if let tintFill {
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .fill(tintFill)
+                }
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(colorScheme == .dark ? .white : .black, lineWidth: borderWidth)
+                    .strokeBorder(accentColor, lineWidth: borderWidth)
                 capLabel
             }
             .frame(width: width, height: height)
@@ -173,25 +163,21 @@ private struct KeyCap: View {
 
     @ViewBuilder
     private var capLabel: some View {
+        let label = Text(symbol)
+            .font(symbolFont)
+            .tracking(symbolTracking)
+            .foregroundColor(accentColor)
+
         switch align {
         case .center:
-            Text(symbol)
-                .font(symbolFont)
-                .tracking(symbolTracking)
-                .foregroundColor(colorScheme == .dark ? .white : .black)
+            label
         case .bottomLeading:
-            Text(symbol)
-                .font(symbolFont)
-                .tracking(symbolTracking)
-                .foregroundColor(colorScheme == .dark ? .white : .black)
+            label
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                 .padding(.leading, 3)
                 .padding(.bottom, 1)
         case .bottomTrailing:
-            Text(symbol)
-                .font(symbolFont)
-                .tracking(symbolTracking)
-                .foregroundColor(colorScheme == .dark ? .white : .black)
+            label
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                 .padding(.trailing, 3)
                 .padding(.bottom, 1)

@@ -21,7 +21,7 @@ final class RulerWindow: NSWindow {
     var onActivity: (() -> Void)?
 
     /// Create a fullscreen ruler window for the given screen
-    static func create(for screen: NSScreen, edgeDetector: EdgeDetector, hideHintBar: Bool) -> RulerWindow {
+    static func create(for screen: NSScreen, edgeDetector: EdgeDetector, hideHintBar: Bool, screenshot: CGImage? = nil) -> RulerWindow {
         // Use visibleFrame with zero origin for contentRect — when `screen:` is passed,
         // NSWindow interprets the origin relative to the screen's coordinate space,
         // so global coords would double-count the offset on secondary monitors.
@@ -47,12 +47,12 @@ final class RulerWindow: NSWindow {
         window.ignoresMouseEvents = false
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 
-        window.setupViews(screenFrame: screen.frame, edgeDetector: edgeDetector, hideHintBar: hideHintBar)
+        window.setupViews(screenFrame: screen.frame, edgeDetector: edgeDetector, hideHintBar: hideHintBar, screenshot: screenshot)
         window.setupTrackingArea()
         return window
     }
 
-    private func setupViews(screenFrame: CGRect, edgeDetector: EdgeDetector, hideHintBar: Bool) {
+    private func setupViews(screenFrame: CGRect, edgeDetector: EdgeDetector, hideHintBar: Bool, screenshot: CGImage? = nil) {
         let size = screenFrame.size
         let containerView = NSView(frame: NSRect(origin: .zero, size: size))
 
@@ -72,7 +72,7 @@ final class RulerWindow: NSWindow {
         let hv = HintBarView(frame: .zero)
         self.hintBarView = hv
         if !hideHintBar {
-            hv.configure(screenWidth: size.width, screenHeight: size.height)
+            hv.configure(screenWidth: size.width, screenHeight: size.height, screenshot: screenshot)
             containerView.addSubview(hv)
         }
 
