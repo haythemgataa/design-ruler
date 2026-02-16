@@ -16,9 +16,12 @@ final class AlignmentGuides {
     private var windows: [AlignmentGuidesWindow] = []
     private weak var activeWindow: AlignmentGuidesWindow?
     private var firstMoveReceived = false
+    private var launchTime: CFAbsoluteTime = 0
+    private let minExpandedDuration: TimeInterval = 3
     private var inactivityTimer: Timer?
     private let inactivityTimeout: TimeInterval = 600 // 10 minutes
     private var sigTermSource: DispatchSourceSignal?
+    private(set) var currentStyle: GuideLineStyle = .dynamic
 
     private init() {}
 
@@ -34,8 +37,12 @@ final class AlignmentGuides {
             NSMouseInRect(mouseLocation, screen.frame, false)
         } ?? NSScreen.main!
 
-        // Capture cursor screen BEFORE creating window
-        let screenshot = captureScreen(cursorScreen)
+        // CRITICAL: Capture ALL screens BEFORE creating ANY windows
+        var captures: [(screen: NSScreen, image: CGImage?)] = []
+        for screen in NSScreen.screens {
+            let cgImage = captureScreen(screen)
+            captures.append((screen, cgImage))
+        }
 
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
@@ -48,40 +55,53 @@ final class AlignmentGuides {
         windows.removeAll()
         activeWindow = nil
         firstMoveReceived = false
+        currentStyle = .dynamic  // Reset shared color state
 
-        // Create single AlignmentGuidesWindow for cursor screen (phase 9)
-        // Phase 11 will add multi-monitor support
-        let window = AlignmentGuidesWindow.create(
-            for: cursorScreen,
-            screenshot: screenshot,
-            hideHintBar: hideHintBar
-        )
+        // Create one window per screen
+        for capture in captures {
+            let isCursorScreen = capture.screen === cursorScreen
+            let window = AlignmentGuidesWindow.create(
+                for: capture.screen,
+                screenshot: capture.image,
+                hideHintBar: isCursorScreen ? hideHintBar : true  // Hint bar only on cursor screen
+            )
 
-        if let img = screenshot {
-            window.setBackground(img)
+            if let img = capture.image {
+                window.setBackground(img)
+            }
+
+            // Wire callbacks
+            window.onActivate = { [weak self] window in
+                self?.activateWindow(window)
+            }
+            window.onRequestExit = { [weak self] in
+                self?.handleExit()
+            }
+            window.onFirstMove = { [weak self] in
+                self?.handleFirstMove()
+            }
+            window.onActivity = { [weak self] in
+                self?.resetInactivityTimer()
+            }
+            window.onStyleChanged = { [weak self] newStyle in
+                self?.currentStyle = newStyle
+            }
+
+            windows.append(window)
         }
 
-        // Wire callbacks
-        window.onActivate = { [weak self] window in
-            self?.activateWindow(window)
-        }
-        window.onRequestExit = { [weak self] in
-            self?.handleExit()
-        }
-        window.onFirstMove = { [weak self] in
-            self?.handleFirstMove()
-        }
-        window.onActivity = { [weak self] in
-            self?.resetInactivityTimer()
+        // Show all windows
+        for window in windows {
+            window.orderFrontRegardless()
         }
 
-        windows.append(window)
+        // Make cursor screen window key and show initial state
+        let cursorWindow = windows.first { $0.targetScreen === cursorScreen } ?? windows.first!
+        cursorWindow.makeKey()
+        cursorWindow.showInitialState()
+        activeWindow = cursorWindow
 
-        // Show window
-        window.orderFrontRegardless()
-        window.makeKey()
-        activeWindow = window
-
+        launchTime = CFAbsoluteTimeGetCurrent()
         NSApp.activate(ignoringOtherApps: true)
         setupSignalHandler()
         resetInactivityTimer()
@@ -105,7 +125,7 @@ final class AlignmentGuides {
         activeWindow?.deactivate()
         activeWindow = window
         window.makeKey()
-        window.activate(firstMoveAlreadyReceived: firstMoveReceived)
+        window.activate(firstMoveAlreadyReceived: firstMoveReceived, currentStyle: currentStyle)
     }
 
     private func handleExit() {
@@ -118,7 +138,15 @@ final class AlignmentGuides {
 
     private func handleFirstMove() {
         firstMoveReceived = true
-        // Phase 11: hint bar collapse logic
+        let elapsed = CFAbsoluteTimeGetCurrent() - launchTime
+        let remaining = minExpandedDuration - elapsed
+        if remaining > 0 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + remaining) { [weak self] in
+                self?.activeWindow?.collapseHintBar()
+            }
+        } else {
+            activeWindow?.collapseHintBar()
+        }
     }
 
     private func setupSignalHandler() {
