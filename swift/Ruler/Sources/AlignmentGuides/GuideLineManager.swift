@@ -62,6 +62,14 @@ final class GuideLineManager {
             direction: currentDirection,
             style: currentStyle
         )
+
+        // Follow cursor with color indicator
+        colorIndicator?.updatePosition(at: point, screenSize: screenSize)
+
+        // Hide pill when color indicator is showing
+        if colorIndicator?.isVisible == true && !previewLine.isInRemoveMode {
+            previewLine.hidePill()
+        }
     }
 
     /// Place a guide line at the current preview position.
@@ -121,9 +129,10 @@ final class GuideLineManager {
 
         // Show/update color indicator
         if colorIndicator == nil {
-            colorIndicator = ColorCircleIndicator(parentLayer: parentLayer, scale: scale)
+            colorIndicator = ColorCircleIndicator(parentLayer: parentLayer, scale: scale, screenSize: screenSize)
         }
         colorIndicator!.show(at: cursorPosition, activeIndex: styleIndex, screenSize: screenSize)
+        previewLine.hidePill()
     }
 
     /// Get current direction for cursor management.
@@ -153,6 +162,10 @@ final class GuideLineManager {
             newHovered?.setHovered(true, cursorPosition: point)
 
             hoveredLine = newHovered
+
+            // Toggle preview line mode: hide line + show "Remove" pill when hovering
+            previewLine.isInRemoveMode = (newHovered != nil)
+            previewLine.setLineVisible(newHovered == nil)
         }
     }
 

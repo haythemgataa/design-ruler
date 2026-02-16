@@ -17,6 +17,7 @@ final class AlignmentGuidesWindow: NSWindow {
     private var lastMoveTime: Double = 0
     private var hasReceivedFirstMove = false
     private var cursorDirection: Direction = .vertical
+    private var lastCursorPosition: NSPoint = .zero
 
     // Callbacks
     var onActivate: ((AlignmentGuidesWindow) -> Void)?
@@ -156,11 +157,13 @@ final class AlignmentGuidesWindow: NSWindow {
         }
 
         let windowPoint = event.locationInWindow
+        lastCursorPosition = windowPoint
+
+        // Check hover first so preview knows whether to show "Remove" or coordinates
+        guideLineManager.updateHover(at: windowPoint)
         guideLineManager.updatePreview(at: windowPoint)
 
-        // Update hover state and cursor
-        guideLineManager.updateHover(at: windowPoint)
-
+        // Cursor transitions for hover state
         if guideLineManager.hasHoveredLine {
             if CursorManager.shared.state != .pointingHand {
                 CursorManager.shared.transitionToPointingHandFromSystem()
@@ -168,7 +171,7 @@ final class AlignmentGuidesWindow: NSWindow {
         } else {
             if CursorManager.shared.state == .pointingHand {
                 CursorManager.shared.transitionBackToSystem()
-                updateCursor()  // Re-invalidate cursor rects to restore resize cursor
+                updateCursor()
             }
         }
     }
@@ -198,8 +201,7 @@ final class AlignmentGuidesWindow: NSWindow {
             cursorDirection = guideLineManager.direction
             updateCursor()
         case 49: // Spacebar
-            let windowPoint = event.locationInWindow
-            guideLineManager.cycleStyle(cursorPosition: windowPoint)
+            guideLineManager.cycleStyle(cursorPosition: lastCursorPosition)
         case 53: // ESC
             onRequestExit?()
         default:
