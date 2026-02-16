@@ -34,7 +34,7 @@
 - [x] Phase 10: Remove Interaction + Color System (2/2 plans) (completed 2026-02-16)
   - [ ] 10-01-PLAN.md — Hover-to-remove interaction (hit testing, visual feedback, shrink animation, cursor)
   - [ ] 10-02-PLAN.md — Color cycling + color circle indicator (spacebar presets, arc UI, auto-hide)
-- [ ] Phase 11: Hint Bar + Multi-Monitor + Polish (4 plans)
+- [x] Phase 11: Hint Bar + Multi-Monitor + Polish (4 plans) (completed 2026-02-16)
   - [x] 11-01-PLAN.md — Polish fixes (remove state, pill opacity, circle borders/colors) + hint bar content infrastructure
   - [x] 11-02-PLAN.md — Multi-monitor window setup + hint bar integration + remove-state fix wiring
   - [ ] 11-03-PLAN.md — Gap closure: multi-monitor fixes (black screen, preview line freeze, color circle position)
@@ -54,4 +54,4 @@
 | 8. Launch-to-Collapse Animation | v1.1 | 1/1 | ✓ Complete | 2026-02-14 |
 | 9. Scaffold + Preview Line + Placement | v1.2 | 1/1 | ◻ Planned | — |
 | 10. Remove Interaction + Color System | v1.2 | 2/2 | ✓ Complete | 2026-02-16 |
-| 11. Hint Bar + Multi-Monitor + Polish | v1.2 | 2/4 | ◻ Gap Closure | — |
+| 11. Hint Bar + Multi-Monitor + Polish | v1.2 | Complete    | 2026-02-16 | — |
