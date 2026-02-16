@@ -48,8 +48,8 @@ struct HintBarContent: View {
                        symbolFont: .system(size: 13, weight: .bold, design: .rounded),
                        symbolTracking: -0.2, align: .center, state: state)
                 text("to switch direction,")
-                KeyCap(.space, symbol: "space", width: 48, height: 25,
-                       symbolFont: .system(size: 11, weight: .bold, design: .rounded),
+                KeyCap(.space, symbol: "\u{2423}", width: 64, height: 25,
+                       symbolFont: .system(size: 16, weight: .bold, design: .rounded),
                        symbolTracking: -0.2, align: .center, state: state)
                 text("to change color.")
                 KeyCap(.esc, symbol: "esc", width: 32, height: 25,
@@ -109,8 +109,8 @@ struct CollapsedAlignmentGuidesLeftContent: View {
             KeyCap(.tab, symbol: "⇥", width: 32, height: 25,
                    symbolFont: .system(size: 13, weight: .bold, design: .rounded),
                    symbolTracking: -0.2, align: .center, state: state)
-            KeyCap(.space, symbol: "space", width: 48, height: 25,
-                   symbolFont: .system(size: 11, weight: .bold, design: .rounded),
+            KeyCap(.space, symbol: "\u{2423}", width: 64, height: 25,
+                   symbolFont: .system(size: 16, weight: .bold, design: .rounded),
                    symbolTracking: -0.2, align: .center, state: state)
         }
         .padding(.horizontal, 10)
@@ -292,8 +292,8 @@ struct HintBarGlassRoot: View {
     }
 
     private var spaceCap: some View {
-        KeyCap(.space, symbol: "space", width: 48, height: 25,
-               symbolFont: .system(size: 11, weight: .bold, design: .rounded),
+        KeyCap(.space, symbol: "\u{2423}", width: 64, height: 25,
+               symbolFont: .system(size: 16, weight: .bold, design: .rounded),
                symbolTracking: -0.2, align: .center, state: state)
     }
 
@@ -430,24 +430,36 @@ private struct KeyCap: View {
 
     @ViewBuilder
     private var capLabel: some View {
-        let label = Text(symbol)
-            .font(symbolFont)
-            .tracking(symbolTracking)
-            .foregroundColor(accentColor)
+        if id == .tab {
+            // Composite tab symbol: arrow + pipe at 11px
+            HStack(spacing: 0) {
+                Text("\u{2192}")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundColor(accentColor)
+                Text("|")
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .foregroundColor(accentColor)
+            }
+        } else {
+            let label = Text(symbol)
+                .font(symbolFont)
+                .tracking(symbolTracking)
+                .foregroundColor(accentColor)
 
-        switch align {
-        case .center:
-            label
-        case .bottomLeading:
-            label
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-                .padding(.leading, 3)
-                .padding(.bottom, 1)
-        case .bottomTrailing:
-            label
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                .padding(.trailing, 3)
-                .padding(.bottom, 1)
+            switch align {
+            case .center:
+                label
+            case .bottomLeading:
+                label
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                    .padding(.leading, 3)
+                    .padding(.bottom, 1)
+            case .bottomTrailing:
+                label
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                    .padding(.trailing, 3)
+                    .padding(.bottom, 1)
+            }
         }
     }
 }
