@@ -106,9 +106,20 @@ final class AlignmentGuides {
     }
 
     private func captureScreen(_ screen: NSScreen) -> CGImage? {
-        let screenRect = screen.frame
+        guard let mainScreen = NSScreen.screens.first else { return nil }
+        let frame = screen.frame
+        let mainHeight = mainScreen.frame.height
+
+        // Convert AppKit coords (bottom-left origin) to CG coords (top-left origin)
+        let cgRect = CGRect(
+            x: frame.origin.x,
+            y: mainHeight - frame.origin.y - frame.height,
+            width: frame.width,
+            height: frame.height
+        )
+
         return CGWindowListCreateImage(
-            screenRect,
+            cgRect,
             .optionOnScreenOnly,
             kCGNullWindowID,
             .bestResolution
