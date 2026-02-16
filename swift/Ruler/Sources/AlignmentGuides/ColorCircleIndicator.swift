@@ -66,18 +66,17 @@ final class ColorCircleIndicator {
 
         if wasHidden {
             // Set model values to final state immediately
-            CATransaction.begin()
-            CATransaction.setDisableActions(true)
-            containerLayer.opacity = 1
-            updateCircleSizes(activeIndex: activeIndex)
-            for (i, layer) in circleLayers.enumerated() {
-                layer.position = positions[i]
-                layer.transform = CATransform3DIdentity
+            CATransaction.instant {
+                containerLayer.opacity = 1
+                updateCircleSizes(activeIndex: activeIndex)
+                for (i, layer) in circleLayers.enumerated() {
+                    layer.position = positions[i]
+                    layer.transform = CATransform3DIdentity
+                }
+                dotLayer.position = positions[activeIndex]
+                dotLayer.transform = CATransform3DIdentity
+                dotLayer.opacity = 1
             }
-            dotLayer.position = positions[activeIndex]
-            dotLayer.transform = CATransform3DIdentity
-            dotLayer.opacity = 1
-            CATransaction.commit()
 
             // Add staggered appear animations (from cursor + scale 0 → final position + scale 1)
             let now = CACurrentMediaTime()
@@ -88,7 +87,7 @@ final class ColorCircleIndicator {
 
                 let posAnim = CABasicAnimation(keyPath: "position")
                 posAnim.fromValue = NSValue(point: cursorPosition)
-                posAnim.duration = 0.2
+                posAnim.duration = DesignTokens.Animation.standard
                 posAnim.beginTime = delay
                 posAnim.timingFunction = timing
                 posAnim.fillMode = .backwards
@@ -96,7 +95,7 @@ final class ColorCircleIndicator {
 
                 let scaleAnim = CABasicAnimation(keyPath: "transform.scale")
                 scaleAnim.fromValue = 0.01
-                scaleAnim.duration = 0.2
+                scaleAnim.duration = DesignTokens.Animation.standard
                 scaleAnim.beginTime = delay
                 scaleAnim.timingFunction = timing
                 scaleAnim.fillMode = .backwards
@@ -107,7 +106,7 @@ final class ColorCircleIndicator {
             let dotDelay = now + CFTimeInterval(activeIndex) * stagger
             let dotPos = CABasicAnimation(keyPath: "position")
             dotPos.fromValue = NSValue(point: cursorPosition)
-            dotPos.duration = 0.2
+            dotPos.duration = DesignTokens.Animation.standard
             dotPos.beginTime = dotDelay
             dotPos.timingFunction = timing
             dotPos.fillMode = .backwards
@@ -115,7 +114,7 @@ final class ColorCircleIndicator {
 
             let dotScale = CABasicAnimation(keyPath: "transform.scale")
             dotScale.fromValue = 0.01
-            dotScale.duration = 0.2
+            dotScale.duration = DesignTokens.Animation.standard
             dotScale.beginTime = dotDelay
             dotScale.timingFunction = timing
             dotScale.fillMode = .backwards
@@ -125,60 +124,56 @@ final class ColorCircleIndicator {
             let timing = CAMediaTimingFunction(name: .easeOut)
 
             // Positions update instantly
-            CATransaction.begin()
-            CATransaction.setDisableActions(true)
-            for (i, layer) in circleLayers.enumerated() {
-                layer.position = positions[i]
-                layer.transform = CATransform3DIdentity
+            CATransaction.instant {
+                for (i, layer) in circleLayers.enumerated() {
+                    layer.position = positions[i]
+                    layer.transform = CATransform3DIdentity
+                }
             }
-            CATransaction.commit()
 
             // Animate size change + dot
-            CATransaction.begin()
-            CATransaction.setAnimationDuration(0.15)
-            CATransaction.setAnimationTimingFunction(timing)
-
-            // Shrink old active circle
-            if oldActiveIndex != activeIndex {
-                let oldWrapper = circleLayers[oldActiveIndex]
-                let smallD = circleRadius * 2
-                oldWrapper.bounds = CGRect(x: 0, y: 0, width: smallD, height: smallD)
-                oldWrapper.shadowPath = CGPath(ellipseIn: CGRect(x: 0, y: 0, width: smallD, height: smallD), transform: nil)
-                if let oldCircle = oldWrapper.sublayers?.first {
-                    oldCircle.bounds = CGRect(x: 0, y: 0, width: smallD, height: smallD)
-                    oldCircle.cornerRadius = circleRadius
-                    oldCircle.borderWidth = 2
-                    oldCircle.position = CGPoint(x: smallD / 2, y: smallD / 2)
-                    if oldActiveIndex == 0 {
-                        updateDynamicPresetSize(oldCircle, radius: circleRadius)
+            CATransaction.animated(duration: DesignTokens.Animation.fast, timing: .easeOut) {
+                // Shrink old active circle
+                if oldActiveIndex != activeIndex {
+                    let oldWrapper = circleLayers[oldActiveIndex]
+                    let smallD = circleRadius * 2
+                    oldWrapper.bounds = CGRect(x: 0, y: 0, width: smallD, height: smallD)
+                    oldWrapper.shadowPath = CGPath(ellipseIn: CGRect(x: 0, y: 0, width: smallD, height: smallD), transform: nil)
+                    if let oldCircle = oldWrapper.sublayers?.first {
+                        oldCircle.bounds = CGRect(x: 0, y: 0, width: smallD, height: smallD)
+                        oldCircle.cornerRadius = circleRadius
+                        oldCircle.borderWidth = 2
+                        oldCircle.position = CGPoint(x: smallD / 2, y: smallD / 2)
+                        if oldActiveIndex == 0 {
+                            updateDynamicPresetSize(oldCircle, radius: circleRadius)
+                        }
                     }
                 }
-            }
 
-            // Grow new active circle
-            let newWrapper = circleLayers[activeIndex]
-            let bigD = activeRadius * 2
-            newWrapper.bounds = CGRect(x: 0, y: 0, width: bigD, height: bigD)
-            newWrapper.shadowPath = CGPath(ellipseIn: CGRect(x: 0, y: 0, width: bigD, height: bigD), transform: nil)
-            if let newCircle = newWrapper.sublayers?.first {
-                newCircle.bounds = CGRect(x: 0, y: 0, width: bigD, height: bigD)
-                newCircle.cornerRadius = activeRadius
-                newCircle.borderWidth = 3
-                newCircle.position = CGPoint(x: bigD / 2, y: bigD / 2)
-                if activeIndex == 0 {
-                    updateDynamicPresetSize(newCircle, radius: activeRadius)
+                // Grow new active circle
+                let newWrapper = circleLayers[activeIndex]
+                let bigD = activeRadius * 2
+                newWrapper.bounds = CGRect(x: 0, y: 0, width: bigD, height: bigD)
+                newWrapper.shadowPath = CGPath(ellipseIn: CGRect(x: 0, y: 0, width: bigD, height: bigD), transform: nil)
+                if let newCircle = newWrapper.sublayers?.first {
+                    newCircle.bounds = CGRect(x: 0, y: 0, width: bigD, height: bigD)
+                    newCircle.cornerRadius = activeRadius
+                    newCircle.borderWidth = 3
+                    newCircle.position = CGPoint(x: bigD / 2, y: bigD / 2)
+                    if activeIndex == 0 {
+                        updateDynamicPresetSize(newCircle, radius: activeRadius)
+                    }
                 }
-            }
 
-            // Move dot to new active + scale pulse
-            dotLayer.position = positions[activeIndex]
-            CATransaction.commit()
+                // Move dot to new active + scale pulse
+                dotLayer.position = positions[activeIndex]
+            }
 
             // Dot scale pulse
             let dotPulse = CABasicAnimation(keyPath: "transform.scale")
             dotPulse.fromValue = 0.3
             dotPulse.toValue = 1.0
-            dotPulse.duration = 0.15
+            dotPulse.duration = DesignTokens.Animation.fast
             dotPulse.timingFunction = timing
             dotLayer.add(dotPulse, forKey: "dot-pulse")
         }
@@ -198,13 +193,12 @@ final class ColorCircleIndicator {
         lastCursorPosition = cursorPosition
         let positions = computePositions(at: cursorPosition, screenSize: screenSize)
 
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        for (i, layer) in circleLayers.enumerated() {
-            layer.position = positions[i]
+        CATransaction.instant {
+            for (i, layer) in circleLayers.enumerated() {
+                layer.position = positions[i]
+            }
+            dotLayer.position = positions[activeIndex]
         }
-        dotLayer.position = positions[activeIndex]
-        CATransaction.commit()
     }
 
     // MARK: - Setup
@@ -377,19 +371,18 @@ final class ColorCircleIndicator {
         // Capture current positions before setting model values
         let currentPositions = circleLayers.map { $0.position }
         let dotPosition = dotLayer.position
-        let totalDuration = 0.2 + CFTimeInterval(circleLayers.count - 1) * stagger
+        let totalDuration = DesignTokens.Animation.standard + CFTimeInterval(circleLayers.count - 1) * stagger
 
         // Set model values to final state
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        for layer in circleLayers {
-            layer.position = lastCursorPosition
-            layer.transform = CATransform3DMakeScale(0.01, 0.01, 1.0)
+        CATransaction.instant {
+            for layer in circleLayers {
+                layer.position = lastCursorPosition
+                layer.transform = CATransform3DMakeScale(0.01, 0.01, 1.0)
+            }
+            dotLayer.position = lastCursorPosition
+            dotLayer.transform = CATransform3DMakeScale(0.01, 0.01, 1.0)
+            dotLayer.opacity = 0
         }
-        dotLayer.position = lastCursorPosition
-        dotLayer.transform = CATransform3DMakeScale(0.01, 0.01, 1.0)
-        dotLayer.opacity = 0
-        CATransaction.commit()
 
         // Add staggered exit animations (current position → cursor + scale 0)
         let now = CACurrentMediaTime()
@@ -400,7 +393,7 @@ final class ColorCircleIndicator {
 
             let posAnim = CABasicAnimation(keyPath: "position")
             posAnim.fromValue = NSValue(point: currentPositions[i])
-            posAnim.duration = 0.2
+            posAnim.duration = DesignTokens.Animation.standard
             posAnim.beginTime = delay
             posAnim.timingFunction = timing
             posAnim.fillMode = .backwards
@@ -408,7 +401,7 @@ final class ColorCircleIndicator {
 
             let scaleAnim = CABasicAnimation(keyPath: "transform")
             scaleAnim.fromValue = NSValue(caTransform3D: CATransform3DIdentity)
-            scaleAnim.duration = 0.2
+            scaleAnim.duration = DesignTokens.Animation.standard
             scaleAnim.beginTime = delay
             scaleAnim.timingFunction = timing
             scaleAnim.fillMode = .backwards
@@ -419,7 +412,7 @@ final class ColorCircleIndicator {
         let dotDelay = now + CFTimeInterval(activeIndex) * stagger
         let dotPos = CABasicAnimation(keyPath: "position")
         dotPos.fromValue = NSValue(point: dotPosition)
-        dotPos.duration = 0.2
+        dotPos.duration = DesignTokens.Animation.standard
         dotPos.beginTime = dotDelay
         dotPos.timingFunction = timing
         dotPos.fillMode = .backwards
@@ -427,7 +420,7 @@ final class ColorCircleIndicator {
 
         let dotScale = CABasicAnimation(keyPath: "transform")
         dotScale.fromValue = NSValue(caTransform3D: CATransform3DIdentity)
-        dotScale.duration = 0.2
+        dotScale.duration = DesignTokens.Animation.standard
         dotScale.beginTime = dotDelay
         dotScale.timingFunction = timing
         dotScale.fillMode = .backwards
@@ -438,16 +431,15 @@ final class ColorCircleIndicator {
             guard let self = self, self.showGeneration == gen else { return }
             self.isVisible = false
             self.isFadingOut = false
-            CATransaction.begin()
-            CATransaction.setDisableActions(true)
-            self.containerLayer.opacity = 0
-            for layer in self.circleLayers {
-                layer.transform = CATransform3DIdentity
-                layer.removeAllAnimations()
+            CATransaction.instant {
+                self.containerLayer.opacity = 0
+                for layer in self.circleLayers {
+                    layer.transform = CATransform3DIdentity
+                    layer.removeAllAnimations()
+                }
+                self.dotLayer.transform = CATransform3DIdentity
+                self.dotLayer.removeAllAnimations()
             }
-            self.dotLayer.transform = CATransform3DIdentity
-            self.dotLayer.removeAllAnimations()
-            CATransaction.commit()
         }
     }
 }

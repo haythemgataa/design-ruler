@@ -192,7 +192,7 @@ final class HintBarView: NSView {
     /// Animate from expanded to collapsed state.
     /// On macOS 26+, triggers a liquid glass morph via SwiftUI GlassEffectContainer.
     /// On older systems, uses an NSAnimationContext crossfade between panels.
-    func animateToCollapsed(duration: TimeInterval = 0.35) {
+    func animateToCollapsed(duration: TimeInterval = DesignTokens.Animation.collapse) {
         guard currentBarState == .expanded else { return }
         guard !isAnimatingCollapse else { return }
         isAnimatingCollapse = true
@@ -274,7 +274,7 @@ final class HintBarView: NSView {
 
         let group = CAAnimationGroup()
         group.animations = [scaleAnim, slideAnim, fadeAnim]
-        group.duration = 0.35
+        group.duration = DesignTokens.Animation.collapse
         group.timingFunction = CAMediaTimingFunction(controlPoints: 0.23, 1, 0.32, 1)
         group.isRemovedOnCompletion = true
 
@@ -509,7 +509,7 @@ final class HintBarView: NSView {
             CAMediaTimingFunction(name: .linear),
             CAMediaTimingFunction(controlPoints: 0.23, 1, 0.32, 1)
         ]
-        anim.duration = 0.3
+        anim.duration = DesignTokens.Animation.slow
         anim.isRemovedOnCompletion = true
 
         CATransaction.begin()
