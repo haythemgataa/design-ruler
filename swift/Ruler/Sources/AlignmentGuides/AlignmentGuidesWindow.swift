@@ -101,20 +101,14 @@ final class AlignmentGuidesWindow: NSWindow {
         cv.addTrackingArea(area)
     }
 
-    /// Set frozen screenshot as background.
-    func setBackground(_ cgImage: CGImage) {
-        guard let container = contentView else { return }
-
-        let bgView = NSView(frame: NSRect(origin: .zero, size: screenBounds.size))
-        bgView.wantsLayer = true
-        bgView.layer?.contents = cgImage
-        bgView.layer?.contentsGravity = .resize
-
-        container.addSubview(bgView, positioned: .below, relativeTo: container.subviews.first)
-    }
-
     /// Show initial state on launch.
     func showInitialState() {
+        // Initialize cursor position so spacebar before mouse move works correctly
+        let mouse = NSEvent.mouseLocation
+        lastCursorPosition = NSPoint(
+            x: mouse.x - screenBounds.origin.x,
+            y: mouse.y - screenBounds.origin.y
+        )
         if hintBarView.superview != nil { hintBarView.animateEntrance() }
     }
 

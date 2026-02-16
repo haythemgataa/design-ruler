@@ -66,10 +66,7 @@ final class AlignmentGuides {
                 hideHintBar: isCursorScreen ? hideHintBar : true  // Hint bar only on cursor screen
             )
 
-            if let img = capture.image {
-                window.setBackground(img)
-            }
-
+            // Wire callbacks
             // Wire callbacks
             window.onActivate = { [weak self] window in
                 self?.activateWindow(window)
