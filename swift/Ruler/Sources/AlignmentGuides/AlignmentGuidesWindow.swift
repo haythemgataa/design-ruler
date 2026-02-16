@@ -1,6 +1,13 @@
 import AppKit
 import QuartzCore
 
+/// Transparent view that passes events through to the window.
+private class PassthroughView: NSView {
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        return nil
+    }
+}
+
 /// Fullscreen borderless window for alignment guides feature.
 /// Routes mouse + keyboard events to GuideLineManager.
 final class AlignmentGuidesWindow: NSWindow {
@@ -56,7 +63,7 @@ final class AlignmentGuidesWindow: NSWindow {
         }
 
         // Guideline view (transparent, passes events through)
-        let guidelineView = NSView(frame: NSRect(origin: .zero, size: size))
+        let guidelineView = PassthroughView(frame: NSRect(origin: .zero, size: size))
         guidelineView.wantsLayer = true
         containerView.addSubview(guidelineView)
 
@@ -67,9 +74,6 @@ final class AlignmentGuidesWindow: NSWindow {
             scale: scale,
             screenSize: size
         )
-
-        // Make guideline view pass events through
-        guidelineView.hitTest = { _, _ in nil }
 
         // Hint bar (phase 11)
         // if !hideHintBar { ... }
@@ -103,12 +107,14 @@ final class AlignmentGuidesWindow: NSWindow {
     // MARK: - Cursor Management
 
     override func resetCursorRects() {
+        guard let cv = contentView else { return }
         let cursor: NSCursor = cursorDirection == .vertical ? .resizeLeftRight : .resizeUpDown
-        addCursorRect(bounds, cursor: cursor)
+        cv.addCursorRect(cv.bounds, cursor: cursor)
     }
 
     private func updateCursor() {
-        invalidateCursorRects()
+        guard let cv = contentView else { return }
+        invalidateCursorRects(for: cv)
     }
 
     // MARK: - Multi-monitor activation (phase 11)
