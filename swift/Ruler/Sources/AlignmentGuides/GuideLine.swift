@@ -33,8 +33,8 @@ final class GuideLine {
     var isInRemoveMode = false
 
     // Pill layout constants (matching CrosshairView)
-    private let pillHeight: CGFloat = 24
-    private let outerRadius: CGFloat = 8
+    private let pillHeight = DesignTokens.Pill.height
+    private let outerRadius = DesignTokens.Pill.cornerRadius
     private let labelValueGap: CGFloat = 4
     private let padLeft: CGFloat = 8
     private let padRight: CGFloat = 8
@@ -72,19 +72,18 @@ final class GuideLine {
         lineLayer.lineWidth = 1.0
         lineLayer.fillColor = nil
         if style.useDifferenceBlend {
-            lineLayer.compositingFilter = "differenceBlendMode"
+            lineLayer.compositingFilter = BlendMode.difference
         }
         lineLayer.contentsScale = scale
         parent.addSublayer(lineLayer)
 
         // Pill background
-        let bgColor = CGColor(gray: 0, alpha: 0.8)
-        pillBgLayer.fillColor = bgColor
+        pillBgLayer.fillColor = DesignTokens.Pill.backgroundColor
         pillBgLayer.strokeColor = nil
-        pillBgLayer.shadowColor = CGColor(gray: 0, alpha: 0.3)
-        pillBgLayer.shadowOffset = CGSize(width: 0, height: -1)
-        pillBgLayer.shadowRadius = 3
-        pillBgLayer.shadowOpacity = 1.0
+        pillBgLayer.shadowColor = DesignTokens.Shadow.color
+        pillBgLayer.shadowOffset = DesignTokens.Shadow.offset
+        pillBgLayer.shadowRadius = DesignTokens.Shadow.radius
+        pillBgLayer.shadowOpacity = DesignTokens.Shadow.opacity
         pillBgLayer.contentsScale = scale
         parent.addSublayer(pillBgLayer)
 
@@ -116,34 +115,31 @@ final class GuideLine {
     func update(position: CGFloat, cursorAlongAxis: CGFloat, screenSize: CGSize, direction: Direction, style: GuideLineStyle) {
         self.position = position
 
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
+        CATransaction.instant {
+            // Update line path
+            let linePath = CGMutablePath()
+            if direction == .vertical {
+                // Full-height vertical line
+                linePath.move(to: CGPoint(x: position, y: 0))
+                linePath.addLine(to: CGPoint(x: position, y: screenSize.height))
+            } else {
+                // Full-width horizontal line
+                linePath.move(to: CGPoint(x: 0, y: position))
+                linePath.addLine(to: CGPoint(x: screenSize.width, y: position))
+            }
+            lineLayer.path = linePath
 
-        // Update line path
-        let linePath = CGMutablePath()
-        if direction == .vertical {
-            // Full-height vertical line
-            linePath.move(to: CGPoint(x: position, y: 0))
-            linePath.addLine(to: CGPoint(x: position, y: screenSize.height))
-        } else {
-            // Full-width horizontal line
-            linePath.move(to: CGPoint(x: 0, y: position))
-            linePath.addLine(to: CGPoint(x: screenSize.width, y: position))
+            // Update style
+            lineLayer.strokeColor = style.color
+            if style.useDifferenceBlend {
+                lineLayer.compositingFilter = BlendMode.difference
+            } else {
+                lineLayer.compositingFilter = nil
+            }
+
+            // Update pill
+            layoutPill(position: position, cursorAlongAxis: cursorAlongAxis, screenSize: screenSize, direction: direction)
         }
-        lineLayer.path = linePath
-
-        // Update style
-        lineLayer.strokeColor = style.color
-        if style.useDifferenceBlend {
-            lineLayer.compositingFilter = "differenceBlendMode"
-        } else {
-            lineLayer.compositingFilter = nil
-        }
-
-        // Update pill
-        layoutPill(position: position, cursorAlongAxis: cursorAlongAxis, screenSize: screenSize, direction: direction)
-
-        CATransaction.commit()
     }
 
     private func layoutPill(position: CGFloat, cursorAlongAxis: CGFloat, screenSize: CGSize, direction: Direction) {
@@ -160,16 +156,16 @@ final class GuideLine {
             valueAttr = NSAttributedString(string: "Remove", attributes: [
                 .font: Self.font,
                 .foregroundColor: NSColor.white,
-                .kern: -0.36 as CGFloat,
+                .kern: DesignTokens.Pill.kerning,
             ])
-            bgColor = CGColor(srgbRed: 1.0, green: 0.35, blue: 0.35, alpha: 0.9)
+            bgColor = DesignTokens.Color.removePillBg
             pillOpacity = 1.0
         } else {
             let label = direction == .vertical ? "X" : "Y"
             let value = Int(round(position))
             labelAttr = labelText(label)
             valueAttr = valueText(value)
-            bgColor = CGColor(gray: 0, alpha: 0.8)
+            bgColor = DesignTokens.Pill.backgroundColor
             pillOpacity = 1.0
         }
 
@@ -228,61 +224,55 @@ final class GuideLine {
 
     /// Set opacity on all layers (for fade in/out).
     func setOpacity(_ opacity: Float, animated: Bool) {
-        CATransaction.begin()
+        let body = {
+            self.lineLayer.opacity = opacity
+            // Only touch pill layers for preview lines; placed lines keep pills hidden
+            if self.isPreview {
+                self.pillBgLayer.opacity = opacity
+                self.pillLabelLayer.opacity = opacity
+                self.pillValueLayer.opacity = opacity
+            }
+        }
         if animated {
-            CATransaction.setAnimationDuration(0.15)
-            CATransaction.setAnimationTimingFunction(CAMediaTimingFunction(name: .easeOut))
+            CATransaction.animated(duration: DesignTokens.Animation.fast, body)
         } else {
-            CATransaction.setDisableActions(true)
+            CATransaction.instant(body)
         }
-        lineLayer.opacity = opacity
-        // Only touch pill layers for preview lines; placed lines keep pills hidden
-        if isPreview {
-            pillBgLayer.opacity = opacity
-            pillLabelLayer.opacity = opacity
-            pillValueLayer.opacity = opacity
-        }
-        CATransaction.commit()
     }
 
     /// Set hover state: red + dashed line visual on placed lines.
     func setHovered(_ isHovered: Bool, cursorPosition: CGPoint) {
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-
-        if isHovered {
-            self.isHovered = true
-            lineLayer.strokeColor = CGColor(srgbRed: 1.0, green: 0.35, blue: 0.35, alpha: 1.0)
-            lineLayer.lineDashPattern = [4, 3]
-            lineLayer.compositingFilter = nil
-        } else {
-            self.isHovered = false
-            lineLayer.strokeColor = style.color
-            lineLayer.lineDashPattern = nil
-            if style.useDifferenceBlend {
-                lineLayer.compositingFilter = "differenceBlendMode"
+        CATransaction.instant {
+            if isHovered {
+                self.isHovered = true
+                lineLayer.strokeColor = DesignTokens.Color.hoverRed
+                lineLayer.lineDashPattern = [4, 3]
+                lineLayer.compositingFilter = nil
+            } else {
+                self.isHovered = false
+                lineLayer.strokeColor = style.color
+                lineLayer.lineDashPattern = nil
+                if style.useDifferenceBlend {
+                    lineLayer.compositingFilter = BlendMode.difference
+                }
             }
         }
-
-        CATransaction.commit()
     }
 
     /// Hide pill layers instantly (used when color indicator is visible).
     func hidePill() {
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        pillBgLayer.opacity = 0
-        pillLabelLayer.opacity = 0
-        pillValueLayer.opacity = 0
-        CATransaction.commit()
+        CATransaction.instant {
+            pillBgLayer.opacity = 0
+            pillLabelLayer.opacity = 0
+            pillValueLayer.opacity = 0
+        }
     }
 
     /// Show or hide the line layer (used to hide preview line during hover-to-remove).
     func setLineVisible(_ visible: Bool) {
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        lineLayer.opacity = visible ? 1.0 : 0
-        CATransaction.commit()
+        CATransaction.instant {
+            lineLayer.opacity = visible ? 1.0 : 0
+        }
     }
 
     /// Shrink line toward click point with path animation, then call completion.
@@ -303,7 +293,7 @@ final class GuideLine {
         let pathAnim = CABasicAnimation(keyPath: "path")
         pathAnim.fromValue = lineLayer.path
         pathAnim.toValue = endPath
-        pathAnim.duration = 0.2
+        pathAnim.duration = DesignTokens.Animation.standard
         pathAnim.timingFunction = CAMediaTimingFunction(name: .easeIn)
         pathAnim.fillMode = .forwards
         pathAnim.isRemovedOnCompletion = false
@@ -316,7 +306,7 @@ final class GuideLine {
     func remove(animated: Bool) {
         if animated {
             setOpacity(0, animated: true)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + DesignTokens.Animation.fast) { [weak self] in
                 self?.removeLayers()
             }
         } else {
@@ -337,7 +327,7 @@ final class GuideLine {
         NSAttributedString(string: label, attributes: [
             .font: Self.font,
             .foregroundColor: NSColor(white: 1, alpha: 0.5),
-            .kern: -0.36 as CGFloat,
+            .kern: DesignTokens.Pill.kerning,
         ])
     }
 
@@ -348,7 +338,7 @@ final class GuideLine {
 
         let attrs: [NSAttributedString.Key: Any] = [
             .font: Self.font,
-            .kern: -0.36 as CGFloat,
+            .kern: DesignTokens.Pill.kerning,
         ]
         let attr = NSMutableAttributedString()
         if zeroCount > 0 {

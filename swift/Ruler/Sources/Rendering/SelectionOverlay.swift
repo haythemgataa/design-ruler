@@ -21,16 +21,16 @@ final class SelectionOverlay {
 
     // Colors
     private let normalStroke = CGColor(gray: 1.0, alpha: 1.0)
-    private let hoveredStroke = CGColor(srgbRed: 1.0, green: 0.35, blue: 0.35, alpha: 1.0)
+    private let hoveredStroke = DesignTokens.Color.hoverRed
     private let normalFill = CGColor(gray: 1.0, alpha: 0.04)
-    private let hoveredFill = CGColor(srgbRed: 1.0, green: 0.35, blue: 0.35, alpha: 0.06)
-    private let normalPillBg = CGColor(gray: 0, alpha: 0.8)
-    private let hoveredPillBg = CGColor(srgbRed: 0.85, green: 0.2, blue: 0.2, alpha: 0.85)
+    private let hoveredFill = DesignTokens.Color.hoverRedFill
+    private let normalPillBg = DesignTokens.Pill.backgroundColor
+    private let hoveredPillBg = DesignTokens.Color.hoverRedPillBg
 
     // Pill layout
-    private let pillHeight: CGFloat = 24
+    private let pillHeight = DesignTokens.Pill.height
     private let pillPadH: CGFloat = 8
-    private let pillRadius: CGFloat = 8
+    private let pillRadius = DesignTokens.Pill.cornerRadius
     private let pillGap: CGFloat = 6
     private let slideDistance: CGFloat = 4  // intro animation slide
     private let clampMargin: CGFloat = 4   // shadow: radius=3 + offset.y=1
@@ -70,16 +70,16 @@ final class SelectionOverlay {
         rectLayer.strokeColor = normalStroke
         rectLayer.lineWidth = 1.0
         rectLayer.lineDashPattern = [4, 3]
-        rectLayer.compositingFilter = "differenceBlendMode"
+        rectLayer.compositingFilter = BlendMode.difference
         parentLayer.addSublayer(rectLayer)
 
         // Pill background
         pillBgLayer.fillColor = normalPillBg
         pillBgLayer.strokeColor = nil
-        pillBgLayer.shadowColor = CGColor(gray: 0, alpha: 0.3)
-        pillBgLayer.shadowOffset = CGSize(width: 0, height: -1)
-        pillBgLayer.shadowRadius = 3
-        pillBgLayer.shadowOpacity = 1.0
+        pillBgLayer.shadowColor = DesignTokens.Shadow.color
+        pillBgLayer.shadowOffset = DesignTokens.Shadow.offset
+        pillBgLayer.shadowRadius = DesignTokens.Shadow.radius
+        pillBgLayer.shadowOpacity = DesignTokens.Shadow.opacity
         parentLayer.addSublayer(pillBgLayer)
 
         // Pill text
@@ -100,20 +100,18 @@ final class SelectionOverlay {
     func updateRect(_ newRect: CGRect, animated: Bool) {
         rect = newRect
 
-        if animated {
-            // Don't disable actions — let CA animate
-        } else {
-            CATransaction.begin()
-            CATransaction.setDisableActions(true)
-        }
-
         // Stroke sits outside: outset by half line width
         let strokeInset = -rectLayer.lineWidth / 2
-        rectLayer.path = CGPath(rect: rect.insetBy(dx: strokeInset, dy: strokeInset), transform: nil)
-        fillLayer.path = CGPath(rect: rect, transform: nil)
 
-        if !animated {
-            CATransaction.commit()
+        if animated {
+            // Don't disable actions — let CA animate
+            rectLayer.path = CGPath(rect: rect.insetBy(dx: strokeInset, dy: strokeInset), transform: nil)
+            fillLayer.path = CGPath(rect: rect, transform: nil)
+        } else {
+            CATransaction.instant {
+                rectLayer.path = CGPath(rect: rect.insetBy(dx: strokeInset, dy: strokeInset), transform: nil)
+                fillLayer.path = CGPath(rect: rect, transform: nil)
+            }
         }
     }
 
@@ -125,25 +123,20 @@ final class SelectionOverlay {
         // Remove dash pattern for finalized selection
         rectLayer.lineDashPattern = nil
 
-        CATransaction.begin()
-        CATransaction.setAnimationDuration(0.2)
-        CATransaction.setAnimationTimingFunction(CAMediaTimingFunction(name: .easeOut))
-
-        rect = newRect
-        let strokeInset = -rectLayer.lineWidth / 2
-        rectLayer.path = CGPath(rect: newRect.insetBy(dx: strokeInset, dy: strokeInset), transform: nil)
-        fillLayer.path = CGPath(rect: newRect, transform: nil)
-
-        CATransaction.commit()
+        CATransaction.animated(duration: DesignTokens.Animation.standard) {
+            rect = newRect
+            let strokeInset = -rectLayer.lineWidth / 2
+            rectLayer.path = CGPath(rect: newRect.insetBy(dx: strokeInset, dy: strokeInset), transform: nil)
+            fillLayer.path = CGPath(rect: newRect, transform: nil)
+        }
 
         // Place pill at final position, invisible (no implicit animations)
         setDimensionsText(w: w, h: h)
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        layoutPill()
-        pillBgLayer.opacity = 1
-        pillTextLayer.opacity = 1
-        CATransaction.commit()
+        CATransaction.instant {
+            layoutPill()
+            pillBgLayer.opacity = 1
+            pillTextLayer.opacity = 1
+        }
 
         // Explicit slide-down + fade-in from offset position
         let duration: CFTimeInterval = 0.2
@@ -171,23 +164,19 @@ final class SelectionOverlay {
         guard newState != state else { return }
         state = newState
 
-        CATransaction.begin()
-        CATransaction.setAnimationDuration(0.15)
-        CATransaction.setAnimationTimingFunction(CAMediaTimingFunction(name: .easeOut))
+        CATransaction.animated(duration: DesignTokens.Animation.fast) {
+            rectLayer.strokeColor = hovered ? hoveredStroke : normalStroke
+            rectLayer.compositingFilter = hovered ? nil : BlendMode.difference
+            fillLayer.fillColor = hovered ? hoveredFill : normalFill
+            pillBgLayer.fillColor = hovered ? hoveredPillBg : normalPillBg
 
-        rectLayer.strokeColor = hovered ? hoveredStroke : normalStroke
-        rectLayer.compositingFilter = hovered ? nil : "differenceBlendMode"
-        fillLayer.fillColor = hovered ? hoveredFill : normalFill
-        pillBgLayer.fillColor = hovered ? hoveredPillBg : normalPillBg
-
-        if hovered {
-            setClearText()
-        } else {
-            setDimensionsText(w: dimensionW, h: dimensionH)
-            layoutPill()
+            if hovered {
+                setClearText()
+            } else {
+                setDimensionsText(w: dimensionW, h: dimensionH)
+                layoutPill()
+            }
         }
-
-        CATransaction.commit()
     }
 
     /// Shake horizontally (macOS login rejection idiom) with overlapping fade out.
@@ -228,7 +217,7 @@ final class SelectionOverlay {
         let layers: [CALayer] = [rectLayer, fillLayer, pillBgLayer, pillTextLayer]
         if animated {
             CATransaction.begin()
-            CATransaction.setAnimationDuration(0.15)
+            CATransaction.setAnimationDuration(DesignTokens.Animation.fast)
             CATransaction.setCompletionBlock {
                 layers.forEach { $0.removeFromSuperlayer() }
             }
@@ -251,12 +240,12 @@ final class SelectionOverlay {
         let attrs: [NSAttributedString.Key: Any] = [
             .font: Self.font,
             .foregroundColor: NSColor.white,
-            .kern: -0.36 as CGFloat,
+            .kern: DesignTokens.Pill.kerning,
         ]
         let dimAttrs: [NSAttributedString.Key: Any] = [
             .font: Self.font,
             .foregroundColor: NSColor(white: 1, alpha: 0.5),
-            .kern: -0.36 as CGFloat,
+            .kern: DesignTokens.Pill.kerning,
             .baselineOffset: 1.0 as CGFloat,
         ]
 
@@ -271,7 +260,7 @@ final class SelectionOverlay {
         let attrs: [NSAttributedString.Key: Any] = [
             .font: Self.font,
             .foregroundColor: NSColor.white,
-            .kern: -0.36 as CGFloat,
+            .kern: DesignTokens.Pill.kerning,
         ]
         pillTextLayer.string = NSAttributedString(string: "Clear", attributes: attrs)
         layoutPill()

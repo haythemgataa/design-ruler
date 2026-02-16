@@ -31,10 +31,10 @@ final class CrosshairView: NSView {
     private let crossFootHalf: CGFloat = 4.0
 
     // Pill layout constants
-    private let pillHeight: CGFloat = 24
-    private let sectionGap: CGFloat = 2
-    private let outerRadius: CGFloat = 8
-    private let innerRadius: CGFloat = 4
+    private let pillHeight = DesignTokens.Pill.height
+    private let sectionGap = DesignTokens.Pill.sectionGap
+    private let outerRadius = DesignTokens.Pill.cornerRadius
+    private let innerRadius = DesignTokens.Pill.innerCornerRadius
     private let labelValueGap: CGFloat = 4
     private let wPadLeft: CGFloat = 8
     private let wPadRight: CGFloat = 6
@@ -86,28 +86,26 @@ final class CrosshairView: NSView {
 
     /// Hide all crosshair elements (lines, feet, pill) during drag.
     func hideForDrag() {
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        linesLayer.opacity = 0
-        leftFoot.opacity = 0
-        rightFoot.opacity = 0
-        topFoot.opacity = 0
-        bottomFoot.opacity = 0
-        for pl in pillLayers { pl.opacity = 0 }
-        CATransaction.commit()
+        CATransaction.instant {
+            linesLayer.opacity = 0
+            leftFoot.opacity = 0
+            rightFoot.opacity = 0
+            topFoot.opacity = 0
+            bottomFoot.opacity = 0
+            for pl in pillLayers { pl.opacity = 0 }
+        }
     }
 
     /// Show all crosshair elements after drag ends.
     func showAfterDrag() {
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        linesLayer.opacity = 1
-        leftFoot.opacity = 1
-        rightFoot.opacity = 1
-        topFoot.opacity = 1
-        bottomFoot.opacity = 1
-        for pl in pillLayers { pl.opacity = 1 }
-        CATransaction.commit()
+        CATransaction.instant {
+            linesLayer.opacity = 1
+            leftFoot.opacity = 1
+            rightFoot.opacity = 1
+            topFoot.opacity = 1
+            bottomFoot.opacity = 1
+            for pl in pillLayers { pl.opacity = 1 }
+        }
     }
 
     /// Switch from system crosshair to hidden cursor (custom CAShapeLayer takes over).
@@ -146,7 +144,7 @@ final class CrosshairView: NSView {
         linesLayer.strokeColor = lineColor
         linesLayer.lineWidth = 1.0
         linesLayer.fillColor = nil
-        linesLayer.compositingFilter = "differenceBlendMode"
+        linesLayer.compositingFilter = BlendMode.difference
         linesLayer.frame = bounds
         root.addSublayer(linesLayer)
 
@@ -155,20 +153,19 @@ final class CrosshairView: NSView {
             foot.strokeColor = lineColor
             foot.lineWidth = 1.0
             foot.fillColor = nil
-            foot.compositingFilter = "differenceBlendMode"
+            foot.compositingFilter = BlendMode.difference
             foot.frame = bounds
             root.addSublayer(foot)
         }
 
         // Pill section backgrounds
-        let bgColor = CGColor(gray: 0, alpha: 0.8)
         for bg in [wBgLayer, hBgLayer] {
-            bg.fillColor = bgColor
+            bg.fillColor = DesignTokens.Pill.backgroundColor
             bg.strokeColor = nil
-            bg.shadowColor = CGColor(gray: 0, alpha: 0.3)
-            bg.shadowOffset = CGSize(width: 0, height: -1)
-            bg.shadowRadius = 3
-            bg.shadowOpacity = 1.0
+            bg.shadowColor = DesignTokens.Shadow.color
+            bg.shadowOffset = DesignTokens.Shadow.offset
+            bg.shadowRadius = DesignTokens.Shadow.radius
+            bg.shadowOpacity = DesignTokens.Shadow.opacity
             root.addSublayer(bg)
         }
 
@@ -187,9 +184,6 @@ final class CrosshairView: NSView {
     func update(cursor: NSPoint, edges: DirectionalEdges) {
         cursorPosition = cursor
 
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-
         let cx = cursor.x
         let cy = cursor.y
         let vw = bounds.width
@@ -200,41 +194,41 @@ final class CrosshairView: NSView {
         let topY = edges.top.map { cy + $0.distance } ?? vh
         let bottomY = edges.bottom.map { cy - $0.distance } ?? 0
 
-        // --- Lines path ---
-        let path = CGMutablePath()
-        path.move(to: CGPoint(x: leftX, y: cy))
-        path.addLine(to: CGPoint(x: cx - 1, y: cy))
-        path.move(to: CGPoint(x: cx + 1, y: cy))
-        path.addLine(to: CGPoint(x: rightX, y: cy))
-        path.move(to: CGPoint(x: cx, y: bottomY))
-        path.addLine(to: CGPoint(x: cx, y: cy - 1))
-        path.move(to: CGPoint(x: cx, y: cy + 1))
-        path.addLine(to: CGPoint(x: cx, y: topY))
-        linesLayer.path = path
+        CATransaction.instant {
+            // --- Lines path ---
+            let path = CGMutablePath()
+            path.move(to: CGPoint(x: leftX, y: cy))
+            path.addLine(to: CGPoint(x: cx - 1, y: cy))
+            path.move(to: CGPoint(x: cx + 1, y: cy))
+            path.addLine(to: CGPoint(x: rightX, y: cy))
+            path.move(to: CGPoint(x: cx, y: bottomY))
+            path.addLine(to: CGPoint(x: cx, y: cy - 1))
+            path.move(to: CGPoint(x: cx, y: cy + 1))
+            path.addLine(to: CGPoint(x: cx, y: topY))
+            linesLayer.path = path
 
-        // --- Cross-feet (absorbed: green, thicker, longer) ---
-        let hf = crossFootHalf
-        let ahf = crossFootHalf * 1.5  // absorbed feet are 50% longer
+            // --- Cross-feet (absorbed: green, thicker, longer) ---
+            let hf = crossFootHalf
+            let ahf = crossFootHalf * 1.5  // absorbed feet are 50% longer
 
-        let la = edges.left?.borderAbsorbed ?? false
-        let ra = edges.right?.borderAbsorbed ?? false
-        let ta = edges.top?.borderAbsorbed ?? false
-        let ba = edges.bottom?.borderAbsorbed ?? false
+            let la = edges.left?.borderAbsorbed ?? false
+            let ra = edges.right?.borderAbsorbed ?? false
+            let ta = edges.top?.borderAbsorbed ?? false
+            let ba = edges.bottom?.borderAbsorbed ?? false
 
-        updateFoot(leftFoot, edge: edges.left, absorbed: la,
-                   p1: CGPoint(x: leftX, y: cy - (la ? ahf : hf)),
-                   p2: CGPoint(x: leftX, y: cy + (la ? ahf : hf)))
-        updateFoot(rightFoot, edge: edges.right, absorbed: ra,
-                   p1: CGPoint(x: rightX, y: cy - (ra ? ahf : hf)),
-                   p2: CGPoint(x: rightX, y: cy + (ra ? ahf : hf)))
-        updateFoot(topFoot, edge: edges.top, absorbed: ta,
-                   p1: CGPoint(x: cx - (ta ? ahf : hf), y: topY),
-                   p2: CGPoint(x: cx + (ta ? ahf : hf), y: topY))
-        updateFoot(bottomFoot, edge: edges.bottom, absorbed: ba,
-                   p1: CGPoint(x: cx - (ba ? ahf : hf), y: bottomY),
-                   p2: CGPoint(x: cx + (ba ? ahf : hf), y: bottomY))
-
-        CATransaction.commit()
+            updateFoot(leftFoot, edge: edges.left, absorbed: la,
+                       p1: CGPoint(x: leftX, y: cy - (la ? ahf : hf)),
+                       p2: CGPoint(x: leftX, y: cy + (la ? ahf : hf)))
+            updateFoot(rightFoot, edge: edges.right, absorbed: ra,
+                       p1: CGPoint(x: rightX, y: cy - (ra ? ahf : hf)),
+                       p2: CGPoint(x: rightX, y: cy + (ra ? ahf : hf)))
+            updateFoot(topFoot, edge: edges.top, absorbed: ta,
+                       p1: CGPoint(x: cx - (ta ? ahf : hf), y: topY),
+                       p2: CGPoint(x: cx + (ta ? ahf : hf), y: topY))
+            updateFoot(bottomFoot, edge: edges.bottom, absorbed: ba,
+                       p1: CGPoint(x: cx - (ba ? ahf : hf), y: bottomY),
+                       p2: CGPoint(x: cx + (ba ? ahf : hf), y: bottomY))
+        }
 
         // --- Dimension pill (separate transaction for swap animation) ---
         let w = Int(rightX - leftX)
@@ -253,19 +247,16 @@ final class CrosshairView: NSView {
         let vw = bounds.width
 
         // Position and layout with zeros (no actions — set opacity to 0)
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        for pillLayer in pillLayers { pillLayer.opacity = 0 }
-        CATransaction.commit()
+        CATransaction.instant {
+            for pillLayer in pillLayers { pillLayer.opacity = 0 }
+        }
 
         layoutPill(cx: cx, cy: cy, vw: vw, w: 0, h: 0)
 
         // Fade in
-        CATransaction.begin()
-        CATransaction.setAnimationDuration(0.3)
-        CATransaction.setAnimationTimingFunction(CAMediaTimingFunction(name: .easeOut))
-        for pillLayer in pillLayers { pillLayer.opacity = 1 }
-        CATransaction.commit()
+        CATransaction.animated(duration: DesignTokens.Animation.slow) {
+            for pillLayer in pillLayers { pillLayer.opacity = 1 }
+        }
     }
 
     private var pillLayers: [CALayer] {
@@ -302,45 +293,43 @@ final class CrosshairView: NSView {
         pillIsOnLeft = nowOnLeft
         pillIsBelow = nowBelow
 
-        CATransaction.begin()
-        if flipped {
-            CATransaction.setAnimationDuration(0.15)
-            CATransaction.setAnimationTimingFunction(CAMediaTimingFunction(name: .easeOut))
-        } else {
-            CATransaction.setDisableActions(true)
+        let pillBody = {
+            let textY = round(py + (self.pillHeight - textH) / 2)
+
+            // W section — set frame for position animation, path at local origin
+            let wRect = CGRect(x: px, y: py, width: wSectionW, height: self.pillHeight)
+            self.wBgLayer.frame = wRect
+            self.wBgLayer.path = self.sectionPath(rect: CGRect(origin: .zero, size: wRect.size),
+                                         leftRadius: self.outerRadius, rightRadius: self.innerRadius)
+
+            let wLabX = round(wRect.minX + self.wPadLeft)
+            self.wLabelLayer.string = wLabAttr
+            self.wLabelLayer.frame = CGRect(x: wLabX, y: textY, width: wLabW, height: textH)
+
+            let wValX = round(wLabX + wLabW + self.labelValueGap)
+            self.wValueLayer.string = wValAttr
+            self.wValueLayer.frame = CGRect(x: wValX, y: textY, width: wValW, height: textH)
+
+            // H section — set frame for position animation, path at local origin
+            let hRect = CGRect(x: px + wSectionW + self.sectionGap, y: py, width: hSectionW, height: self.pillHeight)
+            self.hBgLayer.frame = hRect
+            self.hBgLayer.path = self.sectionPath(rect: CGRect(origin: .zero, size: hRect.size),
+                                         leftRadius: self.innerRadius, rightRadius: self.outerRadius)
+
+            let hLabX = round(hRect.minX + self.hPadLeft)
+            self.hLabelLayer.string = hLabAttr
+            self.hLabelLayer.frame = CGRect(x: hLabX, y: textY, width: hLabW, height: textH)
+
+            let hValX = round(hLabX + hLabW + self.labelValueGap)
+            self.hValueLayer.string = hValAttr
+            self.hValueLayer.frame = CGRect(x: hValX, y: textY, width: hValW, height: textH)
         }
 
-        let textY = round(py + (pillHeight - textH) / 2)
-
-        // W section — set frame for position animation, path at local origin
-        let wRect = CGRect(x: px, y: py, width: wSectionW, height: pillHeight)
-        wBgLayer.frame = wRect
-        wBgLayer.path = sectionPath(rect: CGRect(origin: .zero, size: wRect.size),
-                                     leftRadius: outerRadius, rightRadius: innerRadius)
-
-        let wLabX = round(wRect.minX + wPadLeft)
-        wLabelLayer.string = wLabAttr
-        wLabelLayer.frame = CGRect(x: wLabX, y: textY, width: wLabW, height: textH)
-
-        let wValX = round(wLabX + wLabW + labelValueGap)
-        wValueLayer.string = wValAttr
-        wValueLayer.frame = CGRect(x: wValX, y: textY, width: wValW, height: textH)
-
-        // H section — set frame for position animation, path at local origin
-        let hRect = CGRect(x: px + wSectionW + sectionGap, y: py, width: hSectionW, height: pillHeight)
-        hBgLayer.frame = hRect
-        hBgLayer.path = sectionPath(rect: CGRect(origin: .zero, size: hRect.size),
-                                     leftRadius: innerRadius, rightRadius: outerRadius)
-
-        let hLabX = round(hRect.minX + hPadLeft)
-        hLabelLayer.string = hLabAttr
-        hLabelLayer.frame = CGRect(x: hLabX, y: textY, width: hLabW, height: textH)
-
-        let hValX = round(hLabX + hLabW + labelValueGap)
-        hValueLayer.string = hValAttr
-        hValueLayer.frame = CGRect(x: hValX, y: textY, width: hValW, height: textH)
-
-        CATransaction.commit()
+        if flipped {
+            CATransaction.animated(duration: DesignTokens.Animation.fast, pillBody)
+        } else {
+            CATransaction.instant(pillBody)
+        }
     }
 
     // MARK: - Text helpers
@@ -349,7 +338,7 @@ final class CrosshairView: NSView {
         NSAttributedString(string: label, attributes: [
             .font: Self.font,
             .foregroundColor: NSColor(white: 1, alpha: 0.5),
-            .kern: -0.36 as CGFloat,
+            .kern: DesignTokens.Pill.kerning,
         ])
     }
 
@@ -360,7 +349,7 @@ final class CrosshairView: NSView {
 
         let attrs: [NSAttributedString.Key: Any] = [
             .font: Self.font,
-            .kern: -0.36 as CGFloat,
+            .kern: DesignTokens.Pill.kerning,
         ]
         let attr = NSMutableAttributedString()
         if zeroCount > 0 {
@@ -387,7 +376,7 @@ final class CrosshairView: NSView {
         foot.path = path
         foot.strokeColor = absorbed ? absorbedFootColor : lineColor
         foot.lineWidth = absorbed ? 2.0 : 1.0
-        foot.compositingFilter = absorbed ? nil : "differenceBlendMode"
+        foot.compositingFilter = absorbed ? nil : BlendMode.difference
     }
 
     // MARK: - Section path

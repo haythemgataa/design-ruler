@@ -5,13 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-16)
 
 **Core value:** Instant, accurate pixel inspection of anything on screen — zero friction from Raycast invoke to dimension readout.
-**Current focus:** Planning next milestone
+**Current focus:** v1.3 Code Unification — Phase 12 (Leaf Utilities)
 
 ## Current Position
 
-Phase: All phases complete (v1.0, v1.1, v1.2 shipped)
-Status: Milestone v1.2 Alignment Guides completed
-Last activity: 2026-02-16 — Milestone v1.2 archived
+Phase: 12 of 16 (Leaf Utilities)
+Plan: 1 of 2 in current phase
+Status: Executing
+Last activity: 2026-02-16 — Completed 12-01 (DesignTokens + TransactionHelpers)
+
+Progress: [█████░░░░░] 50%
 
 ## Performance Metrics
 
@@ -41,12 +44,14 @@ Last activity: 2026-02-16 — Milestone v1.2 archived
 | 11    | 04   | 2min 41s | 2     | 2     |
 | 11    | 05   | 39s      | 1     | 1     |
 | 11    | 06   | 1min 27s | 2     | 2     |
+| 12    | 01   | 1min 23s | 2     | 2     |
 
 ## Accumulated Context
 
 ### Decisions
 
 All decisions logged in PROJECT.md Key Decisions table.
+- 12-01: BlendMode as separate top-level enum, CATransaction.animated defaults to easeOut
 
 ### Pending Todos
 
@@ -59,5 +64,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-16
-Stopped at: Milestone v1.2 completed and archived
-Resume file: None
+Stopped at: Completed 12-01-PLAN.md
+Resume file: .planning/phases/12-leaf-utilities/12-01-SUMMARY.md
