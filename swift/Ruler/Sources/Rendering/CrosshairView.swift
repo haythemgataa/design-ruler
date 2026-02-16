@@ -1,5 +1,4 @@
 import AppKit
-import CoreText
 import QuartzCore
 
 /// GPU-composited crosshair using CAShapeLayer.
@@ -15,17 +14,8 @@ final class CrosshairView: NSView {
     private let topFoot = CAShapeLayer()
     private let bottomFoot = CAShapeLayer()
 
-    // Pill section backgrounds
-    private let wBgLayer = CAShapeLayer()
-    private let hBgLayer = CAShapeLayer()
-
-    // Label layers (W / H)
-    private let wLabelLayer = CATextLayer()
-    private let hLabelLayer = CATextLayer()
-
-    // Value text layers
-    private let wValueLayer = CATextLayer()
-    private let hValueLayer = CATextLayer()
+    // Pill (created by PillRenderer factory in setupLayers)
+    private var pill: PillRenderer.DimensionPill!
 
     // Crosshair constants
     private let crossFootHalf: CGFloat = 4.0
@@ -53,18 +43,7 @@ final class CrosshairView: NSView {
     private let absorbedFootColor = CGColor(srgbRed: 0.29, green: 0.87, blue: 0.50, alpha: 1.0)
 
     // Font (SF Pro 12px Semibold with OpenType features for values)
-    private static let font: NSFont = {
-        let base = NSFont.systemFont(ofSize: 12, weight: .semibold)
-        let tags = ["ss01", "ss02", "cv01", "cv02", "cv08", "cv12", "lnum", "tnum"]
-        let features: [[String: Any]] = tags.map { tag in
-            [kCTFontOpenTypeFeatureTag as String: tag, kCTFontOpenTypeFeatureValue as String: 1]
-        }
-        let desc = CTFontDescriptorCreateWithAttributes(
-            [kCTFontFeatureSettingsAttribute: features] as CFDictionary
-        )
-        let ctFont = CTFontCreateCopyWithAttributes(base as CTFont, 12, nil, desc)
-        return ctFont as NSFont
-    }()
+    private static let font = PillRenderer.makeDesignFont(size: 12)
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -128,11 +107,11 @@ final class CrosshairView: NSView {
         guard let scale = window?.backingScaleFactor else { return }
         // Set contentsScale on ALL layers — shape layers need it for crisp
         // rendering on non-Retina / mixed-DPI displays
-        for sl in [linesLayer, leftFoot, rightFoot, topFoot, bottomFoot, wBgLayer, hBgLayer] {
+        for sl in [linesLayer, leftFoot, rightFoot, topFoot, bottomFoot] {
             sl.contentsScale = scale
         }
-        for tl in [wLabelLayer, hLabelLayer, wValueLayer, hValueLayer] {
-            tl.contentsScale = scale
+        for pl in pill.allLayers {
+            pl.contentsScale = scale
         }
     }
 
@@ -158,26 +137,8 @@ final class CrosshairView: NSView {
             root.addSublayer(foot)
         }
 
-        // Pill section backgrounds
-        for bg in [wBgLayer, hBgLayer] {
-            bg.fillColor = DesignTokens.Pill.backgroundColor
-            bg.strokeColor = nil
-            bg.shadowColor = DesignTokens.Shadow.color
-            bg.shadowOffset = DesignTokens.Shadow.offset
-            bg.shadowRadius = DesignTokens.Shadow.radius
-            bg.shadowOpacity = DesignTokens.Shadow.opacity
-            root.addSublayer(bg)
-        }
-
-        // Text layers
-        for tl in [wLabelLayer, hLabelLayer, wValueLayer, hValueLayer] {
-            tl.contentsScale = scale
-            tl.truncationMode = .none
-            tl.isWrapped = false
-            tl.alignmentMode = .left
-            tl.allowsFontSubpixelQuantization = true
-            root.addSublayer(tl)
-        }
+        // Pill (backgrounds + text layers created by factory)
+        pill = PillRenderer.makeDimensionPill(parentLayer: root, scale: scale)
     }
 
     /// Batch-update cursor + edges. Only updates layer properties (GPU-composited).
@@ -260,16 +221,16 @@ final class CrosshairView: NSView {
     }
 
     private var pillLayers: [CALayer] {
-        [wBgLayer, hBgLayer, wLabelLayer, hLabelLayer, wValueLayer, hValueLayer]
+        pill.allLayers
     }
 
     // MARK: - Pill layout
 
     private func layoutPill(cx: CGFloat, cy: CGFloat, vw: CGFloat, w: Int, h: Int) {
-        let wLabAttr = labelText("W")
-        let hLabAttr = labelText("H")
-        let wValAttr = valueText(w)
-        let hValAttr = valueText(h)
+        let wLabAttr = PillRenderer.labelText("W")
+        let hLabAttr = PillRenderer.labelText("H")
+        let wValAttr = PillRenderer.valueText(w)
+        let hValAttr = PillRenderer.valueText(h)
         let wLabW = ceil(wLabAttr.size().width)
         let hLabW = ceil(hLabAttr.size().width)
         let wValW = ceil(wValAttr.size().width)
@@ -298,31 +259,31 @@ final class CrosshairView: NSView {
 
             // W section — set frame for position animation, path at local origin
             let wRect = CGRect(x: px, y: py, width: wSectionW, height: self.pillHeight)
-            self.wBgLayer.frame = wRect
-            self.wBgLayer.path = self.sectionPath(rect: CGRect(origin: .zero, size: wRect.size),
+            self.pill.wBgLayer.frame = wRect
+            self.pill.wBgLayer.path = PillRenderer.sectionPath(rect: CGRect(origin: .zero, size: wRect.size),
                                          leftRadius: self.outerRadius, rightRadius: self.innerRadius)
 
             let wLabX = round(wRect.minX + self.wPadLeft)
-            self.wLabelLayer.string = wLabAttr
-            self.wLabelLayer.frame = CGRect(x: wLabX, y: textY, width: wLabW, height: textH)
+            self.pill.wLabelLayer.string = wLabAttr
+            self.pill.wLabelLayer.frame = CGRect(x: wLabX, y: textY, width: wLabW, height: textH)
 
             let wValX = round(wLabX + wLabW + self.labelValueGap)
-            self.wValueLayer.string = wValAttr
-            self.wValueLayer.frame = CGRect(x: wValX, y: textY, width: wValW, height: textH)
+            self.pill.wValueLayer.string = wValAttr
+            self.pill.wValueLayer.frame = CGRect(x: wValX, y: textY, width: wValW, height: textH)
 
             // H section — set frame for position animation, path at local origin
             let hRect = CGRect(x: px + wSectionW + self.sectionGap, y: py, width: hSectionW, height: self.pillHeight)
-            self.hBgLayer.frame = hRect
-            self.hBgLayer.path = self.sectionPath(rect: CGRect(origin: .zero, size: hRect.size),
+            self.pill.hBgLayer.frame = hRect
+            self.pill.hBgLayer.path = PillRenderer.sectionPath(rect: CGRect(origin: .zero, size: hRect.size),
                                          leftRadius: self.innerRadius, rightRadius: self.outerRadius)
 
             let hLabX = round(hRect.minX + self.hPadLeft)
-            self.hLabelLayer.string = hLabAttr
-            self.hLabelLayer.frame = CGRect(x: hLabX, y: textY, width: hLabW, height: textH)
+            self.pill.hLabelLayer.string = hLabAttr
+            self.pill.hLabelLayer.frame = CGRect(x: hLabX, y: textY, width: hLabW, height: textH)
 
             let hValX = round(hLabX + hLabW + self.labelValueGap)
-            self.hValueLayer.string = hValAttr
-            self.hValueLayer.frame = CGRect(x: hValX, y: textY, width: hValW, height: textH)
+            self.pill.hValueLayer.string = hValAttr
+            self.pill.hValueLayer.frame = CGRect(x: hValX, y: textY, width: hValW, height: textH)
         }
 
         if flipped {
@@ -330,37 +291,6 @@ final class CrosshairView: NSView {
         } else {
             CATransaction.instant(pillBody)
         }
-    }
-
-    // MARK: - Text helpers
-
-    private func labelText(_ label: String) -> NSAttributedString {
-        NSAttributedString(string: label, attributes: [
-            .font: Self.font,
-            .foregroundColor: NSColor(white: 1, alpha: 0.5),
-            .kern: DesignTokens.Pill.kerning,
-        ])
-    }
-
-    private func valueText(_ value: Int) -> NSAttributedString {
-        let padded = String(format: "%04d", min(value, 9999))
-        let digitCount = String(value).count
-        let zeroCount = max(0, 4 - digitCount)
-
-        let attrs: [NSAttributedString.Key: Any] = [
-            .font: Self.font,
-            .kern: DesignTokens.Pill.kerning,
-        ]
-        let attr = NSMutableAttributedString()
-        if zeroCount > 0 {
-            var dimAttrs = attrs
-            dimAttrs[.foregroundColor] = NSColor(white: 1, alpha: 0.2)
-            attr.append(NSAttributedString(string: String(padded.prefix(zeroCount)), attributes: dimAttrs))
-        }
-        var brightAttrs = attrs
-        brightAttrs[.foregroundColor] = NSColor.white
-        attr.append(NSAttributedString(string: String(padded.suffix(digitCount)), attributes: brightAttrs))
-        return attr
     }
 
     // MARK: - Foot helper
@@ -377,53 +307,5 @@ final class CrosshairView: NSView {
         foot.strokeColor = absorbed ? absorbedFootColor : lineColor
         foot.lineWidth = absorbed ? 2.0 : 1.0
         foot.compositingFilter = absorbed ? nil : BlendMode.difference
-    }
-
-    // MARK: - Section path
-
-    /// Rounded rect path with different left/right corner radii and continuous (squircle) corners.
-    private func sectionPath(rect: CGRect, leftRadius: CGFloat, rightRadius: CGFloat) -> CGPath {
-        let lr = min(leftRadius, rect.height / 2)
-        let rr = min(rightRadius, rect.height / 2)
-        let path = CGMutablePath()
-
-        // Continuous corner kappa — higher than circle's 0.5523 to create squircle shape
-        let k: CGFloat = 0.72
-
-        // Top edge
-        path.move(to: CGPoint(x: rect.minX + lr, y: rect.maxY))
-        path.addLine(to: CGPoint(x: rect.maxX - rr, y: rect.maxY))
-
-        // Top-right corner
-        path.addCurve(to: CGPoint(x: rect.maxX, y: rect.maxY - rr),
-                      control1: CGPoint(x: rect.maxX - rr * (1 - k), y: rect.maxY),
-                      control2: CGPoint(x: rect.maxX, y: rect.maxY - rr * (1 - k)))
-
-        // Right edge
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY + rr))
-
-        // Bottom-right corner
-        path.addCurve(to: CGPoint(x: rect.maxX - rr, y: rect.minY),
-                      control1: CGPoint(x: rect.maxX, y: rect.minY + rr * (1 - k)),
-                      control2: CGPoint(x: rect.maxX - rr * (1 - k), y: rect.minY))
-
-        // Bottom edge
-        path.addLine(to: CGPoint(x: rect.minX + lr, y: rect.minY))
-
-        // Bottom-left corner
-        path.addCurve(to: CGPoint(x: rect.minX, y: rect.minY + lr),
-                      control1: CGPoint(x: rect.minX + lr * (1 - k), y: rect.minY),
-                      control2: CGPoint(x: rect.minX, y: rect.minY + lr * (1 - k)))
-
-        // Left edge
-        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY - lr))
-
-        // Top-left corner
-        path.addCurve(to: CGPoint(x: rect.minX + lr, y: rect.maxY),
-                      control1: CGPoint(x: rect.minX, y: rect.maxY - lr * (1 - k)),
-                      control2: CGPoint(x: rect.minX + lr * (1 - k), y: rect.maxY))
-
-        path.closeSubpath()
-        return path
     }
 }

@@ -1,5 +1,4 @@
 import AppKit
-import CoreText
 import QuartzCore
 
 /// Direction for guide lines
@@ -21,9 +20,7 @@ final class GuideLine {
 
     // Layers
     private let lineLayer = CAShapeLayer()
-    private let pillBgLayer = CAShapeLayer()
-    private let pillLabelLayer = CATextLayer()
-    private let pillValueLayer = CATextLayer()
+    private var pill: PillRenderer.PositionPill!
 
     private weak var parentLayer: CALayer?
     private let scale: CGFloat
@@ -40,18 +37,7 @@ final class GuideLine {
     private let padRight: CGFloat = 8
 
     // Font (SF Pro 12px Semibold with OpenType features)
-    private static let font: NSFont = {
-        let base = NSFont.systemFont(ofSize: 12, weight: .semibold)
-        let tags = ["ss01", "ss02", "cv01", "cv02", "cv08", "cv12", "lnum", "tnum"]
-        let features: [[String: Any]] = tags.map { tag in
-            [kCTFontOpenTypeFeatureTag as String: tag, kCTFontOpenTypeFeatureValue as String: 1]
-        }
-        let desc = CTFontDescriptorCreateWithAttributes(
-            [kCTFontFeatureSettingsAttribute: features] as CFDictionary
-        )
-        let ctFont = CTFontCreateCopyWithAttributes(base as CTFont, 12, nil, desc)
-        return ctFont as NSFont
-    }()
+    private static let font = PillRenderer.makeDesignFont(size: 12)
 
     init(direction: Direction, position: CGFloat, style: GuideLineStyle, isPreview: Bool, parentLayer: CALayer, scale: CGFloat) {
         self.direction = direction
@@ -77,37 +63,20 @@ final class GuideLine {
         lineLayer.contentsScale = scale
         parent.addSublayer(lineLayer)
 
-        // Pill background
-        pillBgLayer.fillColor = DesignTokens.Pill.backgroundColor
-        pillBgLayer.strokeColor = nil
-        pillBgLayer.shadowColor = DesignTokens.Shadow.color
-        pillBgLayer.shadowOffset = DesignTokens.Shadow.offset
-        pillBgLayer.shadowRadius = DesignTokens.Shadow.radius
-        pillBgLayer.shadowOpacity = DesignTokens.Shadow.opacity
-        pillBgLayer.contentsScale = scale
-        parent.addSublayer(pillBgLayer)
-
-        // Text layers
-        for tl in [pillLabelLayer, pillValueLayer] {
-            tl.contentsScale = scale
-            tl.truncationMode = .none
-            tl.isWrapped = false
-            tl.alignmentMode = .left
-            tl.allowsFontSubpixelQuantization = true
-            parent.addSublayer(tl)
-        }
+        // Pill (background + text layers created by factory)
+        pill = PillRenderer.makePositionPill(parentLayer: parent, scale: scale)
 
         // Set initial opacity for preview vs placed
         if isPreview {
             let opacity: Float = 1.0
-            pillBgLayer.opacity = opacity
-            pillLabelLayer.opacity = opacity
-            pillValueLayer.opacity = opacity
+            pill.bgLayer.opacity = opacity
+            pill.labelLayer.opacity = opacity
+            pill.valueLayer.opacity = opacity
         } else {
             // Placed lines don't show coordinate pills
-            pillBgLayer.opacity = 0
-            pillLabelLayer.opacity = 0
-            pillValueLayer.opacity = 0
+            pill.bgLayer.opacity = 0
+            pill.labelLayer.opacity = 0
+            pill.valueLayer.opacity = 0
         }
     }
 
@@ -163,8 +132,8 @@ final class GuideLine {
         } else {
             let label = direction == .vertical ? "X" : "Y"
             let value = Int(round(position))
-            labelAttr = labelText(label)
-            valueAttr = valueText(value)
+            labelAttr = PillRenderer.labelText(label)
+            valueAttr = PillRenderer.valueText(value)
             bgColor = DesignTokens.Pill.backgroundColor
             pillOpacity = 1.0
         }
@@ -204,22 +173,22 @@ final class GuideLine {
         let textY = round(pillY + (pillHeight - textH) / 2)
 
         // Pill background — frame for position, path at local origin
-        pillBgLayer.frame = pillRect
-        pillBgLayer.path = squirclePath(rect: CGRect(origin: .zero, size: pillRect.size), radius: outerRadius)
-        pillBgLayer.fillColor = bgColor
-        pillBgLayer.opacity = pillOpacity
+        pill.bgLayer.frame = pillRect
+        pill.bgLayer.path = PillRenderer.squirclePath(rect: CGRect(origin: .zero, size: pillRect.size), radius: outerRadius)
+        pill.bgLayer.fillColor = bgColor
+        pill.bgLayer.opacity = pillOpacity
 
         // Label layer
         let labelX = round(pillX + padLeft)
-        pillLabelLayer.string = labelAttr
-        pillLabelLayer.frame = CGRect(x: labelX, y: textY, width: labelW, height: textH)
-        pillLabelLayer.opacity = pillOpacity
+        pill.labelLayer.string = labelAttr
+        pill.labelLayer.frame = CGRect(x: labelX, y: textY, width: labelW, height: textH)
+        pill.labelLayer.opacity = pillOpacity
 
         // Value layer
         let valueX = round(labelX + labelW + gap)
-        pillValueLayer.string = valueAttr
-        pillValueLayer.frame = CGRect(x: valueX, y: textY, width: valueW, height: textH)
-        pillValueLayer.opacity = pillOpacity
+        pill.valueLayer.string = valueAttr
+        pill.valueLayer.frame = CGRect(x: valueX, y: textY, width: valueW, height: textH)
+        pill.valueLayer.opacity = pillOpacity
     }
 
     /// Set opacity on all layers (for fade in/out).
@@ -228,9 +197,9 @@ final class GuideLine {
             self.lineLayer.opacity = opacity
             // Only touch pill layers for preview lines; placed lines keep pills hidden
             if self.isPreview {
-                self.pillBgLayer.opacity = opacity
-                self.pillLabelLayer.opacity = opacity
-                self.pillValueLayer.opacity = opacity
+                self.pill.bgLayer.opacity = opacity
+                self.pill.labelLayer.opacity = opacity
+                self.pill.valueLayer.opacity = opacity
             }
         }
         if animated {
@@ -262,9 +231,9 @@ final class GuideLine {
     /// Hide pill layers instantly (used when color indicator is visible).
     func hidePill() {
         CATransaction.instant {
-            pillBgLayer.opacity = 0
-            pillLabelLayer.opacity = 0
-            pillValueLayer.opacity = 0
+            pill.bgLayer.opacity = 0
+            pill.labelLayer.opacity = 0
+            pill.valueLayer.opacity = 0
         }
     }
 
@@ -316,83 +285,8 @@ final class GuideLine {
 
     private func removeLayers() {
         lineLayer.removeFromSuperlayer()
-        pillBgLayer.removeFromSuperlayer()
-        pillLabelLayer.removeFromSuperlayer()
-        pillValueLayer.removeFromSuperlayer()
-    }
-
-    // MARK: - Text helpers
-
-    private func labelText(_ label: String) -> NSAttributedString {
-        NSAttributedString(string: label, attributes: [
-            .font: Self.font,
-            .foregroundColor: NSColor(white: 1, alpha: 0.5),
-            .kern: DesignTokens.Pill.kerning,
-        ])
-    }
-
-    private func valueText(_ value: Int) -> NSAttributedString {
-        let padded = String(format: "%04d", min(value, 9999))
-        let digitCount = String(value).count
-        let zeroCount = max(0, 4 - digitCount)
-
-        let attrs: [NSAttributedString.Key: Any] = [
-            .font: Self.font,
-            .kern: DesignTokens.Pill.kerning,
-        ]
-        let attr = NSMutableAttributedString()
-        if zeroCount > 0 {
-            var dimAttrs = attrs
-            dimAttrs[.foregroundColor] = NSColor(white: 1, alpha: 0.2)
-            attr.append(NSAttributedString(string: String(padded.prefix(zeroCount)), attributes: dimAttrs))
-        }
-        var brightAttrs = attrs
-        brightAttrs[.foregroundColor] = NSColor.white
-        attr.append(NSAttributedString(string: String(padded.suffix(digitCount)), attributes: brightAttrs))
-        return attr
-    }
-
-    // MARK: - Squircle path
-
-    private func squirclePath(rect: CGRect, radius: CGFloat) -> CGPath {
-        let r = min(radius, rect.height / 2)
-        let path = CGMutablePath()
-        let k: CGFloat = 0.72  // continuous corner kappa
-
-        // Top edge
-        path.move(to: CGPoint(x: rect.minX + r, y: rect.maxY))
-        path.addLine(to: CGPoint(x: rect.maxX - r, y: rect.maxY))
-
-        // Top-right corner
-        path.addCurve(to: CGPoint(x: rect.maxX, y: rect.maxY - r),
-                      control1: CGPoint(x: rect.maxX - r * (1 - k), y: rect.maxY),
-                      control2: CGPoint(x: rect.maxX, y: rect.maxY - r * (1 - k)))
-
-        // Right edge
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY + r))
-
-        // Bottom-right corner
-        path.addCurve(to: CGPoint(x: rect.maxX - r, y: rect.minY),
-                      control1: CGPoint(x: rect.maxX, y: rect.minY + r * (1 - k)),
-                      control2: CGPoint(x: rect.maxX - r * (1 - k), y: rect.minY))
-
-        // Bottom edge
-        path.addLine(to: CGPoint(x: rect.minX + r, y: rect.minY))
-
-        // Bottom-left corner
-        path.addCurve(to: CGPoint(x: rect.minX, y: rect.minY + r),
-                      control1: CGPoint(x: rect.minX + r * (1 - k), y: rect.minY),
-                      control2: CGPoint(x: rect.minX, y: rect.minY + r * (1 - k)))
-
-        // Left edge
-        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY - r))
-
-        // Top-left corner
-        path.addCurve(to: CGPoint(x: rect.minX + r, y: rect.maxY),
-                      control1: CGPoint(x: rect.minX, y: rect.maxY - r * (1 - k)),
-                      control2: CGPoint(x: rect.minX + r * (1 - k), y: rect.maxY))
-
-        path.closeSubpath()
-        return path
+        pill.bgLayer.removeFromSuperlayer()
+        pill.labelLayer.removeFromSuperlayer()
+        pill.valueLayer.removeFromSuperlayer()
     }
 }

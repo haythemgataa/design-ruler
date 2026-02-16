@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-16)
 
 **Core value:** Instant, accurate pixel inspection of anything on screen — zero friction from Raycast invoke to dimension readout.
-**Current focus:** v1.3 Code Unification — Phase 12 (Leaf Utilities)
+**Current focus:** v1.3 Code Unification — Phase 13 (Rendering Unification)
 
 ## Current Position
 
-Phase: 12 of 16 (Leaf Utilities) -- COMPLETE
-Plan: 2 of 2 in current phase
-Status: Phase Complete
-Last activity: 2026-02-16 — Completed 12-02 (Codebase-wide Token and Transaction Sweep)
+Phase: 13 of 16 (Rendering Unification)
+Plan: 1 of 2 in current phase
+Status: Executing
+Last activity: 2026-02-16 — Plan 13-01 complete (PillRenderer factory)
 
-Progress: [██████████] 100%
+Progress: [█████░░░░░] 50%
 
 ## Performance Metrics
 
@@ -46,6 +46,7 @@ Progress: [██████████] 100%
 | 11    | 06   | 1min 27s | 2     | 2     |
 | 12    | 01   | 1min 23s | 2     | 2     |
 | 12    | 02   | 7min 4s  | 2     | 5     |
+| 13    | 01   | 2min 18s | 2     | 1     |
 
 ## Accumulated Context
 
@@ -54,6 +55,7 @@ Progress: [██████████] 100%
 All decisions logged in PROJECT.md Key Decisions table.
 - 12-01: BlendMode as separate top-level enum, CATransaction.animated defaults to easeOut
 - 12-02: ColorCircleIndicator wrapper shadow kept as-is (distinct from pill shadow tokens), raw begin/commit preserved for setCompletionBlock blocks
+- 13-01: makeDesignFont public for SelectionOverlay size-11 variant, applyCircleShadow as separate preset
 
 ### Pending Todos
 
@@ -66,5 +68,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-16
-Stopped at: Completed 12-02-PLAN.md (Phase 12 complete)
-Resume file: .planning/phases/12-leaf-utilities/12-02-SUMMARY.md
+Stopped at: Completed 13-01-PLAN.md
+Resume file: .planning/phases/13-rendering-unification/13-02-PLAN.md
