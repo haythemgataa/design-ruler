@@ -138,6 +138,9 @@ final class AlignmentGuidesWindow: NSWindow {
     }
 
     func deactivate() {
+        // Hide preview line so it doesn't remain frozen on inactive screen
+        guideLineManager.hidePreview()
+
         if guideLineManager.hasHoveredLine {
             guideLineManager.updateHover(at: NSPoint(x: -100, y: -100))
             if CursorManager.shared.state == .pointingHand {
@@ -149,6 +152,7 @@ final class AlignmentGuidesWindow: NSWindow {
 
     func activate(firstMoveAlreadyReceived: Bool, currentStyle: GuideLineStyle) {
         guideLineManager.setPreviewStyle(currentStyle)
+        guideLineManager.showPreview()  // Restore preview visibility
         let mouse = NSEvent.mouseLocation
         let wp = NSPoint(x: mouse.x - screenBounds.origin.x, y: mouse.y - screenBounds.origin.y)
         guideLineManager.updatePreview(at: wp)

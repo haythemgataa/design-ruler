@@ -215,4 +215,15 @@ final class GuideLineManager {
         previewLine.isInRemoveMode = false
         previewLine.setLineVisible(true)
     }
+
+    /// Hide preview line and pill (for multi-monitor deactivation).
+    func hidePreview() {
+        previewLine.setLineVisible(false)
+        previewLine.hidePill()
+    }
+
+    /// Show preview line (for multi-monitor activation).
+    func showPreview() {
+        previewLine.setLineVisible(true)
+    }
 }
