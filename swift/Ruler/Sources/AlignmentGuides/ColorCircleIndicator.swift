@@ -45,6 +45,17 @@ final class ColorCircleIndicator {
         dotLayer.removeAllAnimations()
         isFadingOut = false
 
+        // Recover model values if interrupted during fadeOut
+        containerLayer.opacity = 1
+        for wrapper in circleLayers {
+            wrapper.transform = CATransform3DIdentity
+            if let circle = wrapper.sublayers?.first {
+                circle.transform = CATransform3DIdentity
+            }
+        }
+        dotLayer.transform = CATransform3DIdentity
+        dotLayer.opacity = 1
+
         let oldActiveIndex = self.activeIndex
         self.activeIndex = activeIndex
         self.lastCursorPosition = cursorPosition
@@ -129,26 +140,34 @@ final class ColorCircleIndicator {
 
             // Shrink old active circle
             if oldActiveIndex != activeIndex {
-                let oldLayer = circleLayers[oldActiveIndex]
+                let oldWrapper = circleLayers[oldActiveIndex]
                 let smallD = circleRadius * 2
-                oldLayer.bounds = CGRect(x: 0, y: 0, width: smallD, height: smallD)
-                oldLayer.cornerRadius = circleRadius
-                oldLayer.borderWidth = 2
-                oldLayer.shadowPath = CGPath(ellipseIn: CGRect(x: 0, y: 0, width: smallD, height: smallD), transform: nil)
-                if oldActiveIndex == 0 {
-                    updateDynamicPresetSize(oldLayer, radius: circleRadius)
+                oldWrapper.bounds = CGRect(x: 0, y: 0, width: smallD, height: smallD)
+                oldWrapper.shadowPath = CGPath(ellipseIn: CGRect(x: 0, y: 0, width: smallD, height: smallD), transform: nil)
+                if let oldCircle = oldWrapper.sublayers?.first {
+                    oldCircle.bounds = CGRect(x: 0, y: 0, width: smallD, height: smallD)
+                    oldCircle.cornerRadius = circleRadius
+                    oldCircle.borderWidth = 2
+                    oldCircle.position = CGPoint(x: smallD / 2, y: smallD / 2)
+                    if oldActiveIndex == 0 {
+                        updateDynamicPresetSize(oldCircle, radius: circleRadius)
+                    }
                 }
             }
 
             // Grow new active circle
-            let newLayer = circleLayers[activeIndex]
+            let newWrapper = circleLayers[activeIndex]
             let bigD = activeRadius * 2
-            newLayer.bounds = CGRect(x: 0, y: 0, width: bigD, height: bigD)
-            newLayer.cornerRadius = activeRadius
-            newLayer.borderWidth = 3
-            newLayer.shadowPath = CGPath(ellipseIn: CGRect(x: 0, y: 0, width: bigD, height: bigD), transform: nil)
-            if activeIndex == 0 {
-                updateDynamicPresetSize(newLayer, radius: activeRadius)
+            newWrapper.bounds = CGRect(x: 0, y: 0, width: bigD, height: bigD)
+            newWrapper.shadowPath = CGPath(ellipseIn: CGRect(x: 0, y: 0, width: bigD, height: bigD), transform: nil)
+            if let newCircle = newWrapper.sublayers?.first {
+                newCircle.bounds = CGRect(x: 0, y: 0, width: bigD, height: bigD)
+                newCircle.cornerRadius = activeRadius
+                newCircle.borderWidth = 3
+                newCircle.position = CGPoint(x: bigD / 2, y: bigD / 2)
+                if activeIndex == 0 {
+                    updateDynamicPresetSize(newCircle, radius: activeRadius)
+                }
             }
 
             // Move dot to new active + scale pulse
@@ -192,29 +211,36 @@ final class ColorCircleIndicator {
 
     private func createCircleLayers() {
         for style in GuideLineStyle.allCases {
-            let layer: CALayer
+            let circleLayer: CALayer
             if style == .dynamic {
-                layer = createDynamicPresetLayer(radius: circleRadius)
+                circleLayer = createDynamicPresetLayer(radius: circleRadius)
             } else {
-                layer = createSolidColorLayer(color: style.color, radius: circleRadius)
+                circleLayer = createSolidColorLayer(color: style.color, radius: circleRadius)
             }
-            layer.contentsScale = scale
-
-            // Shadow
-            let d = circleRadius * 2
-            layer.shadowColor = CGColor(gray: 0, alpha: 1.0)
-            layer.shadowOffset = CGSize(width: 0, height: -1)
-            layer.shadowRadius = 3
-            layer.shadowOpacity = 0.25
-            layer.shadowPath = CGPath(ellipseIn: CGRect(x: 0, y: 0, width: d, height: d), transform: nil)
+            circleLayer.contentsScale = scale
 
             // Border (2px white inactive, 3px active)
-            layer.borderColor = CGColor(gray: 1.0, alpha: 1.0)
-            layer.borderWidth = 2
-            layer.cornerRadius = circleRadius
+            circleLayer.borderColor = CGColor(gray: 1.0, alpha: 1.0)
+            circleLayer.borderWidth = 2
+            circleLayer.cornerRadius = circleRadius
+            circleLayer.masksToBounds = true  // Clip sublayer fills to rounded bounds
 
-            containerLayer.addSublayer(layer)
-            circleLayers.append(layer)
+            // Shadow wrapper (shadow can't render on a layer with masksToBounds)
+            let wrapper = CALayer()
+            let d = circleRadius * 2
+            wrapper.bounds = CGRect(x: 0, y: 0, width: d, height: d)
+            wrapper.shadowColor = CGColor(gray: 0, alpha: 1.0)
+            wrapper.shadowOffset = CGSize(width: 0, height: -1)
+            wrapper.shadowRadius = 3
+            wrapper.shadowOpacity = 0.25
+            wrapper.shadowPath = CGPath(ellipseIn: CGRect(x: 0, y: 0, width: d, height: d), transform: nil)
+
+            // Position circle at center of wrapper
+            circleLayer.position = CGPoint(x: d / 2, y: d / 2)
+            wrapper.addSublayer(circleLayer)
+
+            containerLayer.addSublayer(wrapper)
+            circleLayers.append(wrapper)
         }
     }
 
@@ -231,6 +257,7 @@ final class ColorCircleIndicator {
         let d = radius * 2
         let container = CALayer()
         container.bounds = CGRect(x: 0, y: 0, width: d, height: d)
+        container.masksToBounds = true
 
         let center = CGPoint(x: radius, y: radius)
 
@@ -266,6 +293,7 @@ final class ColorCircleIndicator {
         layer.bounds = CGRect(x: 0, y: 0, width: d, height: d)
         layer.cornerRadius = radius
         layer.backgroundColor = color
+        layer.masksToBounds = true
         return layer
     }
 
@@ -295,18 +323,24 @@ final class ColorCircleIndicator {
     }
 
     private func updateCircleSizes(activeIndex: Int) {
-        for (i, layer) in circleLayers.enumerated() {
+        for (i, wrapper) in circleLayers.enumerated() {
             let isActive = (i == activeIndex)
             let radius = isActive ? activeRadius : circleRadius
             let d = radius * 2
 
-            layer.bounds = CGRect(x: 0, y: 0, width: d, height: d)
-            layer.cornerRadius = radius
-            layer.borderWidth = isActive ? 3 : 2
-            layer.shadowPath = CGPath(ellipseIn: CGRect(x: 0, y: 0, width: d, height: d), transform: nil)
+            wrapper.bounds = CGRect(x: 0, y: 0, width: d, height: d)
+            wrapper.shadowPath = CGPath(ellipseIn: CGRect(x: 0, y: 0, width: d, height: d), transform: nil)
 
-            if i == 0 {
-                updateDynamicPresetSize(layer, radius: radius)
+            // Update inner circle
+            if let circle = wrapper.sublayers?.first {
+                circle.bounds = CGRect(x: 0, y: 0, width: d, height: d)
+                circle.cornerRadius = radius
+                circle.borderWidth = isActive ? 3 : 2
+                circle.position = CGPoint(x: d / 2, y: d / 2)
+
+                if i == 0 {
+                    updateDynamicPresetSize(circle, radius: radius)
+                }
             }
         }
     }
