@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-16)
 ## Current Position
 
 Phase: 11 of 11
-Plan: 5 of 6 complete
-Status: In Progress
-Last activity: 2026-02-16 — Completed 11-05-PLAN.md (gap closure)
+Plan: 6 of 6 complete
+Status: Phase 11 Complete
+Last activity: 2026-02-16 — Completed 11-06-PLAN.md (gap closure)
 
 ## Performance Metrics
 
@@ -27,9 +27,9 @@ Last activity: 2026-02-16 — Completed 11-05-PLAN.md (gap closure)
 - Total execution time: ~53min
 
 **Velocity (v1.2):**
-- Total plans completed: 8
-- Average duration: 2min 51s
-- Total execution time: ~23min 30s
+- Total plans completed: 9
+- Average duration: 2min 38s
+- Total execution time: ~24min 57s
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
@@ -45,6 +45,7 @@ Last activity: 2026-02-16 — Completed 11-05-PLAN.md (gap closure)
 | 11    | 03   | 1min 56s | 2     | 3     |
 | 11    | 04   | 2min 41s | 2     | 2     |
 | 11    | 05   | 39s      | 1     | 1     |
+| 11    | 06   | 1min 27s | 2     | 2     |
 
 ## Accumulated Context
 
@@ -67,6 +68,9 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 11]: Wrapper layer pattern for shadows with masksToBounds (shadow incompatible with masksToBounds on same layer)
 - [Phase 11]: Composite tab symbol (arrow+pipe) instead of unsupported ⇥ glyph in SF Pro Rounded
 - [Phase 11-05]: Use mainScreen.frame.height as reference for coordinate conversion (matches EdgeDetector pattern)
+- [Phase 11]: Initialize cursor position in activate() for non-cursor windows (not just showInitialState)
+- [Phase 11]: Tab keycap composite uses .bottomLeading alignment for proper positioning
+- [Phase 11]: Space keycap uses "space" text instead of ␣ symbol for better rendering
 
 ### Pending Todos
 
@@ -79,5 +83,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-16
-Stopped at: Completed 11-05-PLAN.md (gap closure - multi-monitor coordinate fix)
-Resume file: .planning/phases/11-hint-bar-multi-monitor-polish/11-06-PLAN.md
+Stopped at: Completed 11-06-PLAN.md (gap closure - multi-monitor cursor tracking + keycap rendering)
+Resume file: None (Phase 11 complete)
