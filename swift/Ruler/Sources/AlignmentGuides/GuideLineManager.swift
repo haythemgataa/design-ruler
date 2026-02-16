@@ -145,6 +145,16 @@ final class GuideLineManager {
         GuideLineStyle.allCases.firstIndex(of: currentStyle)!
     }
 
+    /// Set preview line style (for global color sync across multi-monitor).
+    func setPreviewStyle(_ style: GuideLineStyle) {
+        currentStyle = style
+    }
+
+    /// Get current style value (for propagating to coordinator).
+    var currentStyleValue: GuideLineStyle {
+        currentStyle
+    }
+
     /// Check for hover over placed lines.
     var hasHoveredLine: Bool {
         hoveredLine != nil
