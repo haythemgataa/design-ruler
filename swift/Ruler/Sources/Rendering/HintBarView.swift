@@ -238,6 +238,38 @@ final class HintBarView: NSView {
         })
     }
 
+    // MARK: - Launch entrance animation
+
+    /// Animate the hint bar in with scale + slide up + fade.
+    func animateEntrance() {
+        guard let layer = self.layer else { return }
+        if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion { return }
+
+        let scaleAnim = CABasicAnimation(keyPath: "transform")
+        let cx = layer.bounds.width / 2
+        let cy = layer.bounds.height / 2
+        let s: CGFloat = 0.92
+        var fromTransform = CATransform3DIdentity
+        fromTransform = CATransform3DTranslate(fromTransform, cx, cy, 0)
+        fromTransform = CATransform3DScale(fromTransform, s, s, 1)
+        fromTransform = CATransform3DTranslate(fromTransform, -cx, -cy, 0)
+        scaleAnim.fromValue = NSValue(caTransform3D: fromTransform)
+
+        let slideAnim = CABasicAnimation(keyPath: "position.y")
+        slideAnim.fromValue = layer.position.y - 15
+
+        let fadeAnim = CABasicAnimation(keyPath: "opacity")
+        fadeAnim.fromValue = 0
+
+        let group = CAAnimationGroup()
+        group.animations = [scaleAnim, slideAnim, fadeAnim]
+        group.duration = 0.35
+        group.timingFunction = CAMediaTimingFunction(controlPoints: 0.23, 1, 0.32, 1)
+        group.isRemovedOnCompletion = true
+
+        layer.add(group, forKey: "hintBarEntrance")
+    }
+
     // MARK: - Position & animation
 
     /// Compute layout and set initial frame at bottom center.
