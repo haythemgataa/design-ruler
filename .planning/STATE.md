@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-16)
 ## Current Position
 
 Phase: 11 of 11
-Plan: 3 of 4 complete
-Status: Phase 11 In Progress
-Last activity: 2026-02-16 — Completed 11-03-PLAN.md
+Plan: 4 of 4 complete
+Status: Phase 11 Complete
+Last activity: 2026-02-16 — Completed 11-04-PLAN.md
 
 ## Performance Metrics
 
@@ -27,9 +27,9 @@ Last activity: 2026-02-16 — Completed 11-03-PLAN.md
 - Total execution time: ~53min
 
 **Velocity (v1.2):**
-- Total plans completed: 6
-- Average duration: 3min 16s
-- Total execution time: ~20min 10s
+- Total plans completed: 7
+- Average duration: 3min 7s
+- Total execution time: ~22min 51s
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
@@ -43,6 +43,7 @@ Last activity: 2026-02-16 — Completed 11-03-PLAN.md
 | 11    | 01   | 3min 50s | 2     | 5     |
 | 11    | 02   | 3min 32s | 2     | 3     |
 | 11    | 03   | 1min 56s | 2     | 3     |
+| 11    | 04   | 2min 41s | 2     | 2     |
 
 ## Accumulated Context
 
@@ -62,6 +63,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 11-03]: Single background view per window eliminates Z-order conflicts
 - [Phase 11-03]: Initialize cursor position from NSEvent.mouseLocation in showInitialState()
 - [Phase 11-03]: Preview line lifecycle tied to window activation/deactivation
+- [Phase 11]: Wrapper layer pattern for shadows with masksToBounds (shadow incompatible with masksToBounds on same layer)
+- [Phase 11]: Composite tab symbol (arrow+pipe) instead of unsupported ⇥ glyph in SF Pro Rounded
 
 ### Pending Todos
 
@@ -74,5 +77,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-16
-Stopped at: Completed 11-03-PLAN.md
-Resume file: .planning/phases/11-hint-bar-multi-monitor-polish/11-04-PLAN.md
+Stopped at: Completed 11-04-PLAN.md (Phase 11 Complete)
+Resume file: None (all plans complete)
