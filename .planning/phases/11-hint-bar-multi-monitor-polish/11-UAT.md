@@ -1,9 +1,9 @@
 ---
-status: complete
+status: diagnosed
 phase: 11-hint-bar-multi-monitor-polish
 source: [11-01-SUMMARY.md, 11-02-SUMMARY.md]
 started: 2026-02-16T12:00:00Z
-updated: 2026-02-16T12:25:00Z
+updated: 2026-02-16T12:30:00Z
 ---
 
 ## Current Test
@@ -73,9 +73,12 @@ skipped: 0
   reason: "User reported: the color peeks just a tiny bit out of the border, ideally the border would hide the color and it won't be visible outside of the border"
   severity: cosmetic
   test: 3
-  root_cause: ""
-  artifacts: []
-  missing: []
+  root_cause: "masksToBounds never set on circle layers. Sublayer fills (dynamic preset arc paths) and backgroundColor (solid circles) extend to full bounds edge, causing sub-pixel bleed outside border's rounded corners."
+  artifacts:
+    - path: "swift/Ruler/Sources/AlignmentGuides/ColorCircleIndicator.swift"
+      issue: "createCircleLayers() L193-218, createDynamicPresetLayer() L230-261, createSolidColorLayer() L263-270 — no masksToBounds"
+  missing:
+    - "Add masksToBounds = true on all circle layers"
   debug_session: ""
 
 - truth: "Color circle indicator handles space press during exit animation gracefully"
@@ -83,9 +86,12 @@ skipped: 0
   reason: "User reported: if I press space bar when the exit animation is playing, the selection dot disappears"
   severity: major
   test: 3
-  root_cause: ""
-  artifacts: []
-  missing: []
+  root_cause: "fadeOut() commits model values to hidden state (scale 0.01, dot opacity 0) at L349-358 before adding animations. show() removes animations at L44-46 but does NOT restore model values. The else branch (L117-123) resets circle transforms but not dotLayer.transform or dotLayer.opacity."
+  artifacts:
+    - path: "swift/Ruler/Sources/AlignmentGuides/ColorCircleIndicator.swift"
+      issue: "fadeOut() L349-358 commits hidden model values; show() L44-46 incomplete recovery; L117-123 circles only, L155 dot position only"
+  missing:
+    - "Add model-value recovery block after removing animations in show(): reset containerLayer.opacity=1, all layer transforms to identity, dotLayer.opacity=1"
   debug_session: ""
 
 - truth: "Tab keycap uses →| symbol (two separate text layers, | at 11px) for SF Pro Rounded consistency"
@@ -93,9 +99,12 @@ skipped: 0
   reason: "User reported: ⇥ isn't supported by SF Pro Rounded, use →| as two separate text layers with | at 11px"
   severity: cosmetic
   test: 5
-  root_cause: ""
-  artifacts: []
-  missing: []
+  root_cause: "KeyCap renders all symbols via single Text view in capLabel (L433). ⇥ (U+21E5) not in SF Pro Rounded. Composite multi-layer symbols not supported."
+  artifacts:
+    - path: "swift/Ruler/Sources/Rendering/HintBarContent.swift"
+      issue: "Tab keycap at L47 (expanded), L109 (collapsed), L289 (glass morph) — all use symbol: ⇥"
+  missing:
+    - "Create composite TabSymbol view with HStack: → text + | text at 11px. Add customLabel support to KeyCap or build inline. Update 3 call sites."
   debug_session: ""
 
 - truth: "Space keycap uses ␣ symbol at 16px centered, keycap width 64px"
@@ -103,9 +112,12 @@ skipped: 0
   reason: "User reported: use ␣ symbol at 16px centered, make the keycap 64px wide"
   severity: cosmetic
   test: 5
-  root_cause: ""
-  artifacts: []
-  missing: []
+  root_cause: "Space keycap uses symbol: 'space' at 11px in 48px wide keycap. Needs ␣ (U+2423) at 16px in 64px keycap."
+  artifacts:
+    - path: "swift/Ruler/Sources/Rendering/HintBarContent.swift"
+      issue: "Space keycap at L51 (expanded), L112 (collapsed), L295 (glass morph) — wrong symbol/size/width"
+  missing:
+    - "Change symbol to ␣, font size to 16, width to 64 at all 3 call sites"
   debug_session: ""
 
 - truth: "Second monitor shows captured screenshot (not black)"
@@ -113,9 +125,12 @@ skipped: 0
   reason: "User reported: second monitor is black"
   severity: blocker
   test: 9
-  root_cause: ""
-  artifacts: []
-  missing: []
+  root_cause: "Background view created twice: setupViews() L60-66 creates bg #1, then setBackground() L105-114 creates bg #2 inserted below #1. Conflicting Z-order. RulerWindow reference does NOT create bg in setupViews()."
+  artifacts:
+    - path: "swift/Ruler/Sources/AlignmentGuides/AlignmentGuidesWindow.swift"
+      issue: "setupViews() L60-66 creates duplicate background; setBackground() L105-114 inserts below"
+  missing:
+    - "Remove background creation from setupViews(). Let setBackground() be sole mechanism (matching RulerWindow pattern)."
   debug_session: ""
 
 - truth: "Preview line disappears from previous monitor when cursor moves to another"
@@ -123,9 +138,14 @@ skipped: 0
   reason: "User reported: preview line remains frozen in previous monitor, a second preview line appears in the new monitor. There is a preview line for each monitor, it doesn't disappear if I move away"
   severity: minor
   test: 9
-  root_cause: ""
-  artifacts: []
-  missing: []
+  root_cause: "deactivate() L146-154 only clears hover state, never hides preview line. RulerWindow.deactivate() calls crosshairView.hideForDrag() to hide overlay when leaving."
+  artifacts:
+    - path: "swift/Ruler/Sources/AlignmentGuides/AlignmentGuidesWindow.swift"
+      issue: "deactivate() L146-154 missing preview line hide"
+    - path: "swift/Ruler/Sources/AlignmentGuides/GuideLineManager.swift"
+      issue: "No hide/show preview line methods"
+  missing:
+    - "Add hidePreview()/showPreview() to GuideLineManager (set line+pill opacity 0/1). Call hidePreview() from deactivate(), showPreview() from activate()."
   debug_session: ""
 
 - truth: "Color circle indicator follows cursor on correct screen when launched from second monitor"
@@ -133,7 +153,10 @@ skipped: 0
   reason: "User reported: if I launch the tool in the second monitor, the color switcher appears at x=0 y=0 of the main monitor, until I move to the main monitor and back for it to start following my cursor"
   severity: major
   test: 9
-  root_cause: ""
-  artifacts: []
-  missing: []
+  root_cause: "lastCursorPosition initialized to .zero (L21), only updated in mouseMoved() (L191). First spacebar press before mouse move passes (0,0) to cycleStyle(). RulerWindow.showInitialState() computes cursor position from NSEvent.mouseLocation."
+  artifacts:
+    - path: "swift/Ruler/Sources/AlignmentGuides/AlignmentGuidesWindow.swift"
+      issue: "lastCursorPosition = .zero at L21, never set in showInitialState()"
+  missing:
+    - "In showInitialState(), compute window-local cursor from NSEvent.mouseLocation - screenBounds.origin, assign to lastCursorPosition"
   debug_session: ""
