@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-16)
 ## Current Position
 
 Phase: 11 of 11
-Plan: 2 of 2 complete
-Status: Phase 11 Complete
-Last activity: 2026-02-16 — Completed 11-02-PLAN.md
+Plan: 3 of 4 complete
+Status: Phase 11 In Progress
+Last activity: 2026-02-16 — Completed 11-03-PLAN.md
 
 ## Performance Metrics
 
@@ -27,9 +27,9 @@ Last activity: 2026-02-16 — Completed 11-02-PLAN.md
 - Total execution time: ~53min
 
 **Velocity (v1.2):**
-- Total plans completed: 5
-- Average duration: 3min 37s
-- Total execution time: ~18min 14s
+- Total plans completed: 6
+- Average duration: 3min 16s
+- Total execution time: ~20min 10s
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
@@ -42,6 +42,7 @@ Last activity: 2026-02-16 — Completed 11-02-PLAN.md
 | 10    | 02   | 1min 32s | 2     | 3     |
 | 11    | 01   | 3min 50s | 2     | 5     |
 | 11    | 02   | 3min 32s | 2     | 3     |
+| 11    | 03   | 1min 56s | 2     | 3     |
 
 ## Accumulated Context
 
@@ -58,6 +59,9 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 11]: Hint bar only shown on cursor screen (not all screens) to avoid visual clutter
 - [Phase 11]: 3-second minimum expanded duration before collapse (matching inspect command)
 - [Phase 11]: Global color state in AlignmentGuides singleton, synced to windows on activation
+- [Phase 11-03]: Single background view per window eliminates Z-order conflicts
+- [Phase 11-03]: Initialize cursor position from NSEvent.mouseLocation in showInitialState()
+- [Phase 11-03]: Preview line lifecycle tied to window activation/deactivation
 
 ### Pending Todos
 
@@ -70,5 +74,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-16
-Stopped at: Completed 11-02-PLAN.md (Phase 11 Complete)
-Resume file: None (all plans complete)
+Stopped at: Completed 11-03-PLAN.md
+Resume file: .planning/phases/11-hint-bar-multi-monitor-polish/11-04-PLAN.md
