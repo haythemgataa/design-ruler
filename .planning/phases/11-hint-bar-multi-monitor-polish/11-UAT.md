@@ -1,9 +1,9 @@
 ---
-status: diagnosed
+status: resolved
 phase: 11-hint-bar-multi-monitor-polish
 source: [11-01-SUMMARY.md, 11-02-SUMMARY.md]
 started: 2026-02-16T12:00:00Z
-updated: 2026-02-16T12:30:00Z
+updated: 2026-02-16T19:15:00Z
 ---
 
 ## Current Test
@@ -69,7 +69,7 @@ skipped: 0
 ## Gaps
 
 - truth: "Color circle borders are 2px inactive, 3px active with no color bleeding outside"
-  status: failed
+  status: resolved
   reason: "User reported: the color peeks just a tiny bit out of the border, ideally the border would hide the color and it won't be visible outside of the border"
   severity: cosmetic
   test: 3
@@ -82,7 +82,7 @@ skipped: 0
   debug_session: ""
 
 - truth: "Color circle indicator handles space press during exit animation gracefully"
-  status: failed
+  status: resolved
   reason: "User reported: if I press space bar when the exit animation is playing, the selection dot disappears"
   severity: major
   test: 3
@@ -95,7 +95,7 @@ skipped: 0
   debug_session: ""
 
 - truth: "Tab keycap uses →| symbol (two separate text layers, | at 11px) for SF Pro Rounded consistency"
-  status: failed
+  status: resolved
   reason: "User reported: ⇥ isn't supported by SF Pro Rounded, use →| as two separate text layers with | at 11px"
   severity: cosmetic
   test: 5
@@ -108,7 +108,7 @@ skipped: 0
   debug_session: ""
 
 - truth: "Space keycap uses ␣ symbol at 16px centered, keycap width 64px"
-  status: failed
+  status: resolved
   reason: "User reported: use ␣ symbol at 16px centered, make the keycap 64px wide"
   severity: cosmetic
   test: 5
@@ -121,7 +121,7 @@ skipped: 0
   debug_session: ""
 
 - truth: "Second monitor shows captured screenshot (not black)"
-  status: failed
+  status: resolved
   reason: "User reported: second monitor is black"
   severity: blocker
   test: 9
@@ -134,7 +134,7 @@ skipped: 0
   debug_session: ""
 
 - truth: "Preview line disappears from previous monitor when cursor moves to another"
-  status: failed
+  status: resolved
   reason: "User reported: preview line remains frozen in previous monitor, a second preview line appears in the new monitor. There is a preview line for each monitor, it doesn't disappear if I move away"
   severity: minor
   test: 9
@@ -149,7 +149,7 @@ skipped: 0
   debug_session: ""
 
 - truth: "Color circle indicator follows cursor on correct screen when launched from second monitor"
-  status: failed
+  status: resolved
   reason: "User reported: if I launch the tool in the second monitor, the color switcher appears at x=0 y=0 of the main monitor, until I move to the main monitor and back for it to start following my cursor"
   severity: major
   test: 9
