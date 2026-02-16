@@ -31,7 +31,9 @@
 ### v1.2 Alignment Guides
 
 - [ ] Phase 9: Scaffold + Preview Line + Placement (1/1 plans)
-- [ ] Phase 10: Remove Interaction + Color System (0/0 plans)
+- [ ] Phase 10: Remove Interaction + Color System (2/2 plans)
+  - [ ] 10-01-PLAN.md — Hover-to-remove interaction (hit testing, visual feedback, shrink animation, cursor)
+  - [ ] 10-02-PLAN.md — Color cycling + color circle indicator (spacebar presets, arc UI, auto-hide)
 - [ ] Phase 11: Hint Bar + Multi-Monitor + Polish (0/0 plans)
 
 ## Progress
@@ -47,5 +49,5 @@
 | 7. Hint Bar Visual Redesign | v1.1 | 2/2 | ✓ Complete | 2026-02-14 |
 | 8. Launch-to-Collapse Animation | v1.1 | 1/1 | ✓ Complete | 2026-02-14 |
 | 9. Scaffold + Preview Line + Placement | v1.2 | 1/1 | ◻ Planned | — |
-| 10. Remove Interaction + Color System | v1.2 | 0/0 | ◻ Planned | — |
+| 10. Remove Interaction + Color System | v1.2 | 0/2 | ◻ Planned | — |
 | 11. Hint Bar + Multi-Monitor + Polish | v1.2 | 0/0 | ◻ Planned | — |
