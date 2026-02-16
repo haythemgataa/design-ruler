@@ -20,6 +20,9 @@ final class GuideLineManager {
     // Hover state
     private(set) var hoveredLine: GuideLine? = nil
 
+    // Color indicator
+    private var colorIndicator: ColorCircleIndicator?
+
     init(parentLayer: CALayer, scale: CGFloat, screenSize: CGSize) {
         self.parentLayer = parentLayer
         self.scale = scale
@@ -102,16 +105,35 @@ final class GuideLineManager {
         )
     }
 
-    /// Cycle to next style (stub for phase 10).
-    func cycleStyle() {
-        // Phase 10: implement style cycling
-        // currentStyle = currentStyle.next()
-        // Update preview + all placed lines to new style
+    /// Cycle to next style preset with color indicator.
+    func cycleStyle(cursorPosition: NSPoint) {
+        currentStyle = currentStyle.next()
+        let styleIndex = GuideLineStyle.allCases.firstIndex(of: currentStyle)!
+
+        // Update preview line to new color
+        previewLine.update(
+            position: currentPosition,
+            cursorAlongAxis: currentCursorAlongAxis,
+            screenSize: screenSize,
+            direction: currentDirection,
+            style: currentStyle
+        )
+
+        // Show/update color indicator
+        if colorIndicator == nil {
+            colorIndicator = ColorCircleIndicator(parentLayer: parentLayer, scale: scale)
+        }
+        colorIndicator!.show(at: cursorPosition, activeIndex: styleIndex, screenSize: screenSize)
     }
 
     /// Get current direction for cursor management.
     var direction: Direction {
         currentDirection
+    }
+
+    /// Get current style index for color indicator.
+    private var currentStyleIndex: Int {
+        GuideLineStyle.allCases.firstIndex(of: currentStyle)!
     }
 
     /// Check for hover over placed lines.

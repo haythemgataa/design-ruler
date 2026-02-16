@@ -197,9 +197,9 @@ final class AlignmentGuidesWindow: NSWindow {
             guideLineManager.toggleDirection()
             cursorDirection = guideLineManager.direction
             updateCursor()
-        case 49: // Spacebar (stub for phase 10)
-            // guideLineManager.cycleStyle()
-            break
+        case 49: // Spacebar
+            let windowPoint = event.locationInWindow
+            guideLineManager.cycleStyle(cursorPosition: windowPoint)
         case 53: // ESC
             onRequestExit?()
         default:
