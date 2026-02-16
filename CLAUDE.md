@@ -1,47 +1,66 @@
-# Ruler v2 — Build Blueprint
+# Design Ruler — Build Blueprint
 
-Complete guide for building this Raycast extension from scratch.
+Complete guide for building and maintaining this Raycast extension.
 
 ---
 
 ## 1. What This Extension Does
 
-A macOS pixel inspector launched from Raycast. The user invokes it, a
-fullscreen overlay appears (frozen screenshot of the current screen), and
-a crosshair follows the cursor showing detected edges in 4 directions
-with live "W × H" dimensions. Arrow keys skip past edges. ESC exits.
+Two Raycast commands for macOS pixel inspection and alignment verification:
 
-No measurement between two points. No dragging. Just inspect and see.
+**Design Ruler** — Fullscreen overlay (frozen screenshot), crosshair follows
+cursor showing detected edges in 4 directions with live "W × H" dimensions.
+Arrow keys skip past edges. Drag to select regions (snap-to-edges). ESC exits.
+
+**Alignment Guides** — Fullscreen overlay, click to place guide lines
+(vertical/horizontal). Tab toggles direction, spacebar cycles color (5
+presets). Hover a line to see "Remove" state, click to delete. ESC exits.
+
+Both commands support multi-monitor (one window per screen, cursor activates).
 
 ---
 
 ## 2. Architecture Overview
 
 ```
-TypeScript (thin wrapper, ~10 lines)
-  └─ import { inspect } from "swift:../swift/Ruler"
+TypeScript (thin wrappers, ~13 lines each)
+  ├─ src/design-ruler.ts  → import { inspect } from "swift:../swift/Ruler"
+  └─ src/alignment-guides.ts → import { alignmentGuides } from "swift:../swift/Ruler"
        └─ Swift (all logic)
-            ├─ Ruler.swift          — entry point, window setup, event wiring
-            ├─ RulerWindow.swift    — NSWindow subclass, mouseMoved + keyDown only
+            ├─ Ruler.swift              — design-ruler entry, multi-monitor window mgmt
+            ├─ RulerWindow.swift        — NSWindow subclass, mouseMoved + keyDown
             ├─ EdgeDetection/
-            │   ├─ EdgeDetector.swift   — capture + scan + skip state (single class)
-            │   ├─ ColorMap.swift       — pixel buffer, color comparison scanning
-            │   └─ DirectionalEdges.swift — EdgeHit + DirectionalEdges models
+            │   ├─ EdgeDetector.swift       — capture + scan + skip state + smart corrections
+            │   ├─ ColorMap.swift           — pixel buffer, color scanning, stabilization
+            │   └─ DirectionalEdges.swift   — EdgeHit + DirectionalEdges models
             ├─ Rendering/
-            │   ├─ CrosshairView.swift  — 4 lines, cross-feet, W×H pill
-            │   └─ HintBarView.swift    — keyboard shortcut hints, layer-cached
+            │   ├─ CrosshairView.swift      — 4 lines, cross-feet, W×H pill, cursor mgmt
+            │   ├─ HintBarView.swift        — glass hint bar, slide animation, expand/collapse
+            │   ├─ HintBarContent.swift     — SwiftUI keycap layouts, mode-specific content
+            │   ├─ SelectionManager.swift   — drag lifecycle, edge snapping, hover tracking
+            │   └─ SelectionOverlay.swift   — selection rendering, snap animation, shake
+            ├─ AlignmentGuides/
+            │   ├─ AlignmentGuides.swift    — entry point, per-screen windows, global state
+            │   ├─ AlignmentGuidesWindow.swift — NSWindow for guides, event handling
+            │   ├─ GuideLineManager.swift   — preview line, placed lines, hover detection
+            │   ├─ GuideLine.swift          — line rendering, position pills, hover state
+            │   ├─ GuideLineStyle.swift     — 5 color presets (dynamic, red, green, orange, blue)
+            │   └─ ColorCircleIndicator.swift — arc-based color indicator, debounced auto-hide
+            ├─ Cursor/
+            │   └─ CursorManager.swift      — state machine, balanced hide/push counters
             ├─ Utilities/
-            │   └─ CoordinateConverter.swift
+            │   └─ CoordinateConverter.swift — AppKit ↔ CG conversion
             └─ Permissions/
-                └─ PermissionChecker.swift
+                └─ PermissionChecker.swift  — screen recording check/request
 ```
 
 ### Key Design Principles
-- TypeScript does NOTHING except call Swift. No preferences passed.
-- No measurement state — no start/end points, no distance calculation.
+- TypeScript does NOTHING except read preferences and call Swift.
 - Single class for edge detection (no ImageEdgeDetector wrapper).
-- EdgeHit is minimal: just `distance` and `screenPosition`. No `source`
-  enum, no `confidence` float.
+- EdgeHit is minimal: just `distance` and `screenPosition`.
+- Multi-monitor: capture all screens before creating any windows.
+- CursorManager: centralized state machine for all NSCursor operations.
+- Global state (color, direction) lives in singletons, synced via callbacks.
 
 ---
 
@@ -56,7 +75,7 @@ Raycast only deploys the Swift **binary** — not `.bundle` directories.
 ### NO SVG Rendering via NSImage
 NSImage from SVG with filter effects (drop shadows, blur) causes **80%+
 CPU** because AppKit re-renders the SVG on every draw call.
-- Draw everything natively with NSBezierPath
+- Draw everything natively with NSBezierPath / CAShapeLayer
 - For static overlays, render once into `layer.contents` bitmap
 
 ### NO AX Detection
@@ -67,12 +86,26 @@ Snapping cursor to edges is disorienting. Arrow-key skipping is better.
 
 ### NO NSCursor.set() for Persistent Cursors
 `NSCursor.crosshair.set()` gets overridden immediately by the window's
-cursor rect management. Use `resetCursorRects()` + `addCursorRect()`.
+cursor rect management. Use `resetCursorRects()` + `addCursorRect()` for
+launch-time cursors. For all other cursor transitions, use `CursorManager`
+which tracks balanced push/pop and hide/unhide counts.
 
 ### NO Absolute-Coordinate Paths for Animated Layers
 `CAShapeLayer.path` with absolute screen coordinates morphs point-by-point
 instead of sliding. Use `layer.frame` for position + local-origin `path`
 so Core Animation can interpolate the frame's position.
+
+### NO masksToBounds + Shadows on Same Layer
+`masksToBounds = true` clips shadows. Use a parent "wrapper" layer for the
+shadow, with the clipped content layer as a sublayer.
+
+### NO fputs/Debug Logging in Production Code
+Raycast may build debug configurations. Remove debug logging entirely
+instead of gating with `#if DEBUG`.
+
+### NO configure() Before setMode() on HintBarView
+`HintBarView.setMode()` must be called BEFORE `configure()`. Calling
+`configure()` first instantiates the wrong SwiftUI content views.
 
 ---
 
@@ -93,31 +126,46 @@ so Core Animation can interpolate the frame's position.
 let appKitY = screenHeight - cgY
 ```
 
+### Multi-Monitor
+Use `mainScreen.frame.height` as the reference height for conversions:
+```swift
+let mainHeight = NSScreen.screens.first!.frame.height
+let cgY = mainHeight - appKitY - height
+```
+
 ---
 
-## 5. Screenshot-Before-Window Pattern
+## 5. Capture-Before-Window Pattern
 
-Creating a fullscreen window steals focus — title bars gray out. Fix:
+Creating fullscreen windows steals focus — title bars gray out. Fix:
 
-1. Capture the screen where the cursor is BEFORE creating the window
-2. Use the captured image as the window background (NSImageView)
-3. Use the same capture data (ColorMap) for edge detection
-4. User sees a frozen frame — no visible disruption
+1. Capture ALL screens BEFORE creating ANY windows
+2. Use captured images as window backgrounds (NSImageView)
+3. Use the same capture data (ColorMap/CGImage) for edge detection
+4. User sees frozen frames — no visible disruption
 
 ```swift
-func run() {
-    let cursorScreen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) }
-                       ?? NSScreen.main!
-    let screenshot = edgeDetector.capture(screen: cursorScreen)
-    let window = RulerWindow(for: cursorScreen)
-    if let img = screenshot { window.setBackground(img) }
-    window.makeKeyAndOrderFront(nil)
+// Design Ruler: captures + edge detectors per screen
+var captures: [(screen: NSScreen, detector: EdgeDetector, image: CGImage?)] = []
+for screen in NSScreen.screens {
+    let detector = EdgeDetector()
+    let cgImage = detector.capture(screen: screen)
+    captures.append((screen, detector, cgImage))
+}
+// THEN create windows from captures
+
+// Alignment Guides: captures per screen (no edge detector needed)
+var captures: [(screen: NSScreen, image: CGImage?)] = []
+for screen in NSScreen.screens {
+    let cgImage = captureScreen(screen)
+    captures.append((screen, cgImage))
 }
 ```
 
 ### Screen Selection
-Capture the screen where the cursor is located at launch time, NOT always
-the main screen. Use `NSEvent.mouseLocation` + `NSMouseInRect` to find it.
+Identify which screen the cursor is on at launch time using
+`NSEvent.mouseLocation` + `NSMouseInRect`. That screen gets the hint bar;
+other screens get `hideHintBar: true`.
 
 ---
 
@@ -132,6 +180,13 @@ tolerance = 1 (max sensitivity)
 difference = max(|dR|, |dG|, |dB|)
 if difference > tolerance → edge found
 ```
+
+### Smart Border Corrections
+Three modes (`corrections` preference):
+- **smart** — tries all 4 absorption combinations for 1px borders, picks
+  the one landing on a 4px grid alignment
+- **include** — always includes 1px borders in measurements
+- **none** — no corrections, raw edge detection
 
 ### Retina Scale Factor
 ```swift
@@ -175,11 +230,8 @@ Use orange with `CGBlendMode.difference` to invert against the background.
 Dark backgrounds get bright lines, bright backgrounds get dark lines.
 
 ```swift
-// In CrosshairView draw():
-context.setBlendMode(.difference)
-NSColor.orange.setStroke()
-// draw lines + cross-feet...
-context.setBlendMode(.normal)  // restore for pill/text
+// In CrosshairView — line layers use:
+lineLayer.compositingFilter = "differenceBlendMode"
 ```
 
 The W×H pill and hint bar use normal blend with a dark background so
@@ -189,57 +241,104 @@ text stays readable.
 
 ## 8. Rendering Performance Rules
 
-### CrosshairView (CAShapeLayer, GPU-composited)
+### CAShapeLayer Updates (GPU-composited)
 - No `draw()` override — only CALayer property updates on mouse move
+- `CATransaction.setDisableActions(true)` for instant updates (every mouse move)
+- `contentsScale = backingScaleFactor` on ALL layers for Retina sharpness
 - Lines + feet in one CATransaction (actions disabled, instant)
 - Pill in a separate CATransaction (animated on flip, instant otherwise)
 - Pill bg layers: use `frame` + local-origin `path` so `frame` animates
   on flip (absolute-coordinate paths morph instead of sliding)
+
+### Wrapper Layer Pattern for Shadows
+When `masksToBounds = true` is needed for clipping (e.g., rounded corners),
+shadows cannot render on the same layer. Use a parent wrapper layer for the
+shadow, with the clipped content layer as a sublayer.
 
 ### HintBarView (static, renders ONCE)
 - Override `wantsUpdateLayer` → `true`
 - Render into NSBitmapImageRep, set as `layer.contents`
 - Guard: `if layer.contents != nil { return }`
 - Set `wantsLayer = true` when creating the view
-- Draw key caps with NSBezierPath
+
+### Target: <5% CPU During Mouse Movement
 
 ---
 
 ## 9. Hint Bar Behavior
 
-- Always visible (default position: bottom center, 20px margin)
-- When cursor gets near the bottom, slide hint bar to the top (48px margin
-  to clear MacBook notch)
-- When cursor moves away, slide back to bottom
+### Layout
+- Glass panel with adaptive brightness sampling (dark/light mode aware)
+- macOS 26+: liquid glass morph via SwiftUI `GlassEffectContainer`
+- Older macOS: `NSVisualEffectView` fallback
+- Keycaps drawn with NSBezierPath (arrows, shift, space, tab, escape)
+
+### States
+- **Expanded**: full instructional text with keycap illustrations
+- **Collapsed**: compact keycap-only bar
+- Minimum 3-second expanded display before auto-collapse on first mouse move
+
+### Positioning
+- Default: bottom center, 20px margin
+- When cursor near bottom: slide to top (48px margin to clear MacBook notch)
 - Slide animation: two-phase CAAnimationGroup (slide-out 0.1s + slide-in
   0.15s), both easeOut. `isAnimating` guard prevents overlapping animations.
-- One user preference: hide hint bar entirely
-- Content: "Use [arrow keys] to skip an edge. Add [⇧] to invert."
+
+### Modes
+- Design Ruler mode: arrow key hints
+- Alignment Guides mode: tab, spacebar, click hints
+
+### Critical Setup Order
+`HintBarView.setMode()` MUST be called BEFORE `configure()`.
+
+### Preference
+- `hideHintBar`: hides hint bar entirely
+- Hint bar only shown on cursor's screen (multi-monitor)
 
 ---
 
 ## 10. User Preferences
 
-| Name | Type | Default | Description |
-|------|------|---------|-------------|
-| hideHintBar | checkbox | false | Hide the keyboard shortcut hint bar |
-
-Single preference. Passed to Swift as a parameter.
+| Name | Type | Default | Scope | Description |
+|------|------|---------|-------|-------------|
+| hideHintBar | checkbox | false | both commands | Hide the keyboard shortcut hint bar |
+| corrections | dropdown | smart | design-ruler only | How to handle 1px borders: smart, include, none |
 
 ---
 
 ## 11. Key Behaviors
 
-- **Launch**: captures cursor's screen, fullscreen overlay appears, system
+### Design Ruler
+- **Launch**: captures all screens, fullscreen overlays appear, system
   crosshair cursor shown, pill fades in at cursor with "0000 × 0000"
 - **Mouse move**: crosshair follows cursor, edges detected, W×H updates.
   On first move: system crosshair hidden, custom CAShapeLayer takes over.
 - **Arrow keys**: skip to next edge in that direction
 - **Shift+arrow**: un-skip (bring edge closer)
 - **Mouse move**: resets all skip counts
+- **Drag**: select region with snap-to-edges (minimum 4x4px, shake on too-small)
+- **Hover selection**: pointing hand cursor, click to remove
 - **ESC**: exits silently (unhides cursor only if mouse had moved)
-- **Hint bar**: bottom (or top when cursor is near bottom), slides on swap
 - **Pill flip**: animates 0.15s easeOut when swapping sides near edges
+
+### Alignment Guides
+- **Launch**: captures all screens, fullscreen overlays, preview line follows cursor
+- **Tab**: toggle preview direction (vertical ↔ horizontal)
+- **Spacebar**: cycle color (dynamic → red → green → orange → blue)
+- **Click**: place guide line at cursor (with position pill showing X or Y coord)
+- **Hover placed line**: 5px threshold, line turns red+dashed, "Remove" pill,
+  pointing hand cursor
+- **Click hovered line**: removes it (shrink-to-click-point animation)
+- **Conflict resolution**: hover-first — clicking a hovered line removes it;
+  clicking where no line is hovered places a new one
+- **ESC**: exits
+
+### Shared
+- Multi-monitor: one window per screen, mouse enter/exit activates
+- Hint bar: expanded → collapsed after 3s, bottom ↔ top slide
+- 10-minute inactivity watchdog auto-exits
+- SIGTERM handler for clean cursor restoration
+- CGWindowListCreateImage warmup capture on launch (1x1 pixel, absorbs cold-start)
 
 ---
 
@@ -254,10 +353,6 @@ Implemented by splitting `update()` into two CATransaction blocks: lines/feet
 always instant, pill conditionally animated when flip detected via
 `pillIsOnLeft`/`pillIsBelow` state booleans.
 
-**Key detail**: Pill bg `CAShapeLayer`s must use `layer.frame` + local-origin
-`path` (not absolute-coordinate paths). Absolute paths morph point-by-point
-on flip instead of sliding.
-
 ### Hint Bar Slide (HintBarView)
 Two-phase `CAAnimationGroup` on `position.y`: slide-out (0.1s easeOut) then
 slide-in (0.15s easeOut, `beginTime` 0.1). Model value (`frame.origin.y`)
@@ -270,74 +365,150 @@ System crosshair cursor shown on launch via `resetCursorRects()` /
 cursor rects and calls `NSCursor.hide()`.
 
 **Do NOT use `NSCursor.crosshair.set()`** — it gets immediately overridden
-by the window's cursor rect management when the window becomes key. Must use
-`resetCursorRects()` with `addCursorRect(_:cursor:)` instead.
+by the window's cursor rect management when the window becomes key.
 
-### Pill Initialization (CrosshairView + RulerWindow + Ruler)
+### Pill Initialization (CrosshairView)
 On launch, pill appears at cursor position with "0000 × 0000" and fades in
 over 0.3s easeOut. `showInitialPill(at:)` sets all pill layer opacities to 0
 in a disabled-actions transaction, calls `layoutPill()`, then animates
 opacity to 1.
 
----
+### Selection Snap (SelectionOverlay)
+When a drag-to-select snaps to a detected edge, the selection boundary
+animates to the snapped position.
 
-## 13. Implementation Phases
+### Selection Shake (SelectionOverlay)
+When a selection is too small (< 4x4px), a shake animation provides
+feedback before the selection is dismissed.
 
-### Phase 1: Project Scaffold
-- `package.json` — 1 command (no-view), 1 preference (hideHintBar)
-- `swift/Ruler/Package.swift` — macOS 12+, extensions-swift-tools
-- `src/ruler.ts` — Read hideHintBar pref, call Swift
+### Guide Line Shrink-to-Point (GuideLine)
+On removal, the guide line shrinks toward the click point. Anchor point
+is adjusted so the shrink animation moves toward the specific click
+position rather than the layer center.
 
-### Phase 2: Capture + Edge Detection
-- `PermissionChecker.swift` — Screen recording check
-- `EdgeDetector.swift` — Capture screen at `.bestResolution`, build ColorMap,
-  scan method, skip state (all in one class)
-- `ColorMap.swift` — Pixel buffer, scale factor, scanDirection with stabilization
-- `DirectionalEdges.swift` — EdgeHit (distance + screenPosition) + DirectionalEdges
+### Color Circle Indicator (ColorCircleIndicator)
+Arc layout (~108 degrees, 5 circles). Active circle is larger with white
+border. Fade-in on appearance, debounced auto-hide after ~1s via
+`DispatchWorkItem`.
 
-### Phase 3: Window + Crosshair
-- `CoordinateConverter.swift` — AppKit ↔ CG conversion
-- `RulerWindow.swift` — Fullscreen borderless window for cursor's screen,
-  background image, mouseMoved + keyDown (arrows + ESC) only
-- `Ruler.swift` — Entry point, capture-before-window, event wiring
-- `CrosshairView.swift` — 4 lines (difference blend), cross-feet, W×H pill
-
-### Phase 4: Edge Skipping
-- Add skip counts + increment/decrement to EdgeDetector
-- Add skip parameters to ColorMap.scan() and scanDirection()
-- Implement stabilization algorithm
-- Arrow key handling in RulerWindow
-
-### Phase 5: Hint Bar
-- `HintBarView.swift` — NSBezierPath drawing, layer-cached
-- Position logic: bottom ↔ top based on cursor proximity
-- Respect hideHintBar preference
+### Fade-In Pattern
+Standard pattern used across the codebase:
+```swift
+setOpacity(0, animated: false)  // instant transparent
+setOpacity(1, animated: true)   // fade in
+```
 
 ---
 
-## 14. Swift Bridge Pattern
+## 13. Multi-Monitor Coordination
+
+### Window Lifecycle
+1. Capture ALL screens before creating ANY windows (array of tuples)
+2. Create one window per screen from captures
+3. Hint bar only on cursor's launch screen
+4. `orderFrontRegardless()` all windows, then `makeKey()` cursor screen
+
+### Activation
+- Mouse enter/exit events trigger `onActivate` callback
+- Singleton (`Ruler.shared` / `AlignmentGuides.shared`) tracks `activeWindow`
+- `deactivate()` old window → `activate()` new window
+- `firstMoveAlreadyReceived` passed to new window on activation
+
+### Global State Sync (Alignment Guides)
+- `currentStyle` and `currentDirection` live in `AlignmentGuides` singleton
+- On spacebar/tab: active window performs action, singleton reads back state
+- On activation: new window receives current style/direction via `activate()`
+
+### Cursor Position Initialization
+On `activate()`, initialize `lastCursorPosition` using
+`NSEvent.mouseLocation - screenBounds.origin` to avoid (0,0) artifacts.
+
+---
+
+## 14. CursorManager
+
+Centralized state machine (`CursorManager.swift`) with 4 states:
+
+```
+systemCrosshair → hidden → pointingHand
+                         → crosshairDrag
+```
+
+- **systemCrosshair**: launch state, cursor rects manage crosshair
+- **hidden**: after first mouse move, NSCursor.hide(), CAShapeLayer renders
+- **pointingHand**: hovering a selection/guide line
+- **crosshairDrag**: during drag-to-select
+
+Key methods:
+- `transitionToHidden()` — first mouse move
+- `transitionToPointingHand()` / `transitionToPointingHandFromSystem()` — hover
+- `transitionBackToHidden()` / `transitionBackToSystem()` — un-hover
+- `transitionToCrosshairDrag()` — drag start
+- `restore()` — unconditional cleanup (balanced pop/unhide all counters)
+- `reset()` — for multi-monitor window re-setup
+
+SIGTERM handler in both singletons calls `CursorManager.shared.restore()`.
+
+---
+
+## 15. Swift Bridge Pattern
 
 TypeScript:
 ```typescript
+// design-ruler.ts
 import { inspect } from "swift:../swift/Ruler";
-await inspect(preferences.hideHintBar);
+await inspect(hideHintBar ?? false, corrections ?? "smart");
+
+// alignment-guides.ts
+import { alignmentGuides } from "swift:../swift/Ruler";
+await alignmentGuides(hideHintBar ?? false);
 ```
 
 Swift:
 ```swift
-import RaycastSwiftMacros
+// Ruler.swift
+@raycast func inspect(hideHintBar: Bool, corrections: String) {
+    Ruler.shared.run(hideHintBar: hideHintBar, corrections: corrections)
+}
 
-@raycast func inspect(hideHintBar: Bool) {
-    Ruler.shared.run(hideHintBar: hideHintBar)
+// AlignmentGuides.swift
+@raycast func alignmentGuides(hideHintBar: Bool) {
+    AlignmentGuides.shared.run(hideHintBar: hideHintBar)
 }
 ```
 
 ---
 
-## 15. Testing Checklist
+## 16. Learned Anti-Patterns
 
+Bugs encountered and fixed — avoid re-introducing these:
+
+- **Stabilization vs old reference**: In `ColorMap.scanDirection()`, compare
+  stabilization pixels against the CANDIDATE color, not the old reference.
+  With tolerance=1, the old reference always differs → stabilization never
+  succeeds → lines disappear.
+
+- **Remove-state stuck after deletion**: After `removeLine()`, immediately
+  call `resetRemoveMode()` and `updatePreview()` to correctly reset the
+  preview state. Otherwise the preview line stays in "Remove" mode.
+
+- **Cursor position (0,0) on non-cursor monitors**: Initialize
+  `lastCursorPosition` in `activate()` using `NSEvent.mouseLocation`
+  converted to window-local coords. Without this, UI elements appear at
+  (0,0) until the first mouse move on that screen.
+
+- **hitTest/addCursorRect scope**: When subclassing NSWindow with a
+  `PassthroughView` content view, carefully manage `hitTest`, `bounds`
+  scope, and `invalidateCursorRects` — these are common sources of
+  compilation errors.
+
+---
+
+## 17. Testing Checklist
+
+### Design Ruler
 - [ ] Launches on the screen where cursor is (not always main)
-- [ ] No visible focus steal
+- [ ] No visible focus steal (capture-before-window works)
 - [ ] Screenshot is crisp (Retina)
 - [ ] Crosshair visible on both light and dark backgrounds
 - [ ] Lines extend to edges or screen boundaries in all 4 directions
@@ -345,13 +516,32 @@ import RaycastSwiftMacros
 - [ ] W×H pill correct, flips at screen edges
 - [ ] Arrow keys skip edges; shift+arrow reverses
 - [ ] Mouse move resets skip counts
+- [ ] Drag-to-select snaps to edges, minimum 4x4px enforced
+- [ ] Hover selection shows pointing hand, click removes
+- [ ] Smart/include/none corrections preference works
 - [ ] ESC exits silently
+
+### Alignment Guides
+- [ ] Preview line follows cursor (vertical by default)
+- [ ] Tab toggles vertical ↔ horizontal
+- [ ] Click places guide line with position pill
+- [ ] Spacebar cycles through 5 color presets
+- [ ] Color circle indicator appears and auto-hides
+- [ ] Hover placed line: red+dashed, "Remove" pill, pointing hand cursor
+- [ ] Click hovered line removes with shrink animation
+- [ ] ESC exits silently
+
+### Shared
+- [ ] Multi-monitor: windows on all screens, cursor activates correct one
+- [ ] Hint bar expanded → collapsed after 3s
 - [ ] Hint bar at bottom, shifts to top when cursor near bottom
-- [ ] hideHintBar preference works
+- [ ] Hint bar clears MacBook notch when at top
+- [ ] hideHintBar preference works (both commands)
 - [ ] CPU stays low (<5%) during mouse movement
 - [ ] System crosshair cursor visible on launch (before mouse move)
-- [ ] Crosshair cursor disappears on first mouse move
-- [ ] Pill shows "0000 × 0000" on launch, fades in
-- [ ] Pill animates smoothly (bg + text) when flipping sides near edges
+- [ ] Crosshair/resize cursor disappears on first mouse move
+- [ ] 10-minute inactivity auto-exit works
+- [ ] SIGTERM restores cursor state cleanly
+- [ ] Pill shows "0000 × 0000" on launch, fades in (design ruler)
+- [ ] Pill animates smoothly when flipping sides near edges
 - [ ] Hint bar slides (not jumps) when swapping top/bottom
-- [ ] Hint bar clears MacBook notch when at top
