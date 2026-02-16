@@ -1,11 +1,19 @@
 import SwiftUI
 
+// MARK: - Mode
+
+enum HintBarMode {
+    case inspect
+    case alignmentGuides
+}
+
 // MARK: - Observable State
 
 final class HintBarState: ObservableObject {
     @Published var pressedKeys: Set<HintBarView.KeyID> = []
     @Published var isOnLightBackground: Bool = false
     @Published var isCollapsed: Bool = false
+    @Published var mode: HintBarMode = .inspect
 }
 
 // MARK: - Root Content
@@ -16,22 +24,43 @@ struct HintBarContent: View {
     private var isDark: Bool { !state.isOnLightBackground }
 
     var body: some View {
-        HStack(spacing: 6) {
-            text("Use")
-            ArrowCluster(state: state)
-            text("to skip edges, plus")
-            KeyCap(.shift, symbol: "\u{21E7}", width: 40, height: 25,
-                   symbolFont: .system(size: 16, weight: .bold, design: .rounded),
-                   symbolTracking: -0.2, align: .bottomLeading, state: state)
-            text("to reverse.")
-            KeyCap(.esc, symbol: "esc", width: 32, height: 25,
-                   symbolFont: .system(size: 13, weight: .bold, design: .rounded),
-                   symbolTracking: -0.2, align: .center, state: state,
-                   tint: escTint, tintFill: Color(nsColor: NSColor(srgbRed: 1, green: 0, blue: 0, alpha: 0.1)))
-            exitText("to exit.")
+        if state.mode == .inspect {
+            HStack(spacing: 6) {
+                text("Use")
+                ArrowCluster(state: state)
+                text("to skip edges, plus")
+                KeyCap(.shift, symbol: "\u{21E7}", width: 40, height: 25,
+                       symbolFont: .system(size: 16, weight: .bold, design: .rounded),
+                       symbolTracking: -0.2, align: .bottomLeading, state: state)
+                text("to reverse.")
+                KeyCap(.esc, symbol: "esc", width: 32, height: 25,
+                       symbolFont: .system(size: 13, weight: .bold, design: .rounded),
+                       symbolTracking: -0.2, align: .center, state: state,
+                       tint: escTint, tintFill: Color(nsColor: NSColor(srgbRed: 1, green: 0, blue: 0, alpha: 0.1)))
+                exitText("to exit.")
+            }
+            .padding(.horizontal, 16)
+            .frame(height: 48)
+        } else {
+            HStack(spacing: 6) {
+                text("Press")
+                KeyCap(.tab, symbol: "⇥", width: 32, height: 25,
+                       symbolFont: .system(size: 13, weight: .bold, design: .rounded),
+                       symbolTracking: -0.2, align: .center, state: state)
+                text("to switch direction,")
+                KeyCap(.space, symbol: "space", width: 48, height: 25,
+                       symbolFont: .system(size: 11, weight: .bold, design: .rounded),
+                       symbolTracking: -0.2, align: .center, state: state)
+                text("to change color.")
+                KeyCap(.esc, symbol: "esc", width: 32, height: 25,
+                       symbolFont: .system(size: 13, weight: .bold, design: .rounded),
+                       symbolTracking: -0.2, align: .center, state: state,
+                       tint: escTint, tintFill: Color(nsColor: NSColor(srgbRed: 1, green: 0, blue: 0, alpha: 0.1)))
+                exitText("to exit.")
+            }
+            .padding(.horizontal, 16)
+            .frame(height: 48)
         }
-        .padding(.horizontal, 16)
-        .frame(height: 48)
     }
 
     private var escTint: Color {
@@ -66,6 +95,23 @@ struct CollapsedLeftContent: View {
             KeyCap(.shift, symbol: "\u{21E7}", width: 40, height: 25,
                    symbolFont: .system(size: 16, weight: .bold, design: .rounded),
                    symbolTracking: -0.2, align: .bottomLeading, state: state)
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 48)
+    }
+}
+
+struct CollapsedAlignmentGuidesLeftContent: View {
+    @ObservedObject var state: HintBarState
+
+    var body: some View {
+        HStack(spacing: 6) {
+            KeyCap(.tab, symbol: "⇥", width: 32, height: 25,
+                   symbolFont: .system(size: 13, weight: .bold, design: .rounded),
+                   symbolTracking: -0.2, align: .center, state: state)
+            KeyCap(.space, symbol: "space", width: 48, height: 25,
+                   symbolFont: .system(size: 11, weight: .bold, design: .rounded),
+                   symbolTracking: -0.2, align: .center, state: state)
         }
         .padding(.horizontal, 10)
         .frame(height: 48)
@@ -122,29 +168,56 @@ struct HintBarGlassRoot: View {
     private var glassLayer: some View {
         GlassEffectContainer {
             if !state.isCollapsed {
-                HStack(spacing: 6) {
-                    text("Use")
-                    ArrowCluster(state: state).opacity(0)
-                    text("to skip edges, plus")
-                    shiftCap.opacity(0)
-                    text("to reverse.")
-                    escCap.opacity(0)
-                    exitText("to exit.")
-                }
-                .padding(.horizontal, 16)
-                .frame(height: 48)
-                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .glassEffectID("bar", in: morphNS)
-            } else {
-                HStack(spacing: 8) {
+                if state.mode == .inspect {
                     HStack(spacing: 6) {
+                        text("Use")
                         ArrowCluster(state: state).opacity(0)
+                        text("to skip edges, plus")
                         shiftCap.opacity(0)
+                        text("to reverse.")
+                        escCap.opacity(0)
+                        exitText("to exit.")
                     }
-                    .padding(.horizontal, 10)
+                    .padding(.horizontal, 16)
                     .frame(height: 48)
                     .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .glassEffectID("left", in: morphNS)
+                    .glassEffectID("bar", in: morphNS)
+                } else {
+                    HStack(spacing: 6) {
+                        text("Press")
+                        tabCap.opacity(0)
+                        text("to switch direction,")
+                        spaceCap.opacity(0)
+                        text("to change color.")
+                        escCap.opacity(0)
+                        exitText("to exit.")
+                    }
+                    .padding(.horizontal, 16)
+                    .frame(height: 48)
+                    .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .glassEffectID("bar", in: morphNS)
+                }
+            } else {
+                HStack(spacing: 8) {
+                    if state.mode == .inspect {
+                        HStack(spacing: 6) {
+                            ArrowCluster(state: state).opacity(0)
+                            shiftCap.opacity(0)
+                        }
+                        .padding(.horizontal, 10)
+                        .frame(height: 48)
+                        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .glassEffectID("left", in: morphNS)
+                    } else {
+                        HStack(spacing: 6) {
+                            tabCap.opacity(0)
+                            spaceCap.opacity(0)
+                        }
+                        .padding(.horizontal, 10)
+                        .frame(height: 48)
+                        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .glassEffectID("left", in: morphNS)
+                    }
 
                     escCap.opacity(0)
                         .padding(.horizontal, 10)
@@ -160,20 +233,37 @@ struct HintBarGlassRoot: View {
     /// Text is `.opacity(0)` for spacing; when removed, keycaps slide together.
     private var keycapLayer: some View {
         HStack(spacing: state.isCollapsed ? 8 : 6) {
-            HStack(spacing: 6) {
-                if !state.isCollapsed {
-                    text("Use").opacity(0)
+            if state.mode == .inspect {
+                HStack(spacing: 6) {
+                    if !state.isCollapsed {
+                        text("Use").opacity(0)
+                    }
+                    ArrowCluster(state: state)
+                    if !state.isCollapsed {
+                        text("to skip edges, plus").opacity(0)
+                    }
+                    shiftCap
+                    if !state.isCollapsed {
+                        text("to reverse.").opacity(0)
+                    }
                 }
-                ArrowCluster(state: state)
-                if !state.isCollapsed {
-                    text("to skip edges, plus").opacity(0)
+                .padding(.horizontal, state.isCollapsed ? 10 : 0)
+            } else {
+                HStack(spacing: 6) {
+                    if !state.isCollapsed {
+                        text("Press").opacity(0)
+                    }
+                    tabCap
+                    if !state.isCollapsed {
+                        text("to switch direction,").opacity(0)
+                    }
+                    spaceCap
+                    if !state.isCollapsed {
+                        text("to change color.").opacity(0)
+                    }
                 }
-                shiftCap
-                if !state.isCollapsed {
-                    text("to reverse.").opacity(0)
-                }
+                .padding(.horizontal, state.isCollapsed ? 10 : 0)
             }
-            .padding(.horizontal, state.isCollapsed ? 10 : 0)
 
             HStack(spacing: 6) {
                 escCap
@@ -193,6 +283,18 @@ struct HintBarGlassRoot: View {
         KeyCap(.shift, symbol: "\u{21E7}", width: 40, height: 25,
                symbolFont: .system(size: 16, weight: .bold, design: .rounded),
                symbolTracking: -0.2, align: .bottomLeading, state: state)
+    }
+
+    private var tabCap: some View {
+        KeyCap(.tab, symbol: "⇥", width: 32, height: 25,
+               symbolFont: .system(size: 13, weight: .bold, design: .rounded),
+               symbolTracking: -0.2, align: .center, state: state)
+    }
+
+    private var spaceCap: some View {
+        KeyCap(.space, symbol: "space", width: 48, height: 25,
+               symbolFont: .system(size: 11, weight: .bold, design: .rounded),
+               symbolTracking: -0.2, align: .center, state: state)
     }
 
     private var escCap: some View {

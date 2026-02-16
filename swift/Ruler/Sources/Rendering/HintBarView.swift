@@ -8,7 +8,7 @@ final class HintBarView: NSView {
     // MARK: - Public key identifiers
 
     enum KeyID: Hashable, CaseIterable {
-        case up, down, left, right, shift, esc
+        case up, down, left, right, shift, esc, tab, space
     }
 
     enum BarState {
@@ -28,7 +28,7 @@ final class HintBarView: NSView {
     private var glassPanel: NSView?
     private var hostingView: NSHostingView<HintBarContent>?
     private var leftCollapsedPanel: NSView?
-    private var leftHostingView: NSHostingView<CollapsedLeftContent>?
+    private var leftHostingView: NSView?  // Can be either CollapsedLeftContent or CollapsedAlignmentGuidesLeftContent
     private var rightCollapsedPanel: NSView?
     private var rightHostingView: NSHostingView<CollapsedRightContent>?
     private var escTintLayer = CALayer()
@@ -92,12 +92,17 @@ final class HintBarView: NSView {
         glass.addSubview(hosting)
         self.hostingView = hosting
 
-        // Left collapsed panel (arrows + shift)
+        // Left collapsed panel (mode-dependent content)
         let leftGlass = makeGlassPanel(cornerRadius: 14)
         self.leftCollapsedPanel = leftGlass
         addSubview(leftGlass)
 
-        let leftContent = NSHostingView(rootView: CollapsedLeftContent(state: state))
+        let leftContent: NSView
+        if state.mode == .alignmentGuides {
+            leftContent = NSHostingView(rootView: CollapsedAlignmentGuidesLeftContent(state: state))
+        } else {
+            leftContent = NSHostingView(rootView: CollapsedLeftContent(state: state))
+        }
         leftContent.autoresizingMask = [.width, .height]
         leftGlass.addSubview(leftContent)
         self.leftHostingView = leftContent
@@ -153,6 +158,12 @@ final class HintBarView: NSView {
 
     func pressKey(_ key: KeyID) { state.pressedKeys.insert(key) }
     func releaseKey(_ key: KeyID) { state.pressedKeys.remove(key) }
+
+    // MARK: - Public API: mode setting
+
+    func setMode(_ mode: HintBarMode) {
+        state.mode = mode
+    }
 
     // MARK: - Public API: bar state
 
