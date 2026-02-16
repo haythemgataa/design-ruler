@@ -151,13 +151,19 @@ final class AlignmentGuidesWindow: NSWindow {
     }
 
     func activate(firstMoveAlreadyReceived: Bool, currentStyle: GuideLineStyle) {
+        // Initialize cursor position for this window (critical for non-cursor-window screens)
+        let mouse = NSEvent.mouseLocation
+        lastCursorPosition = NSPoint(
+            x: mouse.x - screenBounds.origin.x,
+            y: mouse.y - screenBounds.origin.y
+        )
+
         guideLineManager.setPreviewStyle(currentStyle)
         guideLineManager.showPreview()  // Restore preview visibility
-        let mouse = NSEvent.mouseLocation
-        let wp = NSPoint(x: mouse.x - screenBounds.origin.x, y: mouse.y - screenBounds.origin.y)
-        guideLineManager.updatePreview(at: wp)
+        guideLineManager.updatePreview(at: lastCursorPosition)
+
         if hintBarView.superview != nil {
-            hintBarView.updatePosition(cursorY: wp.y, screenHeight: screenBounds.height)
+            hintBarView.updatePosition(cursorY: lastCursorPosition.y, screenHeight: screenBounds.height)
         }
     }
 
