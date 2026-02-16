@@ -199,4 +199,10 @@ final class GuideLineManager {
         }
         hoveredLine = nil
     }
+
+    /// Reset preview line state after a removal.
+    func resetRemoveMode() {
+        previewLine.isInRemoveMode = false
+        previewLine.setLineVisible(true)
+    }
 }

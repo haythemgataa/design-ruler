@@ -133,7 +133,7 @@ final class ColorCircleIndicator {
                 let smallD = circleRadius * 2
                 oldLayer.bounds = CGRect(x: 0, y: 0, width: smallD, height: smallD)
                 oldLayer.cornerRadius = circleRadius
-                oldLayer.borderWidth = 1
+                oldLayer.borderWidth = 2
                 oldLayer.shadowPath = CGPath(ellipseIn: CGRect(x: 0, y: 0, width: smallD, height: smallD), transform: nil)
                 if oldActiveIndex == 0 {
                     updateDynamicPresetSize(oldLayer, radius: circleRadius)
@@ -145,7 +145,7 @@ final class ColorCircleIndicator {
             let bigD = activeRadius * 2
             newLayer.bounds = CGRect(x: 0, y: 0, width: bigD, height: bigD)
             newLayer.cornerRadius = activeRadius
-            newLayer.borderWidth = 2
+            newLayer.borderWidth = 3
             newLayer.shadowPath = CGPath(ellipseIn: CGRect(x: 0, y: 0, width: bigD, height: bigD), transform: nil)
             if activeIndex == 0 {
                 updateDynamicPresetSize(newLayer, radius: activeRadius)
@@ -208,9 +208,9 @@ final class ColorCircleIndicator {
             layer.shadowOpacity = 0.25
             layer.shadowPath = CGPath(ellipseIn: CGRect(x: 0, y: 0, width: d, height: d), transform: nil)
 
-            // Border (1px white, all circles)
+            // Border (2px white inactive, 3px active)
             layer.borderColor = CGColor(gray: 1.0, alpha: 1.0)
-            layer.borderWidth = 1
+            layer.borderWidth = 2
             layer.cornerRadius = circleRadius
 
             containerLayer.addSublayer(layer)
@@ -234,7 +234,7 @@ final class ColorCircleIndicator {
 
         let center = CGPoint(x: radius, y: radius)
 
-        // Left half (black) — semicircle arc path
+        // Left half (#292929) — semicircle arc path
         let leftHalf = CAShapeLayer()
         leftHalf.frame = CGRect(x: 0, y: 0, width: d, height: d)
         let leftPath = CGMutablePath()
@@ -242,9 +242,9 @@ final class ColorCircleIndicator {
         leftPath.addArc(center: center, radius: radius, startAngle: .pi / 2, endAngle: -.pi / 2, clockwise: false)
         leftPath.closeSubpath()
         leftHalf.path = leftPath
-        leftHalf.fillColor = CGColor(gray: 0, alpha: 1.0)
+        leftHalf.fillColor = CGColor(srgbRed: 0x29/255.0, green: 0x29/255.0, blue: 0x29/255.0, alpha: 1.0)
 
-        // Right half (white) — semicircle arc path
+        // Right half (#E2E2E2) — semicircle arc path
         let rightHalf = CAShapeLayer()
         rightHalf.frame = CGRect(x: 0, y: 0, width: d, height: d)
         let rightPath = CGMutablePath()
@@ -252,7 +252,7 @@ final class ColorCircleIndicator {
         rightPath.addArc(center: center, radius: radius, startAngle: -.pi / 2, endAngle: .pi / 2, clockwise: false)
         rightPath.closeSubpath()
         rightHalf.path = rightPath
-        rightHalf.fillColor = CGColor(gray: 1.0, alpha: 1.0)
+        rightHalf.fillColor = CGColor(srgbRed: 0xE2/255.0, green: 0xE2/255.0, blue: 0xE2/255.0, alpha: 1.0)
 
         container.addSublayer(leftHalf)
         container.addSublayer(rightHalf)
@@ -302,7 +302,7 @@ final class ColorCircleIndicator {
 
             layer.bounds = CGRect(x: 0, y: 0, width: d, height: d)
             layer.cornerRadius = radius
-            layer.borderWidth = isActive ? 2 : 1
+            layer.borderWidth = isActive ? 3 : 2
             layer.shadowPath = CGPath(ellipseIn: CGRect(x: 0, y: 0, width: d, height: d), transform: nil)
 
             if i == 0 {

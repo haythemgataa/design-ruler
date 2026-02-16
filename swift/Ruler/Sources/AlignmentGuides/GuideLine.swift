@@ -100,7 +100,7 @@ final class GuideLine {
 
         // Set initial opacity for preview vs placed
         if isPreview {
-            let opacity: Float = 0.7
+            let opacity: Float = 1.0
             pillBgLayer.opacity = opacity
             pillLabelLayer.opacity = opacity
             pillValueLayer.opacity = opacity
@@ -170,7 +170,7 @@ final class GuideLine {
             labelAttr = labelText(label)
             valueAttr = valueText(value)
             bgColor = CGColor(gray: 0, alpha: 0.8)
-            pillOpacity = 0.7
+            pillOpacity = 1.0
         }
 
         let labelW = ceil(labelAttr.size().width)
