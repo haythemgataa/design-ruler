@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-16)
 ## Current Position
 
 Phase: 11 of 11
-Plan: 1 of 2 complete
-Status: Executing Phase 11
-Last activity: 2026-02-16 — Completed 11-01-PLAN.md
+Plan: 2 of 2 complete
+Status: Phase 11 Complete
+Last activity: 2026-02-16 — Completed 11-02-PLAN.md
 
 ## Performance Metrics
 
@@ -27,9 +27,9 @@ Last activity: 2026-02-16 — Completed 11-01-PLAN.md
 - Total execution time: ~53min
 
 **Velocity (v1.2):**
-- Total plans completed: 4
-- Average duration: 3min 40s
-- Total execution time: ~14min 42s
+- Total plans completed: 5
+- Average duration: 3min 37s
+- Total execution time: ~18min 14s
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
@@ -41,6 +41,7 @@ Last activity: 2026-02-16 — Completed 11-01-PLAN.md
 | 10    | 01   | 2min 40s | 2     | 4     |
 | 10    | 02   | 1min 32s | 2     | 3     |
 | 11    | 01   | 3min 50s | 2     | 5     |
+| 11    | 02   | 3min 32s | 2     | 3     |
 
 ## Accumulated Context
 
@@ -54,6 +55,9 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 11]: Preview pill opacity set to 1.0 for visual consistency with inspect command
 - [Phase 11]: Color circle borders use 2px inactive / 3px active for better visual hierarchy
 - [Phase 11]: Dynamic circle uses #292929 and #E2E2E2 instead of pure black/white for softer appearance
+- [Phase 11]: Hint bar only shown on cursor screen (not all screens) to avoid visual clutter
+- [Phase 11]: 3-second minimum expanded duration before collapse (matching inspect command)
+- [Phase 11]: Global color state in AlignmentGuides singleton, synced to windows on activation
 
 ### Pending Todos
 
@@ -66,5 +70,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-16
-Stopped at: Completed 11-01-PLAN.md
-Resume file: .planning/phases/11-hint-bar-multi-monitor-polish/11-02-PLAN.md
+Stopped at: Completed 11-02-PLAN.md (Phase 11 Complete)
+Resume file: None (all plans complete)
