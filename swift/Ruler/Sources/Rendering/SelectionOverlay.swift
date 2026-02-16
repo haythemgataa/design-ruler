@@ -1,5 +1,4 @@
 import AppKit
-import CoreText
 import QuartzCore
 
 /// A single selection overlay: rectangle outline + dimension pill.
@@ -16,8 +15,7 @@ final class SelectionOverlay {
     // Layers
     let rectLayer = CAShapeLayer()
     let fillLayer = CAShapeLayer()
-    let pillBgLayer = CAShapeLayer()
-    let pillTextLayer = CATextLayer()
+    private var pill: PillRenderer.SelectionPill!
 
     // Colors
     private let normalStroke = CGColor(gray: 1.0, alpha: 1.0)
@@ -35,22 +33,8 @@ final class SelectionOverlay {
     private let slideDistance: CGFloat = 4  // intro animation slide
     private let clampMargin: CGFloat = 4   // shadow: radius=3 + offset.y=1
 
-    // Squircle kappa (same as CrosshairView)
-    private let k: CGFloat = 0.72
-
     // Font — SF Pro 11px Semibold with same OpenType features as inspector pill
-    private static let font: NSFont = {
-        let base = NSFont.systemFont(ofSize: 11, weight: .semibold)
-        let tags = ["ss01", "ss02", "cv01", "cv02", "cv08", "cv12", "lnum", "tnum"]
-        let features: [[String: Any]] = tags.map { tag in
-            [kCTFontOpenTypeFeatureTag as String: tag, kCTFontOpenTypeFeatureValue as String: 1]
-        }
-        let desc = CTFontDescriptorCreateWithAttributes(
-            [kCTFontFeatureSettingsAttribute: features] as CFDictionary
-        )
-        let ctFont = CTFontCreateCopyWithAttributes(base as CTFont, 11, nil, desc)
-        return ctFont as NSFont
-    }()
+    private static let font = PillRenderer.makeDesignFont(size: 11)
 
     init(rect: CGRect, parentLayer: CALayer, scale: CGFloat) {
         self.rect = rect
@@ -73,27 +57,8 @@ final class SelectionOverlay {
         rectLayer.compositingFilter = BlendMode.difference
         parentLayer.addSublayer(rectLayer)
 
-        // Pill background
-        pillBgLayer.fillColor = normalPillBg
-        pillBgLayer.strokeColor = nil
-        pillBgLayer.shadowColor = DesignTokens.Shadow.color
-        pillBgLayer.shadowOffset = DesignTokens.Shadow.offset
-        pillBgLayer.shadowRadius = DesignTokens.Shadow.radius
-        pillBgLayer.shadowOpacity = DesignTokens.Shadow.opacity
-        parentLayer.addSublayer(pillBgLayer)
-
-        // Pill text
-        pillTextLayer.font = Self.font
-        pillTextLayer.fontSize = 12
-        pillTextLayer.foregroundColor = CGColor(gray: 1.0, alpha: 1.0)
-        pillTextLayer.alignmentMode = .center
-        pillTextLayer.truncationMode = .none
-        pillTextLayer.contentsScale = scale
-        parentLayer.addSublayer(pillTextLayer)
-
-        // Start hidden (shown after snap)
-        pillBgLayer.opacity = 0
-        pillTextLayer.opacity = 0
+        // Pill (background + text layer created by factory, starts hidden)
+        pill = PillRenderer.makeSelectionPill(parentLayer: parentLayer, scale: scale)
     }
 
     /// Update the selection rectangle (during drag or snap).
@@ -134,15 +99,15 @@ final class SelectionOverlay {
         setDimensionsText(w: w, h: h)
         CATransaction.instant {
             layoutPill()
-            pillBgLayer.opacity = 1
-            pillTextLayer.opacity = 1
+            pill.bgLayer.opacity = 1
+            pill.textLayer.opacity = 1
         }
 
         // Explicit slide-down + fade-in from offset position
         let duration: CFTimeInterval = 0.2
         let timing = CAMediaTimingFunction(name: .easeOut)
 
-        for layer in [pillBgLayer, pillTextLayer] as [CALayer] {
+        for layer in [pill.bgLayer, pill.textLayer] as [CALayer] {
             let slide = CABasicAnimation(keyPath: "position.y")
             slide.fromValue = layer.position.y + slideDistance
             slide.toValue = layer.position.y
@@ -168,7 +133,7 @@ final class SelectionOverlay {
             rectLayer.strokeColor = hovered ? hoveredStroke : normalStroke
             rectLayer.compositingFilter = hovered ? nil : BlendMode.difference
             fillLayer.fillColor = hovered ? hoveredFill : normalFill
-            pillBgLayer.fillColor = hovered ? hoveredPillBg : normalPillBg
+            pill.bgLayer.fillColor = hovered ? hoveredPillBg : normalPillBg
 
             if hovered {
                 setClearText()
@@ -200,7 +165,7 @@ final class SelectionOverlay {
         group.fillMode = .forwards
         group.isRemovedOnCompletion = false
 
-        let layers: [CALayer] = [rectLayer, fillLayer, pillBgLayer, pillTextLayer]
+        let layers: [CALayer] = [rectLayer, fillLayer, pill.bgLayer, pill.textLayer]
 
         CATransaction.begin()
         CATransaction.setCompletionBlock {
@@ -214,7 +179,7 @@ final class SelectionOverlay {
     }
 
     func remove(animated: Bool) {
-        let layers: [CALayer] = [rectLayer, fillLayer, pillBgLayer, pillTextLayer]
+        let layers: [CALayer] = [rectLayer, fillLayer, pill.bgLayer, pill.textLayer]
         if animated {
             CATransaction.begin()
             CATransaction.setAnimationDuration(DesignTokens.Animation.fast)
@@ -253,7 +218,7 @@ final class SelectionOverlay {
         str.append(NSAttributedString(string: "\(w)", attributes: attrs))
         str.append(NSAttributedString(string: " \u{00D7} ", attributes: dimAttrs))
         str.append(NSAttributedString(string: "\(h)", attributes: attrs))
-        pillTextLayer.string = str
+        pill.textLayer.string = str
     }
 
     private func setClearText() {
@@ -262,14 +227,14 @@ final class SelectionOverlay {
             .foregroundColor: NSColor.white,
             .kern: DesignTokens.Pill.kerning,
         ]
-        pillTextLayer.string = NSAttributedString(string: "Clear", attributes: attrs)
+        pill.textLayer.string = NSAttributedString(string: "Clear", attributes: attrs)
         layoutPill()
     }
 
     // MARK: - Pill layout
 
     private func layoutPill() {
-        guard let str = pillTextLayer.string as? NSAttributedString else { return }
+        guard let str = pill.textLayer.string as? NSAttributedString else { return }
         let textSize = str.size()
         let pillW = ceil(textSize.width) + pillPadH * 2
         let textH = ceil(textSize.height)
@@ -289,55 +254,11 @@ final class SelectionOverlay {
         pillY = min(max(pillY, clampMargin), max(clampMargin, maxY))
 
         let pillRect = CGRect(x: pillX, y: pillY, width: pillW, height: pillHeight)
-        pillBgLayer.frame = pillRect
-        pillBgLayer.path = squirclePath(rect: CGRect(origin: .zero, size: pillRect.size),
-                                         radius: pillRadius)
+        pill.bgLayer.frame = pillRect
+        pill.bgLayer.path = PillRenderer.squirclePath(rect: CGRect(origin: .zero, size: pillRect.size),
+                                                       radius: pillRadius)
 
         let textY = round(pillY + (pillHeight - textH) / 2)
-        pillTextLayer.frame = CGRect(x: pillX, y: textY, width: pillW, height: textH)
-    }
-
-    // MARK: - Squircle path
-
-    /// Rounded rect with continuous (squircle) corners.
-    private func squirclePath(rect: CGRect, radius: CGFloat) -> CGPath {
-        let r = min(radius, min(rect.width, rect.height) / 2)
-        let path = CGMutablePath()
-
-        // Top edge
-        path.move(to: CGPoint(x: rect.minX + r, y: rect.maxY))
-        path.addLine(to: CGPoint(x: rect.maxX - r, y: rect.maxY))
-
-        // Top-right
-        path.addCurve(to: CGPoint(x: rect.maxX, y: rect.maxY - r),
-                      control1: CGPoint(x: rect.maxX - r * (1 - k), y: rect.maxY),
-                      control2: CGPoint(x: rect.maxX, y: rect.maxY - r * (1 - k)))
-
-        // Right edge
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY + r))
-
-        // Bottom-right
-        path.addCurve(to: CGPoint(x: rect.maxX - r, y: rect.minY),
-                      control1: CGPoint(x: rect.maxX, y: rect.minY + r * (1 - k)),
-                      control2: CGPoint(x: rect.maxX - r * (1 - k), y: rect.minY))
-
-        // Bottom edge
-        path.addLine(to: CGPoint(x: rect.minX + r, y: rect.minY))
-
-        // Bottom-left
-        path.addCurve(to: CGPoint(x: rect.minX, y: rect.minY + r),
-                      control1: CGPoint(x: rect.minX + r * (1 - k), y: rect.minY),
-                      control2: CGPoint(x: rect.minX, y: rect.minY + r * (1 - k)))
-
-        // Left edge
-        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY - r))
-
-        // Top-left
-        path.addCurve(to: CGPoint(x: rect.minX + r, y: rect.maxY),
-                      control1: CGPoint(x: rect.minX, y: rect.maxY - r * (1 - k)),
-                      control2: CGPoint(x: rect.minX + r * (1 - k), y: rect.maxY))
-
-        path.closeSubpath()
-        return path
+        pill.textLayer.frame = CGRect(x: pillX, y: textY, width: pillW, height: textH)
     }
 }

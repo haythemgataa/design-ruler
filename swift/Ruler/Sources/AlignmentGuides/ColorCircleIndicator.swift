@@ -223,10 +223,7 @@ final class ColorCircleIndicator {
             let wrapper = CALayer()
             let d = circleRadius * 2
             wrapper.bounds = CGRect(x: 0, y: 0, width: d, height: d)
-            wrapper.shadowColor = CGColor(gray: 0, alpha: 1.0)
-            wrapper.shadowOffset = CGSize(width: 0, height: -1)
-            wrapper.shadowRadius = 3
-            wrapper.shadowOpacity = 0.25
+            PillRenderer.applyCircleShadow(to: wrapper)
             wrapper.shadowPath = CGPath(ellipseIn: CGRect(x: 0, y: 0, width: d, height: d), transform: nil)
 
             // Position circle at center of wrapper
