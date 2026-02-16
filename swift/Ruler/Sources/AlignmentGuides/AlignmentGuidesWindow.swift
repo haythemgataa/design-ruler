@@ -157,10 +157,35 @@ final class AlignmentGuidesWindow: NSWindow {
 
         let windowPoint = event.locationInWindow
         guideLineManager.updatePreview(at: windowPoint)
+
+        // Update hover state and cursor
+        guideLineManager.updateHover(at: windowPoint)
+
+        if guideLineManager.hasHoveredLine {
+            if CursorManager.shared.state != .pointingHand {
+                CursorManager.shared.transitionToPointingHandFromSystem()
+            }
+        } else {
+            if CursorManager.shared.state == .pointingHand {
+                CursorManager.shared.transitionBackToSystem()
+                updateCursor()  // Re-invalidate cursor rects to restore resize cursor
+            }
+        }
     }
 
     override func mouseDown(with event: NSEvent) {
         onActivity?()
+        let windowPoint = event.locationInWindow
+
+        // Hover-first conflict resolution: if hovering a line, remove it instead of placing
+        if guideLineManager.hasHoveredLine {
+            guideLineManager.removeLine(guideLineManager.hoveredLine!, clickPoint: windowPoint)
+            // Revert cursor after removal
+            CursorManager.shared.transitionBackToSystem()
+            updateCursor()
+            return  // Early return — do NOT place a new guide
+        }
+
         guideLineManager.placeGuide()
     }
 

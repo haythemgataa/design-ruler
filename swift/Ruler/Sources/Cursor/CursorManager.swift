@@ -63,6 +63,22 @@ final class CursorManager {
         }
     }
 
+    /// Transition to pointing hand from system crosshair (for alignment guides hover).
+    func transitionToPointingHandFromSystem() {
+        guard state == .systemCrosshair else { return }
+        NSCursor.pointingHand.push()
+        pushCount += 1
+        state = .pointingHand
+    }
+
+    /// Transition back to system crosshair from pointing hand (for alignment guides unhover).
+    func transitionBackToSystem() {
+        guard state == .pointingHand else { return }
+        NSCursor.pop()
+        pushCount = max(pushCount - 1, 0)
+        state = .systemCrosshair
+    }
+
     /// Unconditional cleanup for all exit paths.
     /// Pops all pushed cursors and unhides all hidden levels.
     func restore() {
