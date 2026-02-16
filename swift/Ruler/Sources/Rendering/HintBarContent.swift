@@ -44,12 +44,12 @@ struct HintBarContent: View {
         } else {
             HStack(spacing: 6) {
                 text("Press")
-                KeyCap(.tab, symbol: "⇥", width: 32, height: 25,
+                KeyCap(.tab, symbol: "⇥", width: 40, height: 25,
                        symbolFont: .system(size: 13, weight: .bold, design: .rounded),
                        symbolTracking: -0.2, align: .center, state: state)
                 text("to switch direction,")
-                KeyCap(.space, symbol: "\u{2423}", width: 64, height: 25,
-                       symbolFont: .system(size: 16, weight: .bold, design: .rounded),
+                KeyCap(.space, symbol: "space", width: 64, height: 25,
+                       symbolFont: .system(size: 12, weight: .bold, design: .rounded),
                        symbolTracking: -0.2, align: .center, state: state)
                 text("to change color.")
                 KeyCap(.esc, symbol: "esc", width: 32, height: 25,
@@ -106,11 +106,11 @@ struct CollapsedAlignmentGuidesLeftContent: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            KeyCap(.tab, symbol: "⇥", width: 32, height: 25,
+            KeyCap(.tab, symbol: "⇥", width: 40, height: 25,
                    symbolFont: .system(size: 13, weight: .bold, design: .rounded),
                    symbolTracking: -0.2, align: .center, state: state)
-            KeyCap(.space, symbol: "\u{2423}", width: 64, height: 25,
-                   symbolFont: .system(size: 16, weight: .bold, design: .rounded),
+            KeyCap(.space, symbol: "space", width: 64, height: 25,
+                   symbolFont: .system(size: 12, weight: .bold, design: .rounded),
                    symbolTracking: -0.2, align: .center, state: state)
         }
         .padding(.horizontal, 10)
@@ -286,14 +286,14 @@ struct HintBarGlassRoot: View {
     }
 
     private var tabCap: some View {
-        KeyCap(.tab, symbol: "⇥", width: 32, height: 25,
+        KeyCap(.tab, symbol: "⇥", width: 40, height: 25,
                symbolFont: .system(size: 13, weight: .bold, design: .rounded),
                symbolTracking: -0.2, align: .center, state: state)
     }
 
     private var spaceCap: some View {
-        KeyCap(.space, symbol: "\u{2423}", width: 64, height: 25,
-               symbolFont: .system(size: 16, weight: .bold, design: .rounded),
+        KeyCap(.space, symbol: "space", width: 64, height: 25,
+               symbolFont: .system(size: 12, weight: .bold, design: .rounded),
                symbolTracking: -0.2, align: .center, state: state)
     }
 
@@ -431,15 +431,18 @@ private struct KeyCap: View {
     @ViewBuilder
     private var capLabel: some View {
         if id == .tab {
-            // Composite tab symbol: arrow + pipe at 11px
+            // Composite tab symbol: arrow + pipe at bottom-left
             HStack(spacing: 0) {
                 Text("\u{2192}")
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
                     .foregroundColor(accentColor)
                 Text("|")
                     .font(.system(size: 11, weight: .bold, design: .rounded))
                     .foregroundColor(accentColor)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+            .padding(.leading, 3)
+            .padding(.bottom, 1)
         } else {
             let label = Text(symbol)
                 .font(symbolFont)
