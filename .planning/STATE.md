@@ -5,14 +5,13 @@
 See: .planning/PROJECT.md (updated 2026-02-16)
 
 **Core value:** Instant, accurate pixel inspection of anything on screen — zero friction from Raycast invoke to dimension readout.
-**Current focus:** v1.2 Alignment Guides — Phase 11: Hint Bar + Multi-Monitor + Polish
+**Current focus:** Planning next milestone
 
 ## Current Position
 
-Phase: 11 of 11
-Plan: 6 of 6 complete
-Status: Phase 11 Complete
-Last activity: 2026-02-16 — Completed 11-06-PLAN.md (gap closure)
+Phase: All phases complete (v1.0, v1.1, v1.2 shipped)
+Status: Milestone v1.2 Alignment Guides completed
+Last activity: 2026-02-16 — Milestone v1.2 archived
 
 ## Performance Metrics
 
@@ -33,10 +32,6 @@ Last activity: 2026-02-16 — Completed 11-06-PLAN.md (gap closure)
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
-| 06    | 01   | 43s      | 1     | 1     |
-| 07    | 01   | 31min    | 2     | 4     |
-| 07    | 02   | 19min    | 3     | 2     |
-| 08    | 01   | 2min     | 2     | 3     |
 | 09    | 01   | 7min     | 6     | 7     |
 | 10    | 01   | 2min 40s | 2     | 4     |
 | 10    | 02   | 1min 32s | 2     | 3     |
@@ -51,26 +46,7 @@ Last activity: 2026-02-16 — Completed 11-06-PLAN.md (gap closure)
 
 ### Decisions
 
-Decisions are logged in PROJECT.md Key Decisions table.
-- [Phase 10]: Hover threshold set to ~5px for comfortable line selection
-- [Phase 10]: Pointing hand cursor from systemCrosshair state (no hidden intermediate)
-- [Phase 10]: Arc span set to 108 degrees for comfortable visual spread without overlap
-- [Phase 10]: Per-line color semantics: new lines use current style, existing lines unchanged
-- [Phase 11]: Preview pill opacity set to 1.0 for visual consistency with inspect command
-- [Phase 11]: Color circle borders use 2px inactive / 3px active for better visual hierarchy
-- [Phase 11]: Dynamic circle uses #292929 and #E2E2E2 instead of pure black/white for softer appearance
-- [Phase 11]: Hint bar only shown on cursor screen (not all screens) to avoid visual clutter
-- [Phase 11]: 3-second minimum expanded duration before collapse (matching inspect command)
-- [Phase 11]: Global color state in AlignmentGuides singleton, synced to windows on activation
-- [Phase 11-03]: Single background view per window eliminates Z-order conflicts
-- [Phase 11-03]: Initialize cursor position from NSEvent.mouseLocation in showInitialState()
-- [Phase 11-03]: Preview line lifecycle tied to window activation/deactivation
-- [Phase 11]: Wrapper layer pattern for shadows with masksToBounds (shadow incompatible with masksToBounds on same layer)
-- [Phase 11]: Composite tab symbol (arrow+pipe) instead of unsupported ⇥ glyph in SF Pro Rounded
-- [Phase 11-05]: Use mainScreen.frame.height as reference for coordinate conversion (matches EdgeDetector pattern)
-- [Phase 11]: Initialize cursor position in activate() for non-cursor windows (not just showInitialState)
-- [Phase 11]: Tab keycap composite uses .bottomLeading alignment for proper positioning
-- [Phase 11]: Space keycap uses "space" text instead of ␣ symbol for better rendering
+All decisions logged in PROJECT.md Key Decisions table.
 
 ### Pending Todos
 
@@ -83,5 +59,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-16
-Stopped at: Completed 11-06-PLAN.md (gap closure - multi-monitor cursor tracking + keycap rendering)
-Resume file: None (Phase 11 complete)
+Stopped at: Milestone v1.2 completed and archived
+Resume file: None
