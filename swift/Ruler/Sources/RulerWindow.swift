@@ -115,6 +115,9 @@ final class RulerWindow: NSWindow {
             y: mouseLocation.y - screenBounds.origin.y
         )
         crosshairView.showInitialPill(at: windowPoint)
+        if hintBarView.superview != nil {
+            hintBarView.animateEntrance()
+        }
     }
 
     // MARK: - Multi-monitor activation
