@@ -35,3 +35,21 @@
 
 ---
 
+
+## v1.2 Alignment Guides (Shipped: 2026-02-16)
+
+**Phases completed:** 3 phases (9-11), 9 plans, 23 tasks
+**Timeline:** 6 days (Feb 10 - Feb 16, 2026)
+**Codebase:** 4,741 LOC Swift (1,630 new for alignment guides)
+**Git range:** `1d2a8f8`..`144075c`
+
+**Key accomplishments:**
+- End-to-end alignment guides feature: preview line with difference blend, Tab direction toggle, click placement with position pills, resize cursor
+- Hover-to-remove interaction with 5px hit testing, red+dashed visual feedback, pointing hand cursor, and shrink-toward-click animation
+- Color cycling with 5 presets (dynamic, red, green, orange, blue) and arc-based visual indicator with debounced auto-hide
+- Multi-monitor support with capture-before-window for all screens, global color state sync via callbacks
+- Hint bar content infrastructure with HintBarMode enum supporting both inspect and alignment guides keycaps
+- Polish: remove-state bug fix, color circle borders/animation, keycap rendering, multi-monitor coordinate conversion
+
+---
+

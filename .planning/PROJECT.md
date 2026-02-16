@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A macOS pixel inspector launched from Raycast. The user invokes it, a fullscreen overlay appears (frozen screenshot), and a crosshair follows the cursor showing detected edges in 4 directions with live W×H dimensions. Arrow keys skip past edges. Users can drag to select and snap regions. Multi-monitor support with per-screen capture. Hint bar with liquid glass morph animation on launch.
+A macOS pixel inspector launched from Raycast. Two commands: (1) **Design Ruler** — crosshair with edge detection, W×H dimensions, arrow-key skip, drag-to-snap selections. (2) **Alignment Guides** — place vertical/horizontal guide lines to verify element alignment, color cycling, hover-to-remove, position pills. Both use fullscreen frozen overlays with per-screen multi-monitor capture, GPU-composited CAShapeLayer rendering, and liquid glass hint bars.
 
 ## Core Value
 
@@ -35,10 +35,13 @@ Instant, accurate pixel inspection of anything on screen — zero friction from 
 - ✓ Bar split animation: full text → two keycap-only bars (arrows+shift left, esc right) — v1.1
 - ✓ Liquid glass on macOS 26+, vibrancy fallback on older versions — v1.1
 - ✓ Remove backspace-dismiss / ? re-enable system (preference-only hide) — v1.1
-
-### Active
-
-(None — planning next milestone)
+- ✓ Alignment guides: preview line with Tab direction toggle — v1.2
+- ✓ Click placement with position pills (X/Y coordinates) — v1.2
+- ✓ Spacebar color cycling (dynamic, red, green, orange, blue) with arc indicator — v1.2
+- ✓ Hover-to-remove with 5px hit testing, red+dashed feedback, shrink animation — v1.2
+- ✓ Pointing hand cursor on hover, resize cursor matching direction — v1.2
+- ✓ Multi-monitor alignment guides with global color sync — v1.2
+- ✓ HintBarMode system supporting both inspect and alignment guides keycaps — v1.2
 
 ### Out of Scope
 
@@ -56,7 +59,9 @@ Instant, accurate pixel inspection of anything on screen — zero friction from 
 - macOS 13+ minimum, Swift 5.9+, AppKit + CoreGraphics + QuartzCore + SwiftUI
 - CGWindowListCreateImage has a cold-start penalty on macOS 26; mitigated by 1x1 warmup capture
 - Coordinate system duality: AppKit (bottom-left origin) for UI, CG (top-left origin) for pixel scanning
-- Shipped v1.1 Hint Bar Redesign with 8,267 LOC Swift across 8 phases
+- Shipped v1.2 Alignment Guides with 4,741 LOC Swift across 11 phases (3 milestones)
+- Two commands: `design-ruler` (inspect) and `alignment-guides` (guides)
+- Shared utilities: CoordinateConverter, PermissionChecker, HintBarView, CursorManager
 - Existing codebase map at `.planning/codebase/` (7 documents, mapped 2026-02-13)
 
 ## Constraints
@@ -75,7 +80,7 @@ Instant, accurate pixel inspection of anything on screen — zero friction from 
 | Single EdgeDetector class (capture + scan + skip) | Avoids wrapper indirection, keeps state co-located | ✓ Good |
 | CAShapeLayer with difference blend for crosshair | GPU composited, visible on any background | ✓ Good |
 | Smart border correction as default | Automatically absorbs 1px CSS borders using 4px grid heuristic | ✓ Good |
-| Per-screen window creation (not lazy) | Simpler coordination, all screens ready immediately | — Pending |
+| Per-screen window creation (not lazy) | Simpler coordination, all screens ready immediately | ✓ Good |
 | Removed fputs entirely (not #if DEBUG gated) | Raycast always builds debug config, so the flag provides zero protection | ✓ Good |
 | Singleton CursorManager.shared | NSCursor is inherently global state; matches existing Ruler.shared pattern | ✓ Good |
 | State enum for cursor (4 cases) | Prevents impossible state combinations vs scattered boolean flags | ✓ Good |
@@ -86,6 +91,13 @@ Instant, accurate pixel inspection of anything on screen — zero friction from 
 | SwiftUI GlassEffectContainer morph (macOS 26+) | Native liquid glass split animation; two-layer rendering hack enables smooth keycap sliding + glass split | ✓ Good |
 | 3-second minimum expanded display | Ensures users can read hint text before collapse on first mouse move | ✓ Good |
 | NSAnimationContext crossfade fallback (pre-macOS 26) | Simple, reliable animation without SwiftUI glass APIs | ✓ Good |
+| Separate AlignmentGuides classes (not extending inspect) | Inspect code too coupled to edge detection; clean separation avoids refactor | ✓ Good |
+| 5px hover threshold for guide line removal | Comfortable selection without false positives; perpendicular distance calculation | ✓ Good |
+| Per-line color retention | New lines use current style; existing placed lines keep their original color | ✓ Good |
+| Global color state in AlignmentGuides singleton | Synced to windows on activation via callbacks; consistent across monitors | ✓ Good |
+| Arc-based color indicator (108-degree span) | Comfortable visual spread without overlap; screen edge clamping flips direction | ✓ Good |
+| HintBarMode enum for dual-command support | Single HintBarView class serves both inspect and alignment guides with mode-specific content | ✓ Good |
+| Composite tab keycap (arrow+pipe) | ⇥ glyph unsupported in SF Pro Rounded; composite renders correctly | ✓ Good |
 
 ---
-*Last updated: 2026-02-14 after v1.1 milestone*
+*Last updated: 2026-02-16 — after v1.2 Alignment Guides milestone*

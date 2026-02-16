@@ -2,16 +2,16 @@
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-02-14)
+See: .planning/PROJECT.md (updated 2026-02-16)
 
 **Core value:** Instant, accurate pixel inspection of anything on screen — zero friction from Raycast invoke to dimension readout.
 **Current focus:** Planning next milestone
 
 ## Current Position
 
-Phase: 8 of 8
-Status: v1.1 Hint Bar Redesign milestone complete and archived
-Last activity: 2026-02-14 — Milestone v1.1 archived
+Phase: All phases complete (v1.0, v1.1, v1.2 shipped)
+Status: Milestone v1.2 Alignment Guides completed
+Last activity: 2026-02-16 — Milestone v1.2 archived
 
 ## Performance Metrics
 
@@ -25,18 +25,28 @@ Last activity: 2026-02-14 — Milestone v1.1 archived
 - Average duration: 13min
 - Total execution time: ~53min
 
+**Velocity (v1.2):**
+- Total plans completed: 9
+- Average duration: 2min 38s
+- Total execution time: ~24min 57s
+
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
-| 06    | 01   | 43s      | 1     | 1     |
-| 07    | 01   | 31min    | 2     | 4     |
-| 07    | 02   | 19min    | 3     | 2     |
-| 08    | 01   | 2min     | 2     | 3     |
+| 09    | 01   | 7min     | 6     | 7     |
+| 10    | 01   | 2min 40s | 2     | 4     |
+| 10    | 02   | 1min 32s | 2     | 3     |
+| 11    | 01   | 3min 50s | 2     | 5     |
+| 11    | 02   | 3min 32s | 2     | 3     |
+| 11    | 03   | 1min 56s | 2     | 3     |
+| 11    | 04   | 2min 41s | 2     | 2     |
+| 11    | 05   | 39s      | 1     | 1     |
+| 11    | 06   | 1min 27s | 2     | 2     |
 
 ## Accumulated Context
 
 ### Decisions
 
-Decisions are logged in PROJECT.md Key Decisions table.
+All decisions logged in PROJECT.md Key Decisions table.
 
 ### Pending Todos
 
@@ -48,6 +58,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-14
-Stopped at: v1.1 milestone completed and archived
+Last session: 2026-02-16
+Stopped at: Milestone v1.2 completed and archived
 Resume file: None

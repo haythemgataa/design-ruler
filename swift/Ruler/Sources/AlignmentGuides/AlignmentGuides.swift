@@ -1,37 +1,37 @@
 import AppKit
 import RaycastSwiftMacros
 
-@raycast func inspect(hideHintBar: Bool, corrections: String) {
+@raycast func alignmentGuides(hideHintBar: Bool) {
     // Warm up CGWindowListCreateImage connection (1x1 capture absorbs cold-start penalty)
     _ = CGWindowListCreateImage(
         CGRect(x: 0, y: 0, width: 1, height: 1),
         .optionOnScreenOnly, kCGNullWindowID, .bestResolution
     )
 
-    Ruler.shared.run(hideHintBar: hideHintBar, corrections: corrections)
+    AlignmentGuides.shared.run(hideHintBar: hideHintBar)
 }
 
-final class Ruler {
-    static let shared = Ruler()
-    private var windows: [RulerWindow] = []
-    private weak var activeWindow: RulerWindow?
-    private weak var cursorWindow: RulerWindow?
+final class AlignmentGuides {
+    static let shared = AlignmentGuides()
+    private var windows: [AlignmentGuidesWindow] = []
+    private weak var activeWindow: AlignmentGuidesWindow?
+    private weak var cursorWindow: AlignmentGuidesWindow?
     private var firstMoveReceived = false
     private var launchTime: CFAbsoluteTime = 0
     private let minExpandedDuration: TimeInterval = 3
     private var inactivityTimer: Timer?
     private let inactivityTimeout: TimeInterval = 600 // 10 minutes
     private var sigTermSource: DispatchSourceSignal?
+    private(set) var currentStyle: GuideLineStyle = .dynamic
+    private var currentDirection: Direction = .vertical
 
     private init() {}
 
-    func run(hideHintBar: Bool, corrections: String) {
+    func run(hideHintBar: Bool) {
         // Check permissions
         if !PermissionChecker.hasScreenRecordingPermission() {
             PermissionChecker.requestScreenRecordingPermission()
         }
-
-        let correctionMode = CorrectionMode(rawValue: corrections) ?? .smart
 
         // Find screen where cursor is
         let mouseLocation = NSEvent.mouseLocation
@@ -39,14 +39,11 @@ final class Ruler {
             NSMouseInRect(mouseLocation, screen.frame, false)
         } ?? NSScreen.main!
 
-        // Capture ALL screens BEFORE creating any windows
-        // (preserves "capture before window" pattern — no overlay in screenshots)
-        var captures: [(screen: NSScreen, detector: EdgeDetector, image: CGImage?)] = []
+        // CRITICAL: Capture ALL screens BEFORE creating ANY windows
+        var captures: [(screen: NSScreen, image: CGImage?)] = []
         for screen in NSScreen.screens {
-            let detector = EdgeDetector()
-            detector.correctionMode = correctionMode
-            let cgImage = detector.capture(screen: screen)
-            captures.append((screen, detector, cgImage))
+            let cgImage = captureScreen(screen)
+            captures.append((screen, cgImage))
         }
 
         let app = NSApplication.shared
@@ -60,37 +57,46 @@ final class Ruler {
         windows.removeAll()
         activeWindow = nil
         firstMoveReceived = false
+        currentStyle = .dynamic  // Reset shared color state
+        currentDirection = .vertical
 
-        // Create one RulerWindow per screen
-        // Hint bar only on the screen where the cursor was at launch
+        // Create one window per screen
         for capture in captures {
             let isCursorScreen = capture.screen === cursorScreen
-            let rulerWindow = RulerWindow.create(
+            let window = AlignmentGuidesWindow.create(
                 for: capture.screen,
-                edgeDetector: capture.detector,
-                hideHintBar: isCursorScreen ? hideHintBar : true,
-                screenshot: capture.image
+                screenshot: capture.image,
+                hideHintBar: isCursorScreen ? hideHintBar : true  // Hint bar only on cursor screen
             )
 
-            if let cgImage = capture.image {
-                rulerWindow.setBackground(cgImage)
-            }
-
             // Wire callbacks
-            rulerWindow.onActivate = { [weak self] window in
+            // Wire callbacks
+            window.onActivate = { [weak self] window in
                 self?.activateWindow(window)
             }
-            rulerWindow.onRequestExit = { [weak self] in
+            window.onRequestExit = { [weak self] in
                 self?.handleExit()
             }
-            rulerWindow.onFirstMove = { [weak self] in
+            window.onFirstMove = { [weak self] in
                 self?.handleFirstMove()
             }
-            rulerWindow.onActivity = { [weak self] in
+            window.onActivity = { [weak self] in
                 self?.resetInactivityTimer()
             }
+            window.onSpacebarPressed = { [weak self] in
+                self?.handleSpacebar()
+            }
+            window.onSpacebarReleased = { [weak self] in
+                self?.activeWindow?.releaseSpaceKey()
+            }
+            window.onTabPressed = { [weak self] in
+                self?.handleTab()
+            }
+            window.onTabReleased = { [weak self] in
+                self?.activeWindow?.releaseTabKey()
+            }
 
-            windows.append(rulerWindow)
+            windows.append(window)
         }
 
         // Show all windows
@@ -98,7 +104,7 @@ final class Ruler {
             window.orderFrontRegardless()
         }
 
-        // Make cursor's screen window key and show initial state
+        // Make cursor screen window key and show initial state
         let cw = windows.first { $0.targetScreen === cursorScreen } ?? windows.first!
         cw.makeKey()
         cw.showInitialState()
@@ -112,17 +118,48 @@ final class Ruler {
         app.run()
     }
 
-    private func activateWindow(_ window: RulerWindow) {
+    private func captureScreen(_ screen: NSScreen) -> CGImage? {
+        guard let mainScreen = NSScreen.screens.first else { return nil }
+        let frame = screen.frame
+        let mainHeight = mainScreen.frame.height
+
+        // Convert AppKit coords (bottom-left origin) to CG coords (top-left origin)
+        let cgRect = CGRect(
+            x: frame.origin.x,
+            y: mainHeight - frame.origin.y - frame.height,
+            width: frame.width,
+            height: frame.height
+        )
+
+        return CGWindowListCreateImage(
+            cgRect,
+            .optionOnScreenOnly,
+            kCGNullWindowID,
+            .bestResolution
+        )
+    }
+
+    private func activateWindow(_ window: AlignmentGuidesWindow) {
         resetInactivityTimer()
         guard window !== activeWindow else { return }
 
-        // Deactivate old window
         activeWindow?.deactivate()
-
-        // Activate new window
         activeWindow = window
         window.makeKey()
-        window.activate(firstMoveAlreadyReceived: firstMoveReceived)
+        window.activate(firstMoveAlreadyReceived: firstMoveReceived, currentStyle: currentStyle, currentDirection: currentDirection)
+    }
+
+    private func handleSpacebar() {
+        guard let window = activeWindow else { return }
+        window.performCycleStyle()
+        currentStyle = window.currentGuideLineStyle
+    }
+
+    private func handleTab() {
+        activeWindow?.performToggleDirection()
+        if let window = activeWindow {
+            currentDirection = window.currentGuideLineDirection
+        }
     }
 
     private func handleExit() {
@@ -135,8 +172,6 @@ final class Ruler {
 
     private func handleFirstMove() {
         firstMoveReceived = true
-        // Collapse hint bar from expanded (instructional text) to compact keycap-only bars,
-        // but ensure the expanded bar is visible for at least minExpandedDuration seconds
         let elapsed = CFAbsoluteTimeGetCurrent() - launchTime
         let remaining = minExpandedDuration - elapsed
         if remaining > 0 {

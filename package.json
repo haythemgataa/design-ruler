@@ -43,6 +43,23 @@
           ]
         }
       ]
+    },
+    {
+      "name": "alignment-guides",
+      "title": "Alignment Guides",
+      "description": "Place guide lines to verify element alignment",
+      "mode": "no-view",
+      "preferences": [
+        {
+          "name": "hideHintBar",
+          "type": "checkbox",
+          "title": "Hide Hint Bar",
+          "description": "Hide the keyboard shortcut hint bar",
+          "default": false,
+          "label": "Hide hint bar",
+          "required": false
+        }
+      ]
     }
   ],
   "dependencies": {
