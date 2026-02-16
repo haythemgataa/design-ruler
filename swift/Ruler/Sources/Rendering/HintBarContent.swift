@@ -439,6 +439,7 @@ private struct KeyCap: View {
                 Text("|")
                     .font(.system(size: 11, weight: .bold, design: .rounded))
                     .foregroundColor(accentColor)
+                    .offset(x: -2, y: -0.5)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
             .padding(.leading, 3)

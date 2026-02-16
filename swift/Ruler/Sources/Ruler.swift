@@ -15,6 +15,7 @@ final class Ruler {
     static let shared = Ruler()
     private var windows: [RulerWindow] = []
     private weak var activeWindow: RulerWindow?
+    private weak var cursorWindow: RulerWindow?
     private var firstMoveReceived = false
     private var launchTime: CFAbsoluteTime = 0
     private let minExpandedDuration: TimeInterval = 3
@@ -98,10 +99,11 @@ final class Ruler {
         }
 
         // Make cursor's screen window key and show initial state
-        let cursorWindow = windows.first { $0.targetScreen === cursorScreen } ?? windows.first!
-        cursorWindow.makeKey()
-        cursorWindow.showInitialState()
-        activeWindow = cursorWindow
+        let cw = windows.first { $0.targetScreen === cursorScreen } ?? windows.first!
+        cw.makeKey()
+        cw.showInitialState()
+        activeWindow = cw
+        cursorWindow = cw
 
         launchTime = CFAbsoluteTimeGetCurrent()
         NSApp.activate(ignoringOtherApps: true)
@@ -139,10 +141,10 @@ final class Ruler {
         let remaining = minExpandedDuration - elapsed
         if remaining > 0 {
             DispatchQueue.main.asyncAfter(deadline: .now() + remaining) { [weak self] in
-                self?.activeWindow?.collapseHintBar()
+                self?.cursorWindow?.collapseHintBar()
             }
         } else {
-            activeWindow?.collapseHintBar()
+            cursorWindow?.collapseHintBar()
         }
     }
 

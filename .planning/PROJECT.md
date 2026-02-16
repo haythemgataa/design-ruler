@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A macOS pixel inspector launched from Raycast. The user invokes it, a fullscreen overlay appears (frozen screenshot), and a crosshair follows the cursor showing detected edges in 4 directions with live W×H dimensions. Arrow keys skip past edges. Users can drag to select and snap regions. Multi-monitor support with per-screen capture. Hint bar with liquid glass morph animation on launch.
+A macOS pixel inspector launched from Raycast. Two commands: (1) **Design Ruler** — crosshair with edge detection, W×H dimensions, arrow-key skip, drag-to-snap selections. (2) **Alignment Guides** — place vertical/horizontal guide lines to verify element alignment, color cycling, position pills. Both use fullscreen frozen overlays with per-screen capture, GPU-composited CAShapeLayer rendering, and liquid glass hint bars.
 
 ## Core Value
 
@@ -36,9 +36,9 @@ Instant, accurate pixel inspection of anything on screen — zero friction from 
 - ✓ Liquid glass on macOS 26+, vibrancy fallback on older versions — v1.1
 - ✓ Remove backspace-dismiss / ? re-enable system (preference-only hide) — v1.1
 
-### Active
+### Active (v1.2 Alignment Guides)
 
-(None — planning next milestone)
+- REQ-AG-01 through REQ-AG-16 — see `.planning/REQUIREMENTS.md`
 
 ### Out of Scope
 
@@ -57,6 +57,7 @@ Instant, accurate pixel inspection of anything on screen — zero friction from 
 - CGWindowListCreateImage has a cold-start penalty on macOS 26; mitigated by 1x1 warmup capture
 - Coordinate system duality: AppKit (bottom-left origin) for UI, CG (top-left origin) for pixel scanning
 - Shipped v1.1 Hint Bar Redesign with 8,267 LOC Swift across 8 phases
+- v1.2 Alignment Guides: separate command, separate classes, reuses shared utilities
 - Existing codebase map at `.planning/codebase/` (7 documents, mapped 2026-02-13)
 
 ## Constraints
@@ -87,5 +88,7 @@ Instant, accurate pixel inspection of anything on screen — zero friction from 
 | 3-second minimum expanded display | Ensures users can read hint text before collapse on first mouse move | ✓ Good |
 | NSAnimationContext crossfade fallback (pre-macOS 26) | Simple, reliable animation without SwiftUI glass APIs | ✓ Good |
 
+| Separate AlignmentGuides classes (not extending inspect) | Inspect code too coupled to edge detection; clean separation avoids refactor | — Pending |
+
 ---
-*Last updated: 2026-02-14 after v1.1 milestone*
+*Last updated: 2026-02-16 — v1.2 Alignment Guides milestone started*

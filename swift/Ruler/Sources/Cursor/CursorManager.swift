@@ -29,7 +29,7 @@ final class CursorManager {
         state = .hidden
     }
 
-    /// Hover selection: show pointing hand cursor.
+    /// Hover selection: show pointing hand cursor (from hidden state).
     func transitionToPointingHand() {
         guard state == .hidden else { return }
         NSCursor.pointingHand.push()
@@ -37,6 +37,24 @@ final class CursorManager {
         NSCursor.unhide()
         hideCount = max(hideCount - 1, 0)
         state = .pointingHand
+    }
+
+    /// Hover selection: show pointing hand cursor (from system crosshair state).
+    /// Used by alignment guides where cursor rects manage resize cursors.
+    func transitionToPointingHandFromSystem() {
+        guard state == .systemCrosshair else { return }
+        NSCursor.pointingHand.push()
+        pushCount += 1
+        state = .pointingHand
+    }
+
+    /// Return to system cursor state from pointing hand.
+    /// Used by alignment guides to restore cursor-rect-managed resize cursors.
+    func transitionBackToSystem() {
+        guard state == .pointingHand else { return }
+        NSCursor.pop()
+        pushCount = max(pushCount - 1, 0)
+        state = .systemCrosshair
     }
 
     /// Start drag from hidden state: show system crosshair cursor.
@@ -61,22 +79,6 @@ final class CursorManager {
         default:
             break
         }
-    }
-
-    /// Transition to pointing hand from system crosshair (for alignment guides hover).
-    func transitionToPointingHandFromSystem() {
-        guard state == .systemCrosshair else { return }
-        NSCursor.pointingHand.push()
-        pushCount += 1
-        state = .pointingHand
-    }
-
-    /// Transition back to system crosshair from pointing hand (for alignment guides unhover).
-    func transitionBackToSystem() {
-        guard state == .pointingHand else { return }
-        NSCursor.pop()
-        pushCount = max(pushCount - 1, 0)
-        state = .systemCrosshair
     }
 
     /// Unconditional cleanup for all exit paths.

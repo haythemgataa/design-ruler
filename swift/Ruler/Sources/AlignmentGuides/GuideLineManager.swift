@@ -150,6 +150,11 @@ final class GuideLineManager {
         currentStyle = style
     }
 
+    /// Set preview line direction (for global direction sync across multi-monitor).
+    func setDirection(_ direction: Direction) {
+        currentDirection = direction
+    }
+
     /// Get current style value (for propagating to coordinator).
     var currentStyleValue: GuideLineStyle {
         currentStyle
@@ -201,12 +206,10 @@ final class GuideLineManager {
         return nearest
     }
 
-    /// Remove a placed line with shrink animation.
+    /// Remove a placed line immediately.
     func removeLine(_ line: GuideLine, clickPoint: NSPoint) {
-        line.shrinkToPoint(clickPoint, screenSize: screenSize) { [weak self] in
-            line.remove(animated: false)
-            self?.placedLines.removeAll { $0 === line }
-        }
+        line.remove(animated: false)
+        placedLines.removeAll { $0 === line }
         hoveredLine = nil
     }
 

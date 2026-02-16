@@ -25,7 +25,10 @@ final class AlignmentGuidesWindow: NSWindow {
     var onRequestExit: (() -> Void)?
     var onFirstMove: (() -> Void)?
     var onActivity: (() -> Void)?
-    var onStyleChanged: ((GuideLineStyle) -> Void)?
+    var onSpacebarPressed: (() -> Void)?
+    var onSpacebarReleased: (() -> Void)?
+    var onTabPressed: (() -> Void)?
+    var onTabReleased: (() -> Void)?
 
     /// Create a fullscreen alignment guides window for the given screen.
     static func create(for screen: NSScreen, screenshot: CGImage?, hideHintBar: Bool) -> AlignmentGuidesWindow {
@@ -109,7 +112,42 @@ final class AlignmentGuidesWindow: NSWindow {
             x: mouse.x - screenBounds.origin.x,
             y: mouse.y - screenBounds.origin.y
         )
+        guideLineManager.showPreview()
+        guideLineManager.updatePreview(at: lastCursorPosition)
+        setDirectionCursor()
         if hintBarView.superview != nil { hintBarView.animateEntrance() }
+    }
+
+    // MARK: - Coordinator-dispatched actions
+
+    /// Cycle color style (called by coordinator on the active window).
+    func performCycleStyle() {
+        if hintBarView.superview != nil { hintBarView.pressKey(.space) }
+        guideLineManager.cycleStyle(cursorPosition: lastCursorPosition)
+    }
+
+    func releaseSpaceKey() {
+        if hintBarView.superview != nil { hintBarView.releaseKey(.space) }
+    }
+
+    /// Toggle line direction (called by coordinator on the active window).
+    func performToggleDirection() {
+        if hintBarView.superview != nil { hintBarView.pressKey(.tab) }
+        guideLineManager.toggleDirection()
+        cursorDirection = guideLineManager.direction
+        updateCursor()
+    }
+
+    func releaseTabKey() {
+        if hintBarView.superview != nil { hintBarView.releaseKey(.tab) }
+    }
+
+    var currentGuideLineStyle: GuideLineStyle {
+        guideLineManager.currentStyleValue
+    }
+
+    var currentGuideLineDirection: Direction {
+        guideLineManager.direction
     }
 
     /// Collapse hint bar from expanded to compact keycap-only layout.
@@ -129,6 +167,12 @@ final class AlignmentGuidesWindow: NSWindow {
     private func updateCursor() {
         guard let cv = contentView else { return }
         invalidateCursorRects(for: cv)
+        setDirectionCursor()
+    }
+
+    private func setDirectionCursor() {
+        let cursor: NSCursor = cursorDirection == .vertical ? .resizeLeftRight : .resizeUpDown
+        cursor.set()
     }
 
     // MARK: - Multi-monitor activation (phase 11)
@@ -150,7 +194,7 @@ final class AlignmentGuidesWindow: NSWindow {
         }
     }
 
-    func activate(firstMoveAlreadyReceived: Bool, currentStyle: GuideLineStyle) {
+    func activate(firstMoveAlreadyReceived: Bool, currentStyle: GuideLineStyle, currentDirection: Direction) {
         // Initialize cursor position for this window (critical for non-cursor-window screens)
         let mouse = NSEvent.mouseLocation
         lastCursorPosition = NSPoint(
@@ -159,6 +203,9 @@ final class AlignmentGuidesWindow: NSWindow {
         )
 
         guideLineManager.setPreviewStyle(currentStyle)
+        guideLineManager.setDirection(currentDirection)
+        cursorDirection = currentDirection
+        updateCursor()
         guideLineManager.showPreview()  // Restore preview visibility
         guideLineManager.updatePreview(at: lastCursorPosition)
 
@@ -210,8 +257,8 @@ final class AlignmentGuidesWindow: NSWindow {
         } else {
             if CursorManager.shared.state == .pointingHand {
                 CursorManager.shared.transitionBackToSystem()
-                updateCursor()
             }
+            setDirectionCursor()
         }
     }
 
@@ -235,20 +282,13 @@ final class AlignmentGuidesWindow: NSWindow {
 
     override func keyDown(with event: NSEvent) {
         onActivity?()
-        let hintVisible = hintBarView.superview != nil
-
         switch Int(event.keyCode) {
-        case 48: // Tab
-            if hintVisible { hintBarView.pressKey(.tab) }
-            guideLineManager.toggleDirection()
-            cursorDirection = guideLineManager.direction
-            updateCursor()
-        case 49: // Spacebar
-            if hintVisible { hintBarView.pressKey(.space) }
-            guideLineManager.cycleStyle(cursorPosition: lastCursorPosition)
-            onStyleChanged?(guideLineManager.currentStyleValue)
+        case 48: // Tab — routed through coordinator to active window
+            onTabPressed?()
+        case 49: // Spacebar — routed through coordinator to active window
+            onSpacebarPressed?()
         case 53: // ESC
-            if hintVisible { hintBarView.pressKey(.esc) }
+            if hintBarView.superview != nil { hintBarView.pressKey(.esc) }
             onRequestExit?()
         default:
             break
@@ -256,10 +296,9 @@ final class AlignmentGuidesWindow: NSWindow {
     }
 
     override func keyUp(with event: NSEvent) {
-        guard hintBarView.superview != nil else { return }
         switch Int(event.keyCode) {
-        case 48: hintBarView.releaseKey(.tab)
-        case 49: hintBarView.releaseKey(.space)
+        case 48: onTabReleased?()
+        case 49: onSpacebarReleased?()
         default: break
         }
     }

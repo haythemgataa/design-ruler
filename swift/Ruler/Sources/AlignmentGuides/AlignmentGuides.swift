@@ -15,6 +15,7 @@ final class AlignmentGuides {
     static let shared = AlignmentGuides()
     private var windows: [AlignmentGuidesWindow] = []
     private weak var activeWindow: AlignmentGuidesWindow?
+    private weak var cursorWindow: AlignmentGuidesWindow?
     private var firstMoveReceived = false
     private var launchTime: CFAbsoluteTime = 0
     private let minExpandedDuration: TimeInterval = 3
@@ -22,6 +23,7 @@ final class AlignmentGuides {
     private let inactivityTimeout: TimeInterval = 600 // 10 minutes
     private var sigTermSource: DispatchSourceSignal?
     private(set) var currentStyle: GuideLineStyle = .dynamic
+    private var currentDirection: Direction = .vertical
 
     private init() {}
 
@@ -56,6 +58,7 @@ final class AlignmentGuides {
         activeWindow = nil
         firstMoveReceived = false
         currentStyle = .dynamic  // Reset shared color state
+        currentDirection = .vertical
 
         // Create one window per screen
         for capture in captures {
@@ -80,8 +83,17 @@ final class AlignmentGuides {
             window.onActivity = { [weak self] in
                 self?.resetInactivityTimer()
             }
-            window.onStyleChanged = { [weak self] newStyle in
-                self?.currentStyle = newStyle
+            window.onSpacebarPressed = { [weak self] in
+                self?.handleSpacebar()
+            }
+            window.onSpacebarReleased = { [weak self] in
+                self?.activeWindow?.releaseSpaceKey()
+            }
+            window.onTabPressed = { [weak self] in
+                self?.handleTab()
+            }
+            window.onTabReleased = { [weak self] in
+                self?.activeWindow?.releaseTabKey()
             }
 
             windows.append(window)
@@ -93,10 +105,11 @@ final class AlignmentGuides {
         }
 
         // Make cursor screen window key and show initial state
-        let cursorWindow = windows.first { $0.targetScreen === cursorScreen } ?? windows.first!
-        cursorWindow.makeKey()
-        cursorWindow.showInitialState()
-        activeWindow = cursorWindow
+        let cw = windows.first { $0.targetScreen === cursorScreen } ?? windows.first!
+        cw.makeKey()
+        cw.showInitialState()
+        activeWindow = cw
+        cursorWindow = cw
 
         launchTime = CFAbsoluteTimeGetCurrent()
         NSApp.activate(ignoringOtherApps: true)
@@ -133,7 +146,20 @@ final class AlignmentGuides {
         activeWindow?.deactivate()
         activeWindow = window
         window.makeKey()
-        window.activate(firstMoveAlreadyReceived: firstMoveReceived, currentStyle: currentStyle)
+        window.activate(firstMoveAlreadyReceived: firstMoveReceived, currentStyle: currentStyle, currentDirection: currentDirection)
+    }
+
+    private func handleSpacebar() {
+        guard let window = activeWindow else { return }
+        window.performCycleStyle()
+        currentStyle = window.currentGuideLineStyle
+    }
+
+    private func handleTab() {
+        activeWindow?.performToggleDirection()
+        if let window = activeWindow {
+            currentDirection = window.currentGuideLineDirection
+        }
     }
 
     private func handleExit() {
@@ -150,10 +176,10 @@ final class AlignmentGuides {
         let remaining = minExpandedDuration - elapsed
         if remaining > 0 {
             DispatchQueue.main.asyncAfter(deadline: .now() + remaining) { [weak self] in
-                self?.activeWindow?.collapseHintBar()
+                self?.cursorWindow?.collapseHintBar()
             }
         } else {
-            activeWindow?.collapseHintBar()
+            cursorWindow?.collapseHintBar()
         }
     }
 
