@@ -17,6 +17,9 @@ final class GuideLineManager {
     private var currentPosition: CGFloat = 0
     private var currentCursorAlongAxis: CGFloat = 0
 
+    // Hover state
+    private(set) var hoveredLine: GuideLine? = nil
+
     init(parentLayer: CALayer, scale: CGFloat, screenSize: CGSize) {
         self.parentLayer = parentLayer
         self.scale = scale
@@ -109,5 +112,56 @@ final class GuideLineManager {
     /// Get current direction for cursor management.
     var direction: Direction {
         currentDirection
+    }
+
+    /// Check for hover over placed lines.
+    var hasHoveredLine: Bool {
+        hoveredLine != nil
+    }
+
+    /// Update hover state based on cursor position.
+    func updateHover(at point: NSPoint) {
+        let newHovered = findNearestLine(to: point, within: 5.0)
+
+        if newHovered !== hoveredLine {
+            // Unhover old line
+            hoveredLine?.setHovered(false, cursorPosition: point)
+
+            // Hover new line
+            newHovered?.setHovered(true, cursorPosition: point)
+
+            hoveredLine = newHovered
+        }
+    }
+
+    /// Find nearest placed line to point within threshold.
+    private func findNearestLine(to point: NSPoint, within threshold: CGFloat) -> GuideLine? {
+        var nearest: GuideLine? = nil
+        var minDistance = threshold
+
+        for line in placedLines {
+            let distance: CGFloat
+            if line.direction == .vertical {
+                distance = abs(point.x - line.position)
+            } else {
+                distance = abs(point.y - line.position)
+            }
+
+            if distance < minDistance {
+                minDistance = distance
+                nearest = line
+            }
+        }
+
+        return nearest
+    }
+
+    /// Remove a placed line with shrink animation.
+    func removeLine(_ line: GuideLine, clickPoint: NSPoint) {
+        line.shrinkToPoint(clickPoint, screenSize: screenSize) { [weak self] in
+            line.remove(animated: false)
+            self?.placedLines.removeAll { $0 === line }
+        }
+        hoveredLine = nil
     }
 }

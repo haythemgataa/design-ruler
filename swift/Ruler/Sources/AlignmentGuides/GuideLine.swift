@@ -28,6 +28,10 @@ final class GuideLine {
     private weak var parentLayer: CALayer?
     private let scale: CGFloat
 
+    // Hover state
+    private var originalCoordinate: String = ""
+    private(set) var isHovered = false
+
     // Pill layout constants (matching CrosshairView)
     private let pillHeight: CGFloat = 24
     private let outerRadius: CGFloat = 8
@@ -146,6 +150,9 @@ final class GuideLine {
         let valueW = ceil(valueAttr.size().width)
         let textH = ceil(valueAttr.size().height)
 
+        // Cache coordinate for hover restore
+        originalCoordinate = "\(label) \(value)"
+
         let pillW = padLeft + labelW + labelValueGap + valueW + padRight
 
         // Position pill offset from line
@@ -203,6 +210,89 @@ final class GuideLine {
         pillBgLayer.opacity = opacity
         pillLabelLayer.opacity = opacity
         pillValueLayer.opacity = opacity
+        CATransaction.commit()
+    }
+
+    /// Set hover state: red + dashed line, "Remove" pill.
+    func setHovered(_ isHovered: Bool, cursorPosition: CGPoint) {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+
+        if isHovered {
+            self.isHovered = true
+
+            // Red dashed line
+            lineLayer.strokeColor = CGColor(srgbRed: 1.0, green: 0.35, blue: 0.35, alpha: 1.0)
+            lineLayer.lineDashPattern = [4, 3]
+            lineLayer.compositingFilter = nil  // Disable difference blend so red shows correctly
+
+            // Update pill to show "Remove"
+            pillLabelLayer.string = NSAttributedString(string: "", attributes: [:])
+            let removeAttr = NSAttributedString(string: "Remove", attributes: [
+                .font: Self.font,
+                .foregroundColor: NSColor.white,
+                .kern: -0.36 as CGFloat,
+            ])
+            pillValueLayer.string = removeAttr
+        } else {
+            self.isHovered = false
+
+            // Restore original style
+            lineLayer.strokeColor = style.color
+            lineLayer.lineDashPattern = nil
+            if style.useDifferenceBlend {
+                lineLayer.compositingFilter = "differenceBlendMode"
+            }
+
+            // Restore original pill text from cached coordinate
+            if !originalCoordinate.isEmpty {
+                let components = originalCoordinate.split(separator: " ")
+                if components.count == 2 {
+                    let label = String(components[0])
+                    let value = Int(components[1]) ?? 0
+                    pillLabelLayer.string = labelText(label)
+                    pillValueLayer.string = valueText(value)
+                }
+            }
+        }
+
+        CATransaction.commit()
+    }
+
+    /// Shrink line toward click point with fade out, then call completion.
+    func shrinkToPoint(_ clickPoint: CGPoint, screenSize: CGSize, completion: @escaping () -> Void) {
+        // Calculate anchor point based on direction
+        let newAnchor: CGPoint
+        if direction == .vertical {
+            newAnchor = CGPoint(x: 0.5, y: clickPoint.y / screenSize.height)
+        } else {
+            newAnchor = CGPoint(x: clickPoint.x / screenSize.width, y: 0.5)
+        }
+
+        // Adjust position to compensate for anchor point change (prevent visual jump)
+        let oldAnchor = lineLayer.anchorPoint
+        lineLayer.anchorPoint = newAnchor
+        lineLayer.position.x += (newAnchor.x - oldAnchor.x) * lineLayer.bounds.width
+        lineLayer.position.y += (newAnchor.y - oldAnchor.y) * lineLayer.bounds.height
+
+        // Create shrink animation
+        CATransaction.begin()
+        CATransaction.setAnimationDuration(0.2)
+        CATransaction.setAnimationTimingFunction(CAMediaTimingFunction(name: .easeIn))
+        CATransaction.setCompletionBlock(completion)
+
+        let scaleAnim = CABasicAnimation(keyPath: "transform.scale")
+        scaleAnim.fromValue = 1.0
+        scaleAnim.toValue = 0.0
+        scaleAnim.fillMode = .forwards
+        scaleAnim.isRemovedOnCompletion = false
+        lineLayer.add(scaleAnim, forKey: "shrink")
+
+        // Fade out pill layers
+        pillBgLayer.opacity = 0
+        pillLabelLayer.opacity = 0
+        pillValueLayer.opacity = 0
+
         CATransaction.commit()
     }
 
