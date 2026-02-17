@@ -27,19 +27,19 @@ TypeScript (thin wrappers, ~13 lines each)
   ├─ src/measure.ts       → import { inspect } from "swift:../swift/DesignRuler"
   └─ src/alignment-guides.ts → import { alignmentGuides } from "swift:../swift/DesignRuler"
        └─ Swift (all logic)
-            ├─ Measure.swift            — OverlayCoordinator subclass, Measure entry
-            ├─ MeasureWindow.swift      — OverlayWindow subclass, edge detection + drag
-            ├─ EdgeDetection/
+            ├─ Measure/
+            │   ├─ Measure.swift            — OverlayCoordinator subclass, Measure entry
+            │   ├─ MeasureWindow.swift      — OverlayWindow subclass, edge detection + drag
             │   ├─ EdgeDetector.swift       — capture + scan + skip state + smart corrections
             │   ├─ ColorMap.swift           — pixel buffer, color scanning, stabilization
-            │   └─ DirectionalEdges.swift   — EdgeHit + DirectionalEdges models
-            ├─ Rendering/
-            │   ├─ PillRenderer.swift       — shared pill factories, font, paths, text, shadows
+            │   ├─ DirectionalEdges.swift   — EdgeHit + DirectionalEdges models
             │   ├─ CrosshairView.swift      — 4 lines, cross-feet, W×H pill (via PillRenderer)
-            │   ├─ HintBarView.swift        — glass hint bar, slide animation, expand/collapse
-            │   ├─ HintBarContent.swift     — SwiftUI keycap layouts, HintBarTextStyle
             │   ├─ SelectionManager.swift   — drag lifecycle, edge snapping, hover tracking
             │   └─ SelectionOverlay.swift   — selection rendering, snap animation, shake
+            ├─ Rendering/
+            │   ├─ PillRenderer.swift       — shared pill factories, font, paths, text, shadows
+            │   ├─ HintBarView.swift        — glass hint bar, slide animation, expand/collapse
+            │   └─ HintBarContent.swift     — SwiftUI keycap layouts, HintBarTextStyle
             ├─ AlignmentGuides/
             │   ├─ AlignmentGuides.swift    — OverlayCoordinator subclass, alignment-guides entry
             │   ├─ AlignmentGuidesWindow.swift — OverlayWindow subclass, guide line management
