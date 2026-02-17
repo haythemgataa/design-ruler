@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-16)
 
 **Core value:** Instant, accurate pixel inspection of anything on screen — zero friction from Raycast invoke to dimension readout.
-**Current focus:** v1.3 Code Unification — Phase 14 in progress
+**Current focus:** v1.3 Code Unification — Phase 14 complete, ready for Phase 15
 
 ## Current Position
 
-Phase: 14 of 16 (Coordinator Base)
-Plan: 1 of 2 in current phase
-Status: In Progress
-Last activity: 2026-02-17 — Plan 14-01 complete (coordinator base, screen capture, rect conversions)
+Phase: 14 of 16 (Coordinator Base) - COMPLETE
+Plan: 2 of 2 in current phase
+Status: Phase Complete
+Last activity: 2026-02-17 — Plan 14-02 complete (Ruler/AlignmentGuides subclass OverlayCoordinator)
 
-Progress: [███████░░░] 65%
+Progress: [████████░░] 75%
 
 ## Performance Metrics
 
@@ -49,6 +49,7 @@ Progress: [███████░░░] 65%
 | 13    | 01   | 2min 18s | 2     | 1     |
 | 13    | 02   | 4min 1s  | 2     | 4     |
 | 14    | 01   | 2min 27s | 2     | 3     |
+| 14    | 02   | 2min 28s | 2     | 5     |
 
 ## Accumulated Context
 
@@ -60,6 +61,7 @@ All decisions logged in PROJECT.md Key Decisions table.
 - 13-01: makeDesignFont public for SelectionOverlay size-11 variant, applyCircleShadow as separate preset
 - 13-02: GuideLine Remove mode kept as position pill content/color swap, SelectionOverlay text formatting stays local
 - 14-01: Class-based coordinator (not protocol) for shared stored state; OverlayWindowProtocol for type-safe window access; warmup capture moved into run() sequence
+- 14-02: ObjectIdentifier keying for per-screen EdgeDetector storage; wireCallbacks fully overridden per subclass; AlignmentGuides uses base default captureAllScreens
 
 ### Pending Todos
 
@@ -72,5 +74,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-17
-Stopped at: Completed 14-01-PLAN.md
-Resume file: 14-02-PLAN.md
+Stopped at: Completed 14-02-PLAN.md (Phase 14 complete)
+Resume file: Next phase (15-window-base)
