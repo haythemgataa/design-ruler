@@ -24,11 +24,11 @@ Both commands support multi-monitor (one window per screen, cursor activates).
 
 ```
 TypeScript (thin wrappers, ~13 lines each)
-  ├─ src/measure.ts       → import { inspect } from "swift:../swift/Ruler"
-  └─ src/alignment-guides.ts → import { alignmentGuides } from "swift:../swift/Ruler"
+  ├─ src/measure.ts       → import { inspect } from "swift:../swift/DesignRuler"
+  └─ src/alignment-guides.ts → import { alignmentGuides } from "swift:../swift/DesignRuler"
        └─ Swift (all logic)
-            ├─ Ruler.swift              — OverlayCoordinator subclass, Measure entry
-            ├─ RulerWindow.swift        — OverlayWindow subclass, edge detection + drag
+            ├─ Measure.swift            — OverlayCoordinator subclass, Measure entry
+            ├─ MeasureWindow.swift      — OverlayWindow subclass, edge detection + drag
             ├─ EdgeDetection/
             │   ├─ EdgeDetector.swift       — capture + scan + skip state + smart corrections
             │   ├─ ColorMap.swift           — pixel buffer, color scanning, stabilization
@@ -162,7 +162,7 @@ Creating fullscreen windows steals focus — title bars gray out. Fix:
 // 2. Permission check
 // 3. Detect cursor screen (NSEvent.mouseLocation + NSMouseInRect)
 // 4. resetCommandState()
-// 5. captureAllScreens() — Ruler overrides to use EdgeDetector
+// 5. captureAllScreens() — Measure overrides to use EdgeDetector
 // 6. setActivationPolicy(.accessory)
 // 7. Cleanup old windows
 // 8. createWindow() per screen — subclass factory
@@ -369,7 +369,7 @@ prevents overlapping animations.
 
 ### Cursor on Launch
 - **Measure**: `CursorManager.shared.hide()` called in
-  `RulerWindow.showInitialState()`. Cursor is hidden immediately; the
+  `MeasureWindow.showInitialState()`. Cursor is hidden immediately; the
   CAShapeLayer crosshair renders from the start.
 - **Alignment Guides**: `CursorManager.shared.showResize(cursor)` called in
   `AlignmentGuidesWindow.showInitialState()`. Resize cursor visible immediately.
@@ -447,17 +447,17 @@ Guides: idle ─showResize()─▶ resize ◀─transitionBack()─ pointingHand
 ```
 
 - **idle**: default, no cursor modifications active
-- **hidden**: Ruler mode — cursor hidden, CAShapeLayer crosshair renders
+- **hidden**: Measure mode — cursor hidden, CAShapeLayer crosshair renders
 - **resize**: Guides mode — resize cursor (left-right or up-down)
 - **pointingHand**: hovering a selection/guide line
-- **crosshairDrag**: during drag-to-select (Ruler only)
+- **crosshairDrag**: during drag-to-select (Measure only)
 
 Uses `NSCursor.set()` (not push/pop) because borderless overlay windows
 override pushed cursors. `OverlayWindow.cursorUpdate(with:)` calls
 `CursorManager.applyCursor()` to re-apply on every system callback.
 
 Key methods:
-- `hide()` — Ruler launch (sets base state to .hidden)
+- `hide()` — Measure launch (sets base state to .hidden)
 - `showResize(_:)` — Guides launch (sets base state to .resize)
 - `updateResize(_:)` — swap resize cursor direction (Tab toggle)
 - `transitionToPointingHand()` — hover (from .hidden or .resize)
@@ -475,19 +475,19 @@ SIGTERM handler in `OverlayCoordinator` base calls `CursorManager.shared.restore
 TypeScript:
 ```typescript
 // measure.ts
-import { inspect } from "swift:../swift/Ruler";
+import { inspect } from "swift:../swift/DesignRuler";
 await inspect(hideHintBar ?? false, corrections ?? "smart");
 
 // alignment-guides.ts
-import { alignmentGuides } from "swift:../swift/Ruler";
+import { alignmentGuides } from "swift:../swift/DesignRuler";
 await alignmentGuides(hideHintBar ?? false);
 ```
 
 Swift:
 ```swift
-// Ruler.swift
+// Measure.swift
 @raycast func inspect(hideHintBar: Bool, corrections: String) {
-    Ruler.shared.run(hideHintBar: hideHintBar, corrections: corrections)
+    Measure.shared.run(hideHintBar: hideHintBar, corrections: corrections)
 }
 
 // AlignmentGuides.swift
@@ -552,7 +552,7 @@ Bugs encountered and fixed — avoid re-introducing these:
 - [ ] Hint bar clears MacBook notch when at top
 - [ ] hideHintBar preference works (both commands)
 - [ ] CPU stays low (<5%) during mouse movement
-- [ ] Ruler: cursor hidden on launch, CAShapeLayer crosshair visible
+- [ ] Measure: cursor hidden on launch, CAShapeLayer crosshair visible
 - [ ] Guides: resize cursor visible on launch
 - [ ] 10-minute inactivity auto-exit works
 - [ ] SIGTERM restores cursor state cleanly

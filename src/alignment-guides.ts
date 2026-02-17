@@ -1,5 +1,5 @@
 import { closeMainWindow, getPreferenceValues } from "@raycast/api";
-import { alignmentGuides } from "swift:../swift/Ruler";
+import { alignmentGuides } from "swift:../swift/DesignRuler";
 
 interface Preferences {
   hideHintBar: boolean;
