@@ -106,6 +106,7 @@ class OverlayWindow: NSWindow, OverlayWindowProtocol {
 
         if !hasReceivedFirstMove {
             hasReceivedFirstMove = true
+            willHandleFirstMove()
             onFirstMove?()
         }
 
@@ -129,11 +130,35 @@ class OverlayWindow: NSWindow, OverlayWindowProtocol {
         handleKeyDown(with: event)
     }
 
+    // MARK: - Subclass Helpers
+
+    /// Mark first move as received. For subclass activation paths where a sibling window
+    /// already processed the first move.
+    func markFirstMoveReceived() {
+        hasReceivedFirstMove = true
+    }
+
+    /// Initialize lastCursorPosition from current mouse location (window-local coords).
+    /// Used by subclasses in showInitialState/activate to avoid (0,0) artifacts.
+    func initCursorPosition() {
+        let mouse = NSEvent.mouseLocation
+        lastCursorPosition = NSPoint(
+            x: mouse.x - screenBounds.origin.x,
+            y: mouse.y - screenBounds.origin.y
+        )
+    }
+
     // MARK: - Overridable Hooks
 
     /// Called on mouseEntered. Subclasses override to call their typed onActivate callback.
     func handleActivation() {
         // Subclasses override to call their typed onActivate callback
+    }
+
+    /// Called immediately before onFirstMove?() on the very first mouse move.
+    /// RulerWindow overrides to hide the system crosshair cursor.
+    func willHandleFirstMove() {
+        // Subclasses override for first-move-specific setup
     }
 
     /// Called on mouseMoved after throttle, first-move detection, and cursor position tracking.

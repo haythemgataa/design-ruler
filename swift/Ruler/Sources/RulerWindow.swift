@@ -1,30 +1,21 @@
 import AppKit
 import QuartzCore
 
-/// Fullscreen borderless window that captures mouse and keyboard events.
-final class RulerWindow: NSWindow, OverlayWindowProtocol {
-    private(set) var targetScreen: NSScreen!
+/// Fullscreen overlay window for the Design Ruler command.
+/// Subclasses OverlayWindow for shared window config, tracking, throttle, hint bar, and ESC.
+/// Contains only: edge detection, crosshair rendering, selection/drag lifecycle, arrow keys.
+final class RulerWindow: OverlayWindow {
     private var edgeDetector: EdgeDetector!
     private var crosshairView: CrosshairView!
-    private var hintBarView: HintBarView!
     private var selectionManager: SelectionManager!
-    private var screenBounds: CGRect = .zero
-    private var lastMoveTime: Double = 0
-    private var hasReceivedFirstMove = false
     private var isDragging = false
     private var isHoveringSelection = false
 
-    // Callbacks for multi-monitor coordination
+    // Typed callback for multi-monitor activation
     var onActivate: ((RulerWindow) -> Void)?
-    var onRequestExit: (() -> Void)?
-    var onFirstMove: (() -> Void)?
-    var onActivity: (() -> Void)?
 
     /// Create a fullscreen ruler window for the given screen
     static func create(for screen: NSScreen, edgeDetector: EdgeDetector, hideHintBar: Bool, screenshot: CGImage? = nil) -> RulerWindow {
-        // Use visibleFrame with zero origin for contentRect — when `screen:` is passed,
-        // NSWindow interprets the origin relative to the screen's coordinate space,
-        // so global coords would double-count the offset on secondary monitors.
         let window = RulerWindow(
             contentRect: NSRect(origin: .zero, size: screen.frame.size),
             styleMask: .borderless,
@@ -32,21 +23,8 @@ final class RulerWindow: NSWindow, OverlayWindowProtocol {
             defer: false,
             screen: screen
         )
-        // Explicitly set frame in global coords to guarantee correct placement
-        window.setFrame(screen.frame, display: false)
-        window.targetScreen = screen
+        OverlayWindow.configureOverlay(window, for: screen)
         window.edgeDetector = edgeDetector
-        window.screenBounds = screen.frame
-        window.level = .statusBar
-        // Window is opaque — we have a fullscreen screenshot as background,
-        // no need for the compositor to blend with the actual desktop.
-        window.isOpaque = true
-        window.hasShadow = false
-        window.backgroundColor = .black
-        window.acceptsMouseMovedEvents = true
-        window.ignoresMouseEvents = false
-        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-
         window.setupViews(screenFrame: screen.frame, edgeDetector: edgeDetector, hideHintBar: hideHintBar, screenshot: screenshot)
         window.setupTrackingArea()
         return window
@@ -61,7 +39,6 @@ final class RulerWindow: NSWindow, OverlayWindowProtocol {
         self.crosshairView = cv
         containerView.addSubview(cv)
 
-        // Selection manager uses the crosshair view's layer as parent for selection overlays
         let scale = backingScaleFactor
         self.selectionManager = SelectionManager(
             parentLayer: cv.layer!,
@@ -69,132 +46,40 @@ final class RulerWindow: NSWindow, OverlayWindowProtocol {
             scale: scale
         )
 
-        let hv = HintBarView(frame: .zero)
-        self.hintBarView = hv
-        if !hideHintBar {
-            hv.configure(screenWidth: size.width, screenHeight: size.height, screenshot: screenshot)
-            containerView.addSubview(hv)
-        }
-
         contentView = containerView
+
+        // Use base's shared hint bar setup (mode defaults to .inspect)
+        setupHintBar(mode: .inspect, screenSize: size, screenshot: screenshot, hideHintBar: hideHintBar, container: containerView)
     }
 
-    private func setupTrackingArea() {
-        guard let cv = contentView else { return }
-        let area = NSTrackingArea(
-            rect: cv.bounds,
-            options: [.mouseEnteredAndExited, .activeAlways],
-            owner: self, userInfo: nil
-        )
-        cv.addTrackingArea(area)
-    }
-
-    /// Set frozen screenshot as background using CALayer (bypasses NSImage DPI scaling)
+    /// Set frozen screenshot as background below the crosshair view.
     func setBackground(_ cgImage: CGImage) {
-        guard let container = contentView else { return }
-
-        let bgView = NSView(frame: NSRect(origin: .zero, size: screenBounds.size))
-        bgView.wantsLayer = true
-        bgView.layer?.contents = cgImage
-        bgView.layer?.contentsGravity = .resize
-
-        container.addSubview(bgView, positioned: .below, relativeTo: crosshairView)
+        setBackground(cgImage, below: crosshairView)
     }
 
-    /// Collapse the hint bar from expanded to compact keycap-only layout.
-    func collapseHintBar() {
-        guard hintBarView.superview != nil else { return }
-        hintBarView.animateToCollapsed()
+    var hasSelections: Bool { selectionManager.hasSelections }
+
+    // MARK: - Overridable Hooks
+
+    override func handleActivation() {
+        onActivate?(self)
     }
 
-    /// Show initial pill at cursor position before first mouse move.
-    func showInitialState() {
+    override func willHandleFirstMove() {
+        crosshairView.hideSystemCrosshair()
+    }
+
+    override func showInitialState() {
         let mouseLocation = NSEvent.mouseLocation
         let windowPoint = NSPoint(
             x: mouseLocation.x - screenBounds.origin.x,
             y: mouseLocation.y - screenBounds.origin.y
         )
         crosshairView.showInitialPill(at: windowPoint)
-        if hintBarView.superview != nil {
-            hintBarView.animateEntrance()
-        }
+        hintBarEntrance()
     }
 
-    // MARK: - Multi-monitor activation
-
-    override func mouseEntered(with event: NSEvent) {
-        onActivate?(self)
-    }
-
-    /// Deactivate this window when cursor leaves for another screen.
-    func deactivate() {
-        crosshairView.hideForDrag()
-        if isHoveringSelection {
-            isHoveringSelection = false
-            CursorManager.shared.transitionBackToHidden()
-            selectionManager.updateHover(at: .zero)
-        }
-        if isDragging {
-            selectionManager.cancelDrag()
-            isDragging = false
-            CursorManager.shared.transitionBackToHidden()
-        }
-    }
-
-    /// Activate this window when cursor enters from another screen.
-    func activate(firstMoveAlreadyReceived: Bool) {
-        if firstMoveAlreadyReceived && !hasReceivedFirstMove {
-            hasReceivedFirstMove = true
-            crosshairView.skipSystemCrosshairPhase()
-        }
-        crosshairView.showAfterDrag()
-
-        // Trigger edge detection at current cursor position
-        let mouse = NSEvent.mouseLocation
-        let wp = NSPoint(x: mouse.x - screenBounds.origin.x, y: mouse.y - screenBounds.origin.y)
-        let sp = NSPoint(x: screenBounds.origin.x + wp.x, y: screenBounds.origin.y + wp.y)
-        if let edges = edgeDetector.onMouseMoved(at: sp) {
-            crosshairView.update(cursor: wp, edges: edges)
-        }
-        if hintBarView.superview != nil {
-            hintBarView.updatePosition(cursorY: wp.y, screenHeight: screenBounds.height)
-        }
-    }
-
-    var hasSelections: Bool { selectionManager.hasSelections }
-
-    // MARK: - Event Handling
-
-    override var canBecomeKey: Bool { true }
-    override var canBecomeMain: Bool { true }
-
-    // Route mouse events directly to the window, bypassing view hit-testing.
-    // No subview in this overlay needs mouse events — handling them here
-    // prevents views from silently consuming mouseDown (which caused an
-    // intermittent bug where drags wouldn't start).
-    override func sendEvent(_ event: NSEvent) {
-        switch event.type {
-        case .leftMouseDown:  mouseDown(with: event)
-        case .leftMouseDragged: mouseDragged(with: event)
-        case .leftMouseUp:    mouseUp(with: event)
-        default: super.sendEvent(event)
-        }
-    }
-
-    override func mouseMoved(with event: NSEvent) {
-        // Throttle to ~60fps
-        let now = CACurrentMediaTime()
-        guard now - lastMoveTime >= 0.014 else { return }
-        lastMoveTime = now
-        onActivity?()
-
-        if !hasReceivedFirstMove {
-            hasReceivedFirstMove = true
-            crosshairView.hideSystemCrosshair()
-            onFirstMove?()
-        }
-
-        let windowPoint = event.locationInWindow
+    override func handleMouseMoved(to windowPoint: NSPoint) {
         let appKitScreenPoint = NSPoint(
             x: screenBounds.origin.x + windowPoint.x,
             y: screenBounds.origin.y + windowPoint.y
@@ -202,7 +87,7 @@ final class RulerWindow: NSWindow, OverlayWindowProtocol {
 
         guard let edges = edgeDetector.onMouseMoved(at: appKitScreenPoint) else { return }
 
-        // Update selection hover state — hide crosshair and show hand cursor when hovering
+        // Selection hover state
         if selectionManager.hasSelections, let _ = selectionManager.hitTest(windowPoint) {
             if !isHoveringSelection {
                 isHoveringSelection = true
@@ -219,8 +104,80 @@ final class RulerWindow: NSWindow, OverlayWindowProtocol {
         }
 
         crosshairView.update(cursor: windowPoint, edges: edges)
+    }
+
+    override func handleKeyDown(with event: NSEvent) {
+        let shift = event.modifierFlags.contains(.shift)
+        let hintVisible = hintBarView.superview != nil
+
+        switch Int(event.keyCode) {
+        case 123: // Left arrow
+            if !event.isARepeat && hintVisible { hintBarView.pressKey(.left) }
+            let edges = shift ? edgeDetector.decrementSkip(.right) : edgeDetector.incrementSkip(.left)
+            if let edges { crosshairView.update(cursor: crosshairView.cursorPosition, edges: edges) }
+        case 124: // Right arrow
+            if !event.isARepeat && hintVisible { hintBarView.pressKey(.right) }
+            let edges = shift ? edgeDetector.decrementSkip(.left) : edgeDetector.incrementSkip(.right)
+            if let edges { crosshairView.update(cursor: crosshairView.cursorPosition, edges: edges) }
+        case 125: // Down arrow
+            if !event.isARepeat && hintVisible { hintBarView.pressKey(.down) }
+            let edges = shift ? edgeDetector.decrementSkip(.top) : edgeDetector.incrementSkip(.bottom)
+            if let edges { crosshairView.update(cursor: crosshairView.cursorPosition, edges: edges) }
+        case 126: // Up arrow
+            if !event.isARepeat && hintVisible { hintBarView.pressKey(.up) }
+            let edges = shift ? edgeDetector.decrementSkip(.bottom) : edgeDetector.incrementSkip(.top)
+            if let edges { crosshairView.update(cursor: crosshairView.cursorPosition, edges: edges) }
+        default:
+            break
+        }
+    }
+
+    override func deactivate() {
+        crosshairView.hideForDrag()
+        if isHoveringSelection {
+            isHoveringSelection = false
+            CursorManager.shared.transitionBackToHidden()
+            selectionManager.updateHover(at: .zero)
+        }
+        if isDragging {
+            selectionManager.cancelDrag()
+            isDragging = false
+            CursorManager.shared.transitionBackToHidden()
+        }
+    }
+
+    // MARK: - Multi-monitor Activation
+
+    func activate(firstMoveAlreadyReceived: Bool) {
+        if firstMoveAlreadyReceived && !hasReceivedFirstMove {
+            markFirstMoveReceived()
+            crosshairView.skipSystemCrosshairPhase()
+        }
+        crosshairView.showAfterDrag()
+
+        let mouse = NSEvent.mouseLocation
+        let wp = NSPoint(x: mouse.x - screenBounds.origin.x, y: mouse.y - screenBounds.origin.y)
+        let sp = NSPoint(x: screenBounds.origin.x + wp.x, y: screenBounds.origin.y + wp.y)
+        if let edges = edgeDetector.onMouseMoved(at: sp) {
+            crosshairView.update(cursor: wp, edges: edges)
+        }
         if hintBarView.superview != nil {
-            hintBarView.updatePosition(cursorY: windowPoint.y, screenHeight: screenBounds.height)
+            hintBarView.updatePosition(cursorY: wp.y, screenHeight: screenBounds.height)
+        }
+    }
+
+    // MARK: - Event Handling (Subclass-specific)
+
+    // Route mouse events directly to the window, bypassing view hit-testing.
+    // No subview in this overlay needs mouse events — handling them here
+    // prevents views from silently consuming mouseDown (which caused an
+    // intermittent bug where drags wouldn't start).
+    override func sendEvent(_ event: NSEvent) {
+        switch event.type {
+        case .leftMouseDown:  mouseDown(with: event)
+        case .leftMouseDragged: mouseDragged(with: event)
+        case .leftMouseUp:    mouseUp(with: event)
+        default: super.sendEvent(event)
         }
     }
 
@@ -236,7 +193,7 @@ final class RulerWindow: NSWindow, OverlayWindowProtocol {
             CursorManager.shared.transitionBackToHidden()
         }
 
-        // Click on a hovered selection → remove it and restore crosshair
+        // Click on a hovered selection -> remove it and restore crosshair
         if let hovered = selectionManager.hitTest(windowPoint), hovered.state == .hovered {
             selectionManager.removeSelection(hovered)
             if isHoveringSelection {
@@ -293,37 +250,6 @@ final class RulerWindow: NSWindow, OverlayWindowProtocol {
 
         // Hide system cursor again (custom crosshair takes over)
         CursorManager.shared.transitionBackToHidden()
-    }
-
-    override func keyDown(with event: NSEvent) {
-        onActivity?()
-        let shift = event.modifierFlags.contains(.shift)
-        let hintVisible = hintBarView.superview != nil
-
-        switch Int(event.keyCode) {
-        case 123: // Left arrow
-            if !event.isARepeat && hintVisible { hintBarView.pressKey(.left) }
-            let edges = shift ? edgeDetector.decrementSkip(.right) : edgeDetector.incrementSkip(.left)
-            if let edges { crosshairView.update(cursor: crosshairView.cursorPosition, edges: edges) }
-        case 124: // Right arrow
-            if !event.isARepeat && hintVisible { hintBarView.pressKey(.right) }
-            let edges = shift ? edgeDetector.decrementSkip(.left) : edgeDetector.incrementSkip(.right)
-            if let edges { crosshairView.update(cursor: crosshairView.cursorPosition, edges: edges) }
-        case 125: // Down arrow
-            if !event.isARepeat && hintVisible { hintBarView.pressKey(.down) }
-            let edges = shift ? edgeDetector.decrementSkip(.top) : edgeDetector.incrementSkip(.bottom)
-            if let edges { crosshairView.update(cursor: crosshairView.cursorPosition, edges: edges) }
-        case 126: // Up arrow
-            if !event.isARepeat && hintVisible { hintBarView.pressKey(.up) }
-            let edges = shift ? edgeDetector.decrementSkip(.bottom) : edgeDetector.incrementSkip(.top)
-            if let edges { crosshairView.update(cursor: crosshairView.cursorPosition, edges: edges) }
-        case 53: // ESC
-            if hintVisible { hintBarView.pressKey(.esc) }
-            onRequestExit?()
-        default:
-            break
-        }
-
     }
 
     override func keyUp(with event: NSEvent) {
