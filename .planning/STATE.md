@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-16)
 
 **Core value:** Instant, accurate pixel inspection of anything on screen — zero friction from Raycast invoke to dimension readout.
-**Current focus:** v1.3 Code Unification — Phase 13 complete, ready for Phase 14
+**Current focus:** v1.3 Code Unification — Phase 14 in progress
 
 ## Current Position
 
-Phase: 13 of 16 (Rendering Unification) -- COMPLETE
-Plan: 2 of 2 in current phase
-Status: Phase Complete
-Last activity: 2026-02-16 — Plan 13-02 complete (consumer wiring)
+Phase: 14 of 16 (Coordinator Base)
+Plan: 1 of 2 in current phase
+Status: In Progress
+Last activity: 2026-02-17 — Plan 14-01 complete (coordinator base, screen capture, rect conversions)
 
-Progress: [██████░░░░] 60%
+Progress: [███████░░░] 65%
 
 ## Performance Metrics
 
@@ -48,6 +48,7 @@ Progress: [██████░░░░] 60%
 | 12    | 02   | 7min 4s  | 2     | 5     |
 | 13    | 01   | 2min 18s | 2     | 1     |
 | 13    | 02   | 4min 1s  | 2     | 4     |
+| 14    | 01   | 2min 27s | 2     | 3     |
 
 ## Accumulated Context
 
@@ -58,6 +59,7 @@ All decisions logged in PROJECT.md Key Decisions table.
 - 12-02: ColorCircleIndicator wrapper shadow kept as-is (distinct from pill shadow tokens), raw begin/commit preserved for setCompletionBlock blocks
 - 13-01: makeDesignFont public for SelectionOverlay size-11 variant, applyCircleShadow as separate preset
 - 13-02: GuideLine Remove mode kept as position pill content/color swap, SelectionOverlay text formatting stays local
+- 14-01: Class-based coordinator (not protocol) for shared stored state; OverlayWindowProtocol for type-safe window access; warmup capture moved into run() sequence
 
 ### Pending Todos
 
@@ -69,6 +71,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-16
-Stopped at: Completed 13-02-PLAN.md (Phase 13 complete)
-Resume file: Next phase (14)
+Last session: 2026-02-17
+Stopped at: Completed 14-01-PLAN.md
+Resume file: 14-02-PLAN.md

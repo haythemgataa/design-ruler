@@ -14,29 +14,9 @@ final class EdgeDetector {
 
     /// Capture full screen before window exists. Returns CGImage for window background.
     func capture(screen: NSScreen) -> CGImage? {
-        guard let mainScreen = NSScreen.screens.first else { return nil }
-        let frame = screen.frame
-        let mainHeight = mainScreen.frame.height
-
-        // CG rect for capture (top-left origin)
-        let cgRect = CGRect(
-            x: frame.origin.x,
-            y: mainHeight - frame.origin.y - frame.height,
-            width: frame.width,
-            height: frame.height
-        )
-
-        guard let cgImage = CGWindowListCreateImage(
-            cgRect,
-            .optionOnScreenOnly,
-            kCGNullWindowID,
-            [.bestResolution]
-        ) else { return nil }
-
-        // screenFrame in AX/CG coords for ColorMap
-        let screenFrame = cgRect
-        applyCapture(cgImage: cgImage, screenFrame: screenFrame)
-
+        guard let cgImage = ScreenCapture.captureScreen(screen) else { return nil }
+        let cgRect = CoordinateConverter.appKitRectToCG(screen.frame)
+        applyCapture(cgImage: cgImage, screenFrame: cgRect)
         return cgImage
     }
 

@@ -2,7 +2,7 @@ import AppKit
 import QuartzCore
 
 /// Fullscreen borderless window that captures mouse and keyboard events.
-final class RulerWindow: NSWindow {
+final class RulerWindow: NSWindow, OverlayWindowProtocol {
     private(set) var targetScreen: NSScreen!
     private var edgeDetector: EdgeDetector!
     private var crosshairView: CrosshairView!

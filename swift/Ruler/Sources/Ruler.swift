@@ -2,169 +2,70 @@ import AppKit
 import RaycastSwiftMacros
 
 @raycast func inspect(hideHintBar: Bool, corrections: String) {
-    // Warm up CGWindowListCreateImage connection (1x1 capture absorbs cold-start penalty)
-    _ = CGWindowListCreateImage(
-        CGRect(x: 0, y: 0, width: 1, height: 1),
-        .optionOnScreenOnly, kCGNullWindowID, .bestResolution
-    )
-
     Ruler.shared.run(hideHintBar: hideHintBar, corrections: corrections)
 }
 
-final class Ruler {
+final class Ruler: OverlayCoordinator {
     static let shared = Ruler()
-    private var windows: [RulerWindow] = []
-    private weak var activeWindow: RulerWindow?
-    private weak var cursorWindow: RulerWindow?
-    private var firstMoveReceived = false
-    private var launchTime: CFAbsoluteTime = 0
-    private let minExpandedDuration: TimeInterval = 3
-    private var inactivityTimer: Timer?
-    private let inactivityTimeout: TimeInterval = 600 // 10 minutes
-    private var sigTermSource: DispatchSourceSignal?
-
-    private init() {}
+    private var correctionMode: CorrectionMode = .smart
+    private var detectors: [ObjectIdentifier: EdgeDetector] = [:]
 
     func run(hideHintBar: Bool, corrections: String) {
-        // Check permissions
-        if !PermissionChecker.hasScreenRecordingPermission() {
-            PermissionChecker.requestScreenRecordingPermission()
-        }
+        correctionMode = CorrectionMode(rawValue: corrections) ?? .smart
+        super.run(hideHintBar: hideHintBar)
+    }
 
-        let correctionMode = CorrectionMode(rawValue: corrections) ?? .smart
+    override func resetCommandState() {
+        detectors.removeAll()
+    }
 
-        // Find screen where cursor is
-        let mouseLocation = NSEvent.mouseLocation
-        let cursorScreen = NSScreen.screens.first { screen in
-            NSMouseInRect(mouseLocation, screen.frame, false)
-        } ?? NSScreen.main!
-
-        // Capture ALL screens BEFORE creating any windows
-        // (preserves "capture before window" pattern — no overlay in screenshots)
-        var captures: [(screen: NSScreen, detector: EdgeDetector, image: CGImage?)] = []
+    override func captureAllScreens() -> [(screen: NSScreen, image: CGImage?)] {
+        var captures: [(screen: NSScreen, image: CGImage?)] = []
         for screen in NSScreen.screens {
             let detector = EdgeDetector()
             detector.correctionMode = correctionMode
             let cgImage = detector.capture(screen: screen)
-            captures.append((screen, detector, cgImage))
+            detectors[ObjectIdentifier(screen)] = detector
+            captures.append((screen, cgImage))
         }
-
-        let app = NSApplication.shared
-        app.setActivationPolicy(.accessory)
-
-        // Close any previous windows
-        for oldWindow in windows {
-            oldWindow.orderOut(nil)
-            oldWindow.close()
-        }
-        windows.removeAll()
-        activeWindow = nil
-        firstMoveReceived = false
-
-        // Create one RulerWindow per screen
-        // Hint bar only on the screen where the cursor was at launch
-        for capture in captures {
-            let isCursorScreen = capture.screen === cursorScreen
-            let rulerWindow = RulerWindow.create(
-                for: capture.screen,
-                edgeDetector: capture.detector,
-                hideHintBar: isCursorScreen ? hideHintBar : true,
-                screenshot: capture.image
-            )
-
-            if let cgImage = capture.image {
-                rulerWindow.setBackground(cgImage)
-            }
-
-            // Wire callbacks
-            rulerWindow.onActivate = { [weak self] window in
-                self?.activateWindow(window)
-            }
-            rulerWindow.onRequestExit = { [weak self] in
-                self?.handleExit()
-            }
-            rulerWindow.onFirstMove = { [weak self] in
-                self?.handleFirstMove()
-            }
-            rulerWindow.onActivity = { [weak self] in
-                self?.resetInactivityTimer()
-            }
-
-            windows.append(rulerWindow)
-        }
-
-        // Show all windows
-        for window in windows {
-            window.orderFrontRegardless()
-        }
-
-        // Make cursor's screen window key and show initial state
-        let cw = windows.first { $0.targetScreen === cursorScreen } ?? windows.first!
-        cw.makeKey()
-        cw.showInitialState()
-        activeWindow = cw
-        cursorWindow = cw
-
-        launchTime = CFAbsoluteTimeGetCurrent()
-        NSApp.activate(ignoringOtherApps: true)
-        setupSignalHandler()
-        resetInactivityTimer()
-        app.run()
+        return captures
     }
 
-    private func activateWindow(_ window: RulerWindow) {
-        resetInactivityTimer()
-        guard window !== activeWindow else { return }
+    override func createWindow(for screen: NSScreen, image: CGImage?, isCursorScreen: Bool, hideHintBar: Bool) -> NSWindow {
+        let detector = detectors[ObjectIdentifier(screen)] ?? EdgeDetector()
+        let rulerWindow = RulerWindow.create(
+            for: screen,
+            edgeDetector: detector,
+            hideHintBar: isCursorScreen ? hideHintBar : true,
+            screenshot: image
+        )
 
-        // Deactivate old window
-        activeWindow?.deactivate()
-
-        // Activate new window
-        activeWindow = window
-        window.makeKey()
-        window.activate(firstMoveAlreadyReceived: firstMoveReceived)
-    }
-
-    private func handleExit() {
-        CursorManager.shared.restore()
-        for window in windows {
-            window.close()
+        if let cgImage = image {
+            rulerWindow.setBackground(cgImage)
         }
-        NSApp.terminate(nil)
+
+        return rulerWindow
     }
 
-    private func handleFirstMove() {
-        firstMoveReceived = true
-        // Collapse hint bar from expanded (instructional text) to compact keycap-only bars,
-        // but ensure the expanded bar is visible for at least minExpandedDuration seconds
-        let elapsed = CFAbsoluteTimeGetCurrent() - launchTime
-        let remaining = minExpandedDuration - elapsed
-        if remaining > 0 {
-            DispatchQueue.main.asyncAfter(deadline: .now() + remaining) { [weak self] in
-                self?.cursorWindow?.collapseHintBar()
-            }
-        } else {
-            cursorWindow?.collapseHintBar()
+    override func wireCallbacks(for window: NSWindow) {
+        guard let rulerWindow = window as? RulerWindow else { return }
+        rulerWindow.onActivate = { [weak self] window in
+            self?.activateWindow(window)
         }
-    }
-
-    private func setupSignalHandler() {
-        signal(SIGTERM, SIG_IGN)
-        let source = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
-        source.setEventHandler { [weak self] in
+        rulerWindow.onRequestExit = { [weak self] in
             self?.handleExit()
         }
-        source.resume()
-        sigTermSource = source
+        rulerWindow.onFirstMove = { [weak self] in
+            self?.handleFirstMove()
+        }
+        rulerWindow.onActivity = { [weak self] in
+            self?.resetInactivityTimer()
+        }
     }
 
-    private func resetInactivityTimer() {
-        inactivityTimer?.invalidate()
-        inactivityTimer = Timer.scheduledTimer(
-            withTimeInterval: inactivityTimeout,
-            repeats: false
-        ) { [weak self] _ in
-            self?.handleExit()
-        }
+    override func activateWindow(_ window: NSWindow) {
+        super.activateWindow(window)
+        guard let rulerWindow = window as? RulerWindow else { return }
+        rulerWindow.activate(firstMoveAlreadyReceived: firstMoveReceived)
     }
 }
