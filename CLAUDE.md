@@ -8,7 +8,7 @@ Complete guide for building and maintaining this Raycast extension.
 
 Two Raycast commands for macOS pixel inspection and alignment verification:
 
-**Design Ruler** — Fullscreen overlay (frozen screenshot), crosshair follows
+**Measure** — Fullscreen overlay (frozen screenshot), crosshair follows
 cursor showing detected edges in 4 directions with live "W × H" dimensions.
 Arrow keys skip past edges. Drag to select regions (snap-to-edges). ESC exits.
 
@@ -24,10 +24,10 @@ Both commands support multi-monitor (one window per screen, cursor activates).
 
 ```
 TypeScript (thin wrappers, ~13 lines each)
-  ├─ src/design-ruler.ts  → import { inspect } from "swift:../swift/Ruler"
+  ├─ src/measure.ts       → import { inspect } from "swift:../swift/Ruler"
   └─ src/alignment-guides.ts → import { alignmentGuides } from "swift:../swift/Ruler"
        └─ Swift (all logic)
-            ├─ Ruler.swift              — OverlayCoordinator subclass, design-ruler entry
+            ├─ Ruler.swift              — OverlayCoordinator subclass, Measure entry
             ├─ RulerWindow.swift        — OverlayWindow subclass, edge detection + drag
             ├─ EdgeDetection/
             │   ├─ EdgeDetector.swift       — capture + scan + skip state + smart corrections
@@ -293,7 +293,7 @@ shadow, with the clipped content layer as a sublayer.
   0.15s), both easeOut. `isAnimating` guard prevents overlapping animations.
 
 ### Modes
-- Design Ruler mode: arrow key hints
+- Measure mode: arrow key hints
 - Alignment Guides mode: tab, spacebar, click hints
 
 ### Critical Setup Order
@@ -311,13 +311,13 @@ shadow, with the clipped content layer as a sublayer.
 | Name | Type | Default | Scope | Description |
 |------|------|---------|-------|-------------|
 | hideHintBar | checkbox | false | both commands | Hide the keyboard shortcut hint bar |
-| corrections | dropdown | smart | design-ruler only | How to handle 1px borders: smart, include, none |
+| corrections | dropdown | smart | measure only | How to handle 1px borders: smart, include, none |
 
 ---
 
 ## 11. Key Behaviors
 
-### Design Ruler
+### Measure
 - **Launch**: captures all screens, fullscreen overlays appear, cursor hidden,
   CAShapeLayer crosshair renders, pill fades in at cursor with "0000 × 0000"
 - **Mouse move**: crosshair follows cursor, edges detected, W×H updates.
@@ -368,7 +368,7 @@ set immediately; animation overrides presentation layer. `isAnimating` flag
 prevents overlapping animations.
 
 ### Cursor on Launch
-- **Design Ruler**: `CursorManager.shared.hide()` called in
+- **Measure**: `CursorManager.shared.hide()` called in
   `RulerWindow.showInitialState()`. Cursor is hidden immediately; the
   CAShapeLayer crosshair renders from the start.
 - **Alignment Guides**: `CursorManager.shared.showResize(cursor)` called in
@@ -442,7 +442,7 @@ Called by subclasses in `showInitialState()` and `activate()`.
 Centralized state machine (`CursorManager.swift`) with 5 states:
 
 ```
-Ruler:  idle ─hide()─▶ hidden ◀─transitionBack()─ pointingHand / crosshairDrag
+Measure:  idle ─hide()─▶ hidden ◀─transitionBack()─ pointingHand / crosshairDrag
 Guides: idle ─showResize()─▶ resize ◀─transitionBack()─ pointingHand
 ```
 
@@ -474,7 +474,7 @@ SIGTERM handler in `OverlayCoordinator` base calls `CursorManager.shared.restore
 
 TypeScript:
 ```typescript
-// design-ruler.ts
+// measure.ts
 import { inspect } from "swift:../swift/Ruler";
 await inspect(hideHintBar ?? false, corrections ?? "smart");
 
@@ -520,7 +520,7 @@ Bugs encountered and fixed — avoid re-introducing these:
 
 ## 17. Testing Checklist
 
-### Design Ruler
+### Measure
 - [ ] Launches on the screen where cursor is (not always main)
 - [ ] No visible focus steal (capture-before-window works)
 - [ ] Screenshot is crisp (Retina)

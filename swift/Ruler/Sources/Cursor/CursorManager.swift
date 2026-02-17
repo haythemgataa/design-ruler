@@ -1,6 +1,6 @@
 import AppKit
 
-/// Centralized cursor state machine for both Design Ruler and Alignment Guides.
+/// Centralized cursor state machine for both Measure and Alignment Guides.
 ///
 /// Uses NSCursor.set() instead of push/pop because borderless overlay windows
 /// override pushed cursors via cursor rect management. OverlayWindow's tracking

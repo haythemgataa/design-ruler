@@ -1,7 +1,7 @@
 import AppKit
 import QuartzCore
 
-/// Fullscreen overlay window for the Design Ruler command.
+/// Fullscreen overlay window for the Measure command.
 /// Subclasses OverlayWindow for shared window config, tracking, throttle, hint bar, and ESC.
 /// Contains only: edge detection, crosshair rendering, selection/drag lifecycle, arrow keys.
 final class RulerWindow: OverlayWindow {

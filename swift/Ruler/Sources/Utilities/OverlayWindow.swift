@@ -1,7 +1,7 @@
 import AppKit
 import QuartzCore
 
-/// Base class for fullscreen overlay windows shared by both Design Ruler and Alignment Guides.
+/// Base class for fullscreen overlay windows shared by both Measure and Alignment Guides.
 ///
 /// Provides: shared NSWindow configuration (10 properties), tracking area setup,
 /// hint bar creation/positioning/collapse, throttled mouse move with first-move detection,
