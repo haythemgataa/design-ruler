@@ -15,9 +15,9 @@
   "license": "MIT",
   "commands": [
     {
-      "name": "design-ruler",
-      "title": "Design Ruler",
-      "description": "Inspect pixel distances with edge detection",
+      "name": "measure",
+      "title": "Measure",
+      "description": "Measure pixel distances with edge detection",
       "mode": "no-view",
       "preferences": [
         {
