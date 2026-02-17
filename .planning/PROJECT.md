@@ -43,6 +43,19 @@ Instant, accurate pixel inspection of anything on screen — zero friction from 
 - ✓ Multi-monitor alignment guides with global color sync — v1.2
 - ✓ HintBarMode system supporting both inspect and alignment guides keycaps — v1.2
 
+- ✓ Unified pill rendering (PillRenderer with 3 factory methods) across CrosshairView, GuideLine, SelectionOverlay — v1.3
+- ✓ Centralized design tokens (DesignTokens.swift: colors, radii, durations, BlendMode) — v1.3
+- ✓ CATransaction.instant{} and .animated{} helpers eliminating 37+ boilerplate blocks — v1.3
+- ✓ OverlayCoordinator base class for shared lifecycle (warmup, permissions, signal handler, exit) — v1.3
+- ✓ OverlayWindow base class for shared NSWindow config, tracking, throttle, firstMove — v1.3
+- ✓ CursorManager expanded to 6 states with resize cursors, replacing parallel cursor system — v1.3
+- ✓ ScreenCapture utility and CoordinateConverter rect methods — v1.3
+- ✓ HintBarContent deduplication via shared HintBarTextStyle — v1.3
+
+### Active
+
+(None — planning next milestone)
+
 ### Out of Scope
 
 - Copy dimensions to clipboard — this is an inspection tool, not a measurement export tool
@@ -59,16 +72,17 @@ Instant, accurate pixel inspection of anything on screen — zero friction from 
 - macOS 13+ minimum, Swift 5.9+, AppKit + CoreGraphics + QuartzCore + SwiftUI
 - CGWindowListCreateImage has a cold-start penalty on macOS 26; mitigated by 1x1 warmup capture
 - Coordinate system duality: AppKit (bottom-left origin) for UI, CG (top-left origin) for pixel scanning
-- Shipped v1.2 Alignment Guides with 4,741 LOC Swift across 11 phases (3 milestones)
+- Shipped v1.3 Code Unification with ~3,300 LOC Swift across 17 phases (4 milestones)
 - Two commands: `design-ruler` (inspect) and `alignment-guides` (guides)
-- Shared utilities: CoordinateConverter, PermissionChecker, HintBarView, CursorManager
-- Existing codebase map at `.planning/codebase/` (7 documents, mapped 2026-02-13)
+- Shared base classes: OverlayCoordinator (lifecycle), OverlayWindow (window setup)
+- Shared utilities: PillRenderer, DesignTokens, ScreenCapture, CoordinateConverter, CursorManager, PermissionChecker, HintBarView
+- Codebase map at `.planning/codebase/` (7 documents, mapped 2026-02-13)
 
 ## Constraints
 
 - **No Bundle.module**: Raycast deploys only the Swift binary — embed everything inline
 - **No SVG via NSImage**: Filter effects cause 80%+ CPU — draw natively with NSBezierPath
-- **No NSCursor.set()**: Gets overridden by window cursor rect management — use resetCursorRects()
+- **No NSCursor push/pop or resetCursorRects**: Pushed cursors get overridden on borderless windows — use `NSCursor.set()` via CursorManager + `cursorUpdate(with:)` override
 - **Capture before window**: Must capture screen before creating overlay to avoid self-interference
 - **Performance**: CPU must stay <5% during mouse movement — CALayer-only updates, no draw() overrides
 
@@ -91,13 +105,19 @@ Instant, accurate pixel inspection of anything on screen — zero friction from 
 | SwiftUI GlassEffectContainer morph (macOS 26+) | Native liquid glass split animation; two-layer rendering hack enables smooth keycap sliding + glass split | ✓ Good |
 | 3-second minimum expanded display | Ensures users can read hint text before collapse on first mouse move | ✓ Good |
 | NSAnimationContext crossfade fallback (pre-macOS 26) | Simple, reliable animation without SwiftUI glass APIs | ✓ Good |
-| Separate AlignmentGuides classes (not extending inspect) | Inspect code too coupled to edge detection; clean separation avoids refactor | ✓ Good |
+| Separate AlignmentGuides classes (not extending inspect) | Inspect code too coupled to edge detection; clean separation avoids refactor | ✓ Good — v1.3 extracted shared OverlayCoordinator + OverlayWindow base while keeping command-specific logic separate |
 | 5px hover threshold for guide line removal | Comfortable selection without false positives; perpendicular distance calculation | ✓ Good |
 | Per-line color retention | New lines use current style; existing placed lines keep their original color | ✓ Good |
 | Global color state in AlignmentGuides singleton | Synced to windows on activation via callbacks; consistent across monitors | ✓ Good |
 | Arc-based color indicator (108-degree span) | Comfortable visual spread without overlap; screen edge clamping flips direction | ✓ Good |
 | HintBarMode enum for dual-command support | Single HintBarView class serves both inspect and alignment guides with mode-specific content | ✓ Good |
 | Composite tab keycap (arrow+pipe) | ⇥ glyph unsupported in SF Pro Rounded; composite renders correctly | ✓ Good |
+| Class-based OverlayCoordinator (not protocol) | Shared stored state (windows, activeWindow, timers) needs class semantics; subclass overrides for hooks | ✓ Good |
+| OverlayWindowProtocol for type-safe window access | Coordinator base calls showInitialState/collapseHintBar/deactivate without knowing concrete types | ✓ Good |
+| PillRenderer factory pattern (returns structs) | Caller receives fully-configured layer hierarchy, only sets position/content; no duplicated setup | ✓ Good |
+| Static configureOverlay() instead of init override | NSWindow init is complex; static method called after init is simpler and more explicit | ✓ Good |
+| CursorManager 6-state machine (expanded from 4) | Replaces AlignmentGuidesWindow's parallel cursor system; single authority for all cursor transitions | ✓ Good |
+| HintBarTextStyle returns Text (not some View) | Satisfies both direct Text and View usage sites in SwiftUI content structs | ✓ Good |
 
 ---
-*Last updated: 2026-02-16 — after v1.2 Alignment Guides milestone*
+*Last updated: 2026-02-17 after v1.3 milestone*

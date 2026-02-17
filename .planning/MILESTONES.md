@@ -53,3 +53,21 @@
 
 ---
 
+
+## v1.3 Code Unification (Shipped: 2026-02-17)
+
+**Phases completed:** 6 phases (12-17), 10 plans, 19 tasks
+**Timeline:** 7 days (Feb 10 - Feb 17, 2026)
+**Codebase:** ~3,300 LOC Swift (+624 net lines: +2,097 / -1,473)
+**Git range:** `8dcde60`..`908066e`
+
+**Key accomplishments:**
+- Centralized all design tokens (colors, radii, durations, blend mode) into DesignTokens.swift — zero inline magic numbers
+- Created PillRenderer with 3 factory methods, eliminating 388 lines of duplicated pill rendering across CrosshairView, GuideLine, SelectionOverlay
+- Extracted OverlayCoordinator base class — Ruler.swift dropped from 170 to 71 lines, AlignmentGuides.swift from 205 to 82 lines
+- Extracted OverlayWindow base class with shared window config, tracking, throttle, hint bar — ~200 lines of window duplication eliminated
+- Unified CursorManager from 4 to 6 states, replacing AlignmentGuidesWindow's parallel cursor system
+- Cleaned up HintBarContent duplication (HintBarTextStyle) and CursorManager documentation accuracy
+
+---
+
