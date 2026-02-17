@@ -8,17 +8,17 @@ import AppKit
 /// `applyCursor()` — the standard pattern for borderless overlays to maintain
 /// the correct cursor without relying on cursor rects.
 ///
-/// Ruler:  idle ─hide()─▶ hidden ◀─transitionBack()─ pointingHand / crosshairDrag
+/// Measure:  idle ─hide()─▶ hidden ◀─transitionBack()─ pointingHand / crosshairDrag
 /// Guides: idle ─showResize()─▶ resize ◀─transitionBack()─ pointingHand
 final class CursorManager {
     static let shared = CursorManager()
 
     enum State {
         case idle          // Default state, no cursor modifications active
-        case hidden        // Ruler: cursor hidden, CAShapeLayer crosshair renders
+        case hidden        // Measure: cursor hidden, CAShapeLayer crosshair renders
         case resize        // Guides: resize cursor (left-right or up-down)
         case pointingHand  // Hovering a selection/guide line
-        case crosshairDrag // During drag-to-select (Ruler only)
+        case crosshairDrag // During drag-to-select (Measure only)
     }
 
     private(set) var state: State = .idle
@@ -35,8 +35,8 @@ final class CursorManager {
 
     // MARK: - Launch
 
-    /// Hide cursor at launch. Called once from RulerWindow.showInitialState().
-    /// Sets base state to .hidden for Ruler mode.
+    /// Hide cursor at launch. Called once from MeasureWindow.showInitialState().
+    /// Sets base state to .hidden for Measure mode.
     func hide() {
         guard state == .idle else { return }
         NSCursor.hide()
@@ -67,7 +67,7 @@ final class CursorManager {
     // MARK: - Transitions
 
     /// Hover selection/guide line: show pointing hand cursor.
-    /// Works from both .hidden (Ruler) and .resize (Guides) base states.
+    /// Works from both .hidden (Measure) and .resize (Guides) base states.
     func transitionToPointingHand() {
         switch state {
         case .hidden:
@@ -83,7 +83,7 @@ final class CursorManager {
         }
     }
 
-    /// Start drag: show system crosshair cursor. Ruler only.
+    /// Start drag: show system crosshair cursor. Measure only.
     func transitionToCrosshairDrag() {
         guard state == .hidden else { return }
         NSCursor.unhide()
@@ -93,7 +93,7 @@ final class CursorManager {
     }
 
     /// Return to base state from any transient state.
-    /// Returns to .hidden (Ruler) or .resize (Guides) depending on which launch method was used.
+    /// Returns to .hidden (Measure) or .resize (Guides) depending on which launch method was used.
     func transitionBack() {
         switch state {
         case .pointingHand, .crosshairDrag:

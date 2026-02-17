@@ -2,11 +2,11 @@ import AppKit
 import RaycastSwiftMacros
 
 @raycast func inspect(hideHintBar: Bool, corrections: String) {
-    Ruler.shared.run(hideHintBar: hideHintBar, corrections: corrections)
+    Measure.shared.run(hideHintBar: hideHintBar, corrections: corrections)
 }
 
-final class Ruler: OverlayCoordinator {
-    static let shared = Ruler()
+final class Measure: OverlayCoordinator {
+    static let shared = Measure()
     private var correctionMode: CorrectionMode = .smart
     private var detectors: [ObjectIdentifier: EdgeDetector] = [:]
 
@@ -33,7 +33,7 @@ final class Ruler: OverlayCoordinator {
 
     override func createWindow(for screen: NSScreen, image: CGImage?, isCursorScreen: Bool, hideHintBar: Bool) -> NSWindow {
         let detector = detectors[ObjectIdentifier(screen)] ?? EdgeDetector()
-        let rulerWindow = RulerWindow.create(
+        let measureWindow = MeasureWindow.create(
             for: screen,
             edgeDetector: detector,
             hideHintBar: isCursorScreen ? hideHintBar : true,
@@ -41,31 +41,31 @@ final class Ruler: OverlayCoordinator {
         )
 
         if let cgImage = image {
-            rulerWindow.setBackground(cgImage)
+            measureWindow.setBackground(cgImage)
         }
 
-        return rulerWindow
+        return measureWindow
     }
 
     override func wireCallbacks(for window: NSWindow) {
-        guard let rulerWindow = window as? RulerWindow else { return }
-        rulerWindow.onActivate = { [weak self] window in
+        guard let measureWindow = window as? MeasureWindow else { return }
+        measureWindow.onActivate = { [weak self] window in
             self?.activateWindow(window)
         }
-        rulerWindow.onRequestExit = { [weak self] in
+        measureWindow.onRequestExit = { [weak self] in
             self?.handleExit()
         }
-        rulerWindow.onFirstMove = { [weak self] in
+        measureWindow.onFirstMove = { [weak self] in
             self?.handleFirstMove()
         }
-        rulerWindow.onActivity = { [weak self] in
+        measureWindow.onActivity = { [weak self] in
             self?.resetInactivityTimer()
         }
     }
 
     override func activateWindow(_ window: NSWindow) {
         super.activateWindow(window)
-        guard let rulerWindow = window as? RulerWindow else { return }
-        rulerWindow.activate(firstMoveAlreadyReceived: firstMoveReceived)
+        guard let measureWindow = window as? MeasureWindow else { return }
+        measureWindow.activate(firstMoveAlreadyReceived: firstMoveReceived)
     }
 }

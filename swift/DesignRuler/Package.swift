@@ -3,14 +3,14 @@
 import PackageDescription
 
 let package = Package(
-    name: "Ruler",
+    name: "DesignRuler",
     platforms: [.macOS(.v13)],
     dependencies: [
         .package(url: "https://github.com/raycast/extensions-swift-tools", from: "1.0.4"),
     ],
     targets: [
         .executableTarget(
-            name: "Ruler",
+            name: "DesignRuler",
             dependencies: [
                 .product(name: "RaycastSwiftMacros", package: "extensions-swift-tools"),
                 .product(name: "RaycastSwiftPlugin", package: "extensions-swift-tools"),

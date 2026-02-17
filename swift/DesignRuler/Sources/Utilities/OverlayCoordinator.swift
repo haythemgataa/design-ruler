@@ -1,6 +1,6 @@
 import AppKit
 
-/// Protocol for overlay windows that both RulerWindow and AlignmentGuidesWindow conform to.
+/// Protocol for overlay windows that both MeasureWindow and AlignmentGuidesWindow conform to.
 /// Allows the coordinator base to call common methods without knowing the concrete window type.
 protocol OverlayWindowProtocol: AnyObject {
     var targetScreen: NSScreen! { get }
@@ -11,7 +11,7 @@ protocol OverlayWindowProtocol: AnyObject {
 
 /// Base class encapsulating the shared lifecycle for fullscreen overlay commands.
 ///
-/// Both Ruler and AlignmentGuides delegate startup orchestration, signal handling,
+/// Both Measure and AlignmentGuides delegate startup orchestration, signal handling,
 /// inactivity timeout, first-move hint bar collapse, and exit to this base.
 /// Each subclass provides its window factory and command-specific callback wiring.
 ///
@@ -112,7 +112,7 @@ class OverlayCoordinator {
     // MARK: - Overridable Methods (subclass hooks)
 
     /// Capture all screens. Default uses ScreenCapture.captureScreen() for each.
-    /// Ruler overrides to capture via EdgeDetector instead.
+    /// Measure overrides to capture via EdgeDetector instead.
     func captureAllScreens() -> [(screen: NSScreen, image: CGImage?)] {
         var captures: [(screen: NSScreen, image: CGImage?)] = []
         for screen in NSScreen.screens {

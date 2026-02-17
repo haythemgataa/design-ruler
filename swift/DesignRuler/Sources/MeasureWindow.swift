@@ -4,7 +4,7 @@ import QuartzCore
 /// Fullscreen overlay window for the Measure command.
 /// Subclasses OverlayWindow for shared window config, tracking, throttle, hint bar, and ESC.
 /// Contains only: edge detection, crosshair rendering, selection/drag lifecycle, arrow keys.
-final class RulerWindow: OverlayWindow {
+final class MeasureWindow: OverlayWindow {
     private var edgeDetector: EdgeDetector!
     private var crosshairView: CrosshairView!
     private var selectionManager: SelectionManager!
@@ -12,11 +12,11 @@ final class RulerWindow: OverlayWindow {
     private var isHoveringSelection = false
 
     // Typed callback for multi-monitor activation
-    var onActivate: ((RulerWindow) -> Void)?
+    var onActivate: ((MeasureWindow) -> Void)?
 
-    /// Create a fullscreen ruler window for the given screen
-    static func create(for screen: NSScreen, edgeDetector: EdgeDetector, hideHintBar: Bool, screenshot: CGImage? = nil) -> RulerWindow {
-        let window = RulerWindow(
+    /// Create a fullscreen measure window for the given screen
+    static func create(for screen: NSScreen, edgeDetector: EdgeDetector, hideHintBar: Bool, screenshot: CGImage? = nil) -> MeasureWindow {
+        let window = MeasureWindow(
             contentRect: NSRect(origin: .zero, size: screen.frame.size),
             styleMask: .borderless,
             backing: .buffered,
