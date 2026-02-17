@@ -8,23 +8,18 @@ private class PassthroughView: NSView {
     }
 }
 
-/// Fullscreen borderless window for alignment guides feature.
-/// Routes mouse + keyboard events to GuideLineManager.
-final class AlignmentGuidesWindow: NSWindow, OverlayWindowProtocol {
-    private(set) var targetScreen: NSScreen!
+/// Fullscreen overlay window for the Alignment Guides command.
+/// Subclasses OverlayWindow for shared window config, tracking, throttle, hint bar, and ESC.
+/// Contains only: guide line management, direction/style cycling, cursor direction state.
+/// All resize cursor management goes through CursorManager (no resetCursorRects/NSCursor.set).
+final class AlignmentGuidesWindow: OverlayWindow {
     private var guideLineManager: GuideLineManager!
-    private var hintBarView: HintBarView!
-    private var screenBounds: CGRect = .zero
-    private var lastMoveTime: Double = 0
-    private var hasReceivedFirstMove = false
     private var cursorDirection: Direction = .vertical
-    private var lastCursorPosition: NSPoint = .zero
 
-    // Callbacks
+    // Typed callback for multi-monitor activation
     var onActivate: ((AlignmentGuidesWindow) -> Void)?
-    var onRequestExit: (() -> Void)?
-    var onFirstMove: (() -> Void)?
-    var onActivity: (() -> Void)?
+
+    // Command-specific callbacks
     var onSpacebarPressed: (() -> Void)?
     var onSpacebarReleased: (() -> Void)?
     var onTabPressed: (() -> Void)?
@@ -39,17 +34,7 @@ final class AlignmentGuidesWindow: NSWindow, OverlayWindowProtocol {
             defer: false,
             screen: screen
         )
-        window.setFrame(screen.frame, display: false)
-        window.targetScreen = screen
-        window.screenBounds = screen.frame
-        window.level = .statusBar
-        window.isOpaque = true
-        window.hasShadow = false
-        window.backgroundColor = .black
-        window.acceptsMouseMovedEvents = true
-        window.ignoresMouseEvents = false
-        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-
+        OverlayWindow.configureOverlay(window, for: screen)
         window.setupViews(screenFrame: screen.frame, screenshot: screenshot, hideHintBar: hideHintBar)
         window.setupTrackingArea()
         return window
@@ -73,7 +58,6 @@ final class AlignmentGuidesWindow: NSWindow, OverlayWindowProtocol {
         guidelineView.wantsLayer = true
         containerView.addSubview(guidelineView)
 
-        // GuideLineManager
         let scale = backingScaleFactor
         self.guideLineManager = GuideLineManager(
             parentLayer: guidelineView.layer!,
@@ -81,41 +65,10 @@ final class AlignmentGuidesWindow: NSWindow, OverlayWindowProtocol {
             screenSize: size
         )
 
-        // Hint bar
-        let hv = HintBarView(frame: .zero)
-        self.hintBarView = hv
-        if !hideHintBar {
-            hv.setMode(.alignmentGuides)
-            hv.configure(screenWidth: size.width, screenHeight: size.height, screenshot: screenshot)
-            containerView.addSubview(hv)
-        }
-
         contentView = containerView
-    }
 
-    private func setupTrackingArea() {
-        guard let cv = contentView else { return }
-        let area = NSTrackingArea(
-            rect: cv.bounds,
-            options: [.mouseEnteredAndExited, .activeAlways],
-            owner: self,
-            userInfo: nil
-        )
-        cv.addTrackingArea(area)
-    }
-
-    /// Show initial state on launch.
-    func showInitialState() {
-        // Initialize cursor position so spacebar before mouse move works correctly
-        let mouse = NSEvent.mouseLocation
-        lastCursorPosition = NSPoint(
-            x: mouse.x - screenBounds.origin.x,
-            y: mouse.y - screenBounds.origin.y
-        )
-        guideLineManager.showPreview()
-        guideLineManager.updatePreview(at: lastCursorPosition)
-        setDirectionCursor()
-        if hintBarView.superview != nil { hintBarView.animateEntrance() }
+        // Use base's shared hint bar setup with alignment guides mode
+        setupHintBar(mode: .alignmentGuides, screenSize: size, screenshot: screenshot, hideHintBar: hideHintBar, container: containerView)
     }
 
     // MARK: - Coordinator-dispatched actions
@@ -135,7 +88,8 @@ final class AlignmentGuidesWindow: NSWindow, OverlayWindowProtocol {
         if hintBarView.superview != nil { hintBarView.pressKey(.tab) }
         guideLineManager.toggleDirection()
         cursorDirection = guideLineManager.direction
-        updateCursor()
+        // Switch resize cursor via CursorManager
+        CursorManager.shared.switchResize(to: cursorDirection)
     }
 
     func releaseTabKey() {
@@ -150,115 +104,82 @@ final class AlignmentGuidesWindow: NSWindow, OverlayWindowProtocol {
         guideLineManager.direction
     }
 
-    /// Collapse hint bar from expanded to compact keycap-only layout.
-    func collapseHintBar() {
-        guard hintBarView.superview != nil else { return }
-        hintBarView.animateToCollapsed()
-    }
+    // MARK: - Overridable Hooks
 
-    // MARK: - Cursor Management
-
-    override func resetCursorRects() {
-        guard let cv = contentView else { return }
-        let cursor: NSCursor = cursorDirection == .vertical ? .resizeLeftRight : .resizeUpDown
-        cv.addCursorRect(cv.bounds, cursor: cursor)
-    }
-
-    private func updateCursor() {
-        guard let cv = contentView else { return }
-        invalidateCursorRects(for: cv)
-        setDirectionCursor()
-    }
-
-    private func setDirectionCursor() {
-        let cursor: NSCursor = cursorDirection == .vertical ? .resizeLeftRight : .resizeUpDown
-        cursor.set()
-    }
-
-    // MARK: - Multi-monitor activation (phase 11)
-
-    override func mouseEntered(with event: NSEvent) {
+    override func handleActivation() {
         onActivate?(self)
     }
 
-    func deactivate() {
-        // Hide preview line so it doesn't remain frozen on inactive screen
-        guideLineManager.hidePreview()
+    override func showInitialState() {
+        initCursorPosition()
+        guideLineManager.showPreview()
+        guideLineManager.updatePreview(at: lastCursorPosition)
+        // Show resize cursor immediately via CursorManager (replaces resetCursorRects approach)
+        if cursorDirection == .vertical {
+            CursorManager.shared.transitionToResizeLeftRight()
+        } else {
+            CursorManager.shared.transitionToResizeUpDown()
+        }
+        hintBarEntrance()
+    }
 
+    override func handleMouseMoved(to windowPoint: NSPoint) {
+        // Check hover first so preview knows whether to show "Remove" or coordinates
+        guideLineManager.updateHover(at: windowPoint)
+        guideLineManager.updatePreview(at: windowPoint)
+
+        // Cursor transitions for hover state — use CursorManager resize states
         if guideLineManager.hasHoveredLine {
-            guideLineManager.updateHover(at: NSPoint(x: -100, y: -100))
+            if CursorManager.shared.state != .pointingHand {
+                CursorManager.shared.transitionToPointingHandFromResize()
+            }
+        } else {
             if CursorManager.shared.state == .pointingHand {
-                CursorManager.shared.transitionBackToSystem()
-                updateCursor()
+                CursorManager.shared.transitionToResize(cursorDirection)
             }
         }
     }
 
-    func activate(firstMoveAlreadyReceived: Bool, currentStyle: GuideLineStyle, currentDirection: Direction) {
-        // Initialize cursor position for this window (critical for non-cursor-window screens)
-        let mouse = NSEvent.mouseLocation
-        lastCursorPosition = NSPoint(
-            x: mouse.x - screenBounds.origin.x,
-            y: mouse.y - screenBounds.origin.y
-        )
+    override func handleKeyDown(with event: NSEvent) {
+        switch Int(event.keyCode) {
+        case 48: onTabPressed?()
+        case 49: onSpacebarPressed?()
+        default: break
+        }
+    }
 
+    override func deactivate() {
+        guideLineManager.hidePreview()
+        if guideLineManager.hasHoveredLine {
+            guideLineManager.updateHover(at: NSPoint(x: -100, y: -100))
+            if CursorManager.shared.state == .pointingHand {
+                CursorManager.shared.transitionToResize(cursorDirection)
+            }
+        }
+    }
+
+    // MARK: - Multi-monitor Activation
+
+    func activate(firstMoveAlreadyReceived: Bool, currentStyle: GuideLineStyle, currentDirection: Direction) {
+        initCursorPosition()
         guideLineManager.setPreviewStyle(currentStyle)
         guideLineManager.setDirection(currentDirection)
         cursorDirection = currentDirection
-        updateCursor()
-        guideLineManager.showPreview()  // Restore preview visibility
+        // Restore resize cursor via CursorManager
+        CursorManager.shared.switchResize(to: cursorDirection)
+        guideLineManager.showPreview()
         guideLineManager.updatePreview(at: lastCursorPosition)
-
         if hintBarView.superview != nil {
             hintBarView.updatePosition(cursorY: lastCursorPosition.y, screenHeight: screenBounds.height)
         }
     }
 
-    // MARK: - Event Handling
-
-    override var canBecomeKey: Bool { true }
-    override var canBecomeMain: Bool { true }
+    // MARK: - Event Handling (Subclass-specific)
 
     override func sendEvent(_ event: NSEvent) {
         switch event.type {
         case .leftMouseDown: mouseDown(with: event)
         default: super.sendEvent(event)
-        }
-    }
-
-    override func mouseMoved(with event: NSEvent) {
-        // Throttle to ~60fps
-        let now = CACurrentMediaTime()
-        guard now - lastMoveTime >= 0.014 else { return }
-        lastMoveTime = now
-        onActivity?()
-
-        if !hasReceivedFirstMove {
-            hasReceivedFirstMove = true
-            onFirstMove?()
-        }
-
-        let windowPoint = event.locationInWindow
-        lastCursorPosition = windowPoint
-
-        // Check hover first so preview knows whether to show "Remove" or coordinates
-        guideLineManager.updateHover(at: windowPoint)
-        guideLineManager.updatePreview(at: windowPoint)
-
-        if hintBarView.superview != nil {
-            hintBarView.updatePosition(cursorY: windowPoint.y, screenHeight: screenBounds.height)
-        }
-
-        // Cursor transitions for hover state
-        if guideLineManager.hasHoveredLine {
-            if CursorManager.shared.state != .pointingHand {
-                CursorManager.shared.transitionToPointingHandFromSystem()
-            }
-        } else {
-            if CursorManager.shared.state == .pointingHand {
-                CursorManager.shared.transitionBackToSystem()
-            }
-            setDirectionCursor()
         }
     }
 
@@ -271,28 +192,12 @@ final class AlignmentGuidesWindow: NSWindow, OverlayWindowProtocol {
             guideLineManager.removeLine(guideLineManager.hoveredLine!, clickPoint: windowPoint)
             guideLineManager.resetRemoveMode()
             guideLineManager.updatePreview(at: windowPoint)
-            // Revert cursor after removal
-            CursorManager.shared.transitionBackToSystem()
-            updateCursor()
-            return  // Early return — do NOT place a new guide
+            // Revert to resize cursor via CursorManager
+            CursorManager.shared.transitionToResize(cursorDirection)
+            return
         }
 
         guideLineManager.placeGuide()
-    }
-
-    override func keyDown(with event: NSEvent) {
-        onActivity?()
-        switch Int(event.keyCode) {
-        case 48: // Tab — routed through coordinator to active window
-            onTabPressed?()
-        case 49: // Spacebar — routed through coordinator to active window
-            onSpacebarPressed?()
-        case 53: // ESC
-            if hintBarView.superview != nil { hintBarView.pressKey(.esc) }
-            onRequestExit?()
-        default:
-            break
-        }
     }
 
     override func keyUp(with event: NSEvent) {
