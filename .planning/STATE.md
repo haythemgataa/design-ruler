@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-16)
 
 **Core value:** Instant, accurate pixel inspection of anything on screen — zero friction from Raycast invoke to dimension readout.
-**Current focus:** v1.3 Code Unification — Phase 15 complete
+**Current focus:** v1.3 Code Unification — Phase 16 complete (all phases done)
 
 ## Current Position
 
-Phase: 15 of 16 (Window Base + Cursor)
-Plan: 2 of 2 in current phase
-Status: Phase 15 complete, all plans executed
-Last activity: 2026-02-17 — Plan 15-02 complete (RulerWindow + AlignmentGuidesWindow subclass OverlayWindow)
+Phase: 16 of 16 (Final Cleanup)
+Plan: 1 of 1 in current phase
+Status: Phase 16 complete, all plans executed. v1.3 Code Unification complete.
+Last activity: 2026-02-17 — Plan 16-01 complete (HintBarContent deduplication)
 
-Progress: [█████████░] 88%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -52,6 +52,7 @@ Progress: [█████████░] 88%
 | 14    | 02   | 2min 28s | 2     | 5     |
 | 15    | 01   | 2min 6s  | 2     | 2     |
 | 15    | 02   | 3min 27s | 2     | 3     |
+| 16    | 01   | 2min 4s  | 1     | 1     |
 
 ## Accumulated Context
 
@@ -66,6 +67,7 @@ All decisions logged in PROJECT.md Key Decisions table.
 - 14-02: ObjectIdentifier keying for per-screen EdgeDetector storage; wireCallbacks fully overridden per subclass; AlignmentGuides uses base default captureAllScreens
 - 15-01: Static configureOverlay() instead of init override; setupHintBar parameterized by HintBarMode; overridable hooks for subclass behavior
 - 15-02: willHandleFirstMove hook for RulerWindow's hideSystemCrosshair; CursorManager-only cursor management in AlignmentGuidesWindow; initCursorPosition helper in base
+- 16-01: HintBarTextStyle returns Text (not some View) from text/exitText helpers, satisfying both direct Text and View usage sites
 
 ### Pending Todos
 
@@ -78,5 +80,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-17
-Stopped at: Completed 15-02-PLAN.md (Phase 15 complete)
-Resume file: .planning/phases/16-cleanup/16-01-PLAN.md
+Stopped at: Completed 16-01-PLAN.md (Phase 16 complete, v1.3 Code Unification finished)
+Resume file: N/A (all phases complete)
