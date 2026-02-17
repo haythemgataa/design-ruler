@@ -27,40 +27,50 @@ TypeScript (thin wrappers, ~13 lines each)
   ├─ src/design-ruler.ts  → import { inspect } from "swift:../swift/Ruler"
   └─ src/alignment-guides.ts → import { alignmentGuides } from "swift:../swift/Ruler"
        └─ Swift (all logic)
-            ├─ Ruler.swift              — design-ruler entry, multi-monitor window mgmt
-            ├─ RulerWindow.swift        — NSWindow subclass, mouseMoved + keyDown
+            ├─ Ruler.swift              — OverlayCoordinator subclass, design-ruler entry
+            ├─ RulerWindow.swift        — OverlayWindow subclass, edge detection + drag
             ├─ EdgeDetection/
             │   ├─ EdgeDetector.swift       — capture + scan + skip state + smart corrections
             │   ├─ ColorMap.swift           — pixel buffer, color scanning, stabilization
             │   └─ DirectionalEdges.swift   — EdgeHit + DirectionalEdges models
             ├─ Rendering/
-            │   ├─ CrosshairView.swift      — 4 lines, cross-feet, W×H pill, cursor mgmt
+            │   ├─ PillRenderer.swift       — shared pill factories, font, paths, text, shadows
+            │   ├─ CrosshairView.swift      — 4 lines, cross-feet, W×H pill (via PillRenderer)
             │   ├─ HintBarView.swift        — glass hint bar, slide animation, expand/collapse
-            │   ├─ HintBarContent.swift     — SwiftUI keycap layouts, mode-specific content
+            │   ├─ HintBarContent.swift     — SwiftUI keycap layouts, HintBarTextStyle
             │   ├─ SelectionManager.swift   — drag lifecycle, edge snapping, hover tracking
             │   └─ SelectionOverlay.swift   — selection rendering, snap animation, shake
             ├─ AlignmentGuides/
-            │   ├─ AlignmentGuides.swift    — entry point, per-screen windows, global state
-            │   ├─ AlignmentGuidesWindow.swift — NSWindow for guides, event handling
+            │   ├─ AlignmentGuides.swift    — OverlayCoordinator subclass, alignment-guides entry
+            │   ├─ AlignmentGuidesWindow.swift — OverlayWindow subclass, guide line management
             │   ├─ GuideLineManager.swift   — preview line, placed lines, hover detection
-            │   ├─ GuideLine.swift          — line rendering, position pills, hover state
+            │   ├─ GuideLine.swift          — line rendering, position pills (via PillRenderer)
             │   ├─ GuideLineStyle.swift     — 5 color presets (dynamic, red, green, orange, blue)
             │   └─ ColorCircleIndicator.swift — arc-based color indicator, debounced auto-hide
             ├─ Cursor/
-            │   └─ CursorManager.swift      — state machine, balanced hide/push counters
+            │   └─ CursorManager.swift      — state machine, 5 states, cursorUpdate pattern
             ├─ Utilities/
-            │   └─ CoordinateConverter.swift — AppKit ↔ CG conversion
+            │   ├─ OverlayCoordinator.swift — shared lifecycle base (warmup, permissions, exit)
+            │   ├─ OverlayWindow.swift      — shared window base (config, tracking, throttle)
+            │   ├─ ScreenCapture.swift      — shared CGWindowListCreateImage wrapper
+            │   ├─ DesignTokens.swift       — centralized colors, radii, durations, BlendMode
+            │   ├─ TransactionHelpers.swift  — CATransaction.instant{} and .animated{}
+            │   └─ CoordinateConverter.swift — AppKit ↔ CG point + rect conversion
             └─ Permissions/
                 └─ PermissionChecker.swift  — screen recording check/request
 ```
 
 ### Key Design Principles
 - TypeScript does NOTHING except read preferences and call Swift.
+- Shared base classes: `OverlayCoordinator` (lifecycle) and `OverlayWindow` (window setup).
+  Each command subclasses both, providing only command-specific factory/hook overrides.
 - Single class for edge detection (no ImageEdgeDetector wrapper).
 - EdgeHit is minimal: just `distance` and `screenPosition`.
-- Multi-monitor: capture all screens before creating any windows.
-- CursorManager: centralized state machine for all NSCursor operations.
-- Global state (color, direction) lives in singletons, synced via callbacks.
+- Multi-monitor: `OverlayCoordinator.run()` captures all screens before creating any windows.
+- CursorManager: centralized state machine using `NSCursor.set()` + `cursorUpdate(with:)`.
+- Global state (color, direction) lives in coordinator subclasses, synced via callbacks.
+- Design tokens: all shared colors, radii, durations, blend mode in `DesignTokens.swift`.
+- Pill rendering: `PillRenderer` provides factories for all pill types (dimension, position, selection).
 
 ---
 
@@ -84,11 +94,11 @@ Adds complexity with minimal benefit over image-based detection.
 ### NO Snap Engine
 Snapping cursor to edges is disorienting. Arrow-key skipping is better.
 
-### NO NSCursor.set() for Persistent Cursors
-`NSCursor.crosshair.set()` gets overridden immediately by the window's
-cursor rect management. Use `resetCursorRects()` + `addCursorRect()` for
-launch-time cursors. For all other cursor transitions, use `CursorManager`
-which tracks balanced push/pop and hide/unhide counts.
+### NO NSCursor push/pop or resetCursorRects
+Pushed cursors and cursor rects get overridden by the system on borderless
+windows. `CursorManager` uses `NSCursor.set()` directly and `OverlayWindow`
+overrides `cursorUpdate(with:)` (via `.cursorUpdate` tracking area option)
+to re-apply the correct cursor on every system callback.
 
 ### NO Absolute-Coordinate Paths for Animated Layers
 `CAShapeLayer.path` with absolute screen coordinates morphs point-by-point
@@ -144,28 +154,24 @@ Creating fullscreen windows steals focus — title bars gray out. Fix:
 3. Use the same capture data (ColorMap/CGImage) for edge detection
 4. User sees frozen frames — no visible disruption
 
-```swift
-// Design Ruler: captures + edge detectors per screen
-var captures: [(screen: NSScreen, detector: EdgeDetector, image: CGImage?)] = []
-for screen in NSScreen.screens {
-    let detector = EdgeDetector()
-    let cgImage = detector.capture(screen: screen)
-    captures.append((screen, detector, cgImage))
-}
-// THEN create windows from captures
+`OverlayCoordinator.run()` enforces the full sequence:
 
-// Alignment Guides: captures per screen (no edge detector needed)
-var captures: [(screen: NSScreen, image: CGImage?)] = []
-for screen in NSScreen.screens {
-    let cgImage = captureScreen(screen)
-    captures.append((screen, cgImage))
-}
+```swift
+// Base run() orchestrates:
+// 1. Warmup capture (1x1 pixel)
+// 2. Permission check
+// 3. Detect cursor screen (NSEvent.mouseLocation + NSMouseInRect)
+// 4. resetCommandState()
+// 5. captureAllScreens() — Ruler overrides to use EdgeDetector
+// 6. setActivationPolicy(.accessory)
+// 7. Cleanup old windows
+// 8. createWindow() per screen — subclass factory
+// 9. wireCallbacks() — subclass wiring
+// 10. Show all windows, makeKey cursor screen, showInitialState()
+// 11. Signal handler, inactivity timer, app.run()
 ```
 
-### Screen Selection
-Identify which screen the cursor is on at launch time using
-`NSEvent.mouseLocation` + `NSMouseInRect`. That screen gets the hint bar;
-other screens get `hideHintBar: true`.
+The cursor screen gets the hint bar; other screens get `hideHintBar: true`.
 
 ---
 
@@ -231,7 +237,7 @@ Dark backgrounds get bright lines, bright backgrounds get dark lines.
 
 ```swift
 // In CrosshairView — line layers use:
-lineLayer.compositingFilter = "differenceBlendMode"
+lineLayer.compositingFilter = BlendMode.difference  // from DesignTokens.swift
 ```
 
 The W×H pill and hint bar use normal blend with a dark background so
@@ -243,12 +249,14 @@ text stays readable.
 
 ### CAShapeLayer Updates (GPU-composited)
 - No `draw()` override — only CALayer property updates on mouse move
-- `CATransaction.setDisableActions(true)` for instant updates (every mouse move)
+- `CATransaction.instant { }` for instant updates (every mouse move)
+- `CATransaction.animated(duration:) { }` for animated transitions
 - `contentsScale = backingScaleFactor` on ALL layers for Retina sharpness
-- Lines + feet in one CATransaction (actions disabled, instant)
-- Pill in a separate CATransaction (animated on flip, instant otherwise)
+- Lines + feet in one `CATransaction.instant` block
+- Pill in a separate block (animated on flip via `CATransaction.animated`, instant otherwise)
 - Pill bg layers: use `frame` + local-origin `path` so `frame` animates
   on flip (absolute-coordinate paths morph instead of sliding)
+- Raw `CATransaction.begin()`/`commit()` only for blocks needing `setCompletionBlock`
 
 ### Wrapper Layer Pattern for Shadows
 When `masksToBounds = true` is needed for clipping (e.g., rounded corners),
@@ -290,6 +298,7 @@ shadow, with the clipped content layer as a sublayer.
 
 ### Critical Setup Order
 `HintBarView.setMode()` MUST be called BEFORE `configure()`.
+`OverlayWindow.setupHintBar()` enforces this order automatically.
 
 ### Preference
 - `hideHintBar`: hides hint bar entirely
@@ -309,10 +318,9 @@ shadow, with the clipped content layer as a sublayer.
 ## 11. Key Behaviors
 
 ### Design Ruler
-- **Launch**: captures all screens, fullscreen overlays appear, system
-  crosshair cursor shown, pill fades in at cursor with "0000 × 0000"
+- **Launch**: captures all screens, fullscreen overlays appear, cursor hidden,
+  CAShapeLayer crosshair renders, pill fades in at cursor with "0000 × 0000"
 - **Mouse move**: crosshair follows cursor, edges detected, W×H updates.
-  On first move: system crosshair hidden, custom CAShapeLayer takes over.
 - **Arrow keys**: skip to next edge in that direction
 - **Shift+arrow**: un-skip (bring edge closer)
 - **Mouse move**: resets all skip counts
@@ -359,18 +367,20 @@ slide-in (0.15s easeOut, `beginTime` 0.1). Model value (`frame.origin.y`)
 set immediately; animation overrides presentation layer. `isAnimating` flag
 prevents overlapping animations.
 
-### Crosshair Cursor on Launch (CrosshairView + RulerWindow)
-System crosshair cursor shown on launch via `resetCursorRects()` /
-`addCursorRect()`. On first mouse move, `hideSystemCrosshair()` invalidates
-cursor rects and calls `NSCursor.hide()`.
+### Cursor on Launch
+- **Design Ruler**: `CursorManager.shared.hide()` called in
+  `RulerWindow.showInitialState()`. Cursor is hidden immediately; the
+  CAShapeLayer crosshair renders from the start.
+- **Alignment Guides**: `CursorManager.shared.showResize(cursor)` called in
+  `AlignmentGuidesWindow.showInitialState()`. Resize cursor visible immediately.
 
-**Do NOT use `NSCursor.crosshair.set()`** — it gets immediately overridden
-by the window's cursor rect management when the window becomes key.
+Both use `OverlayWindow`'s `cursorUpdate(with:)` override to maintain cursor
+state against system resets.
 
 ### Pill Initialization (CrosshairView)
 On launch, pill appears at cursor position with "0000 × 0000" and fades in
 over 0.3s easeOut. `showInitialPill(at:)` sets all pill layer opacities to 0
-in a disabled-actions transaction, calls `layoutPill()`, then animates
+in `CATransaction.instant { }`, calls `layoutPill()`, then animates
 opacity to 1.
 
 ### Selection Snap (SelectionOverlay)
@@ -403,51 +413,60 @@ setOpacity(1, animated: true)   // fade in
 ## 13. Multi-Monitor Coordination
 
 ### Window Lifecycle
-1. Capture ALL screens before creating ANY windows (array of tuples)
-2. Create one window per screen from captures
+Managed by `OverlayCoordinator.run()`:
+1. Capture ALL screens before creating ANY windows
+2. Create one window per screen via subclass `createWindow()` factory
 3. Hint bar only on cursor's launch screen
 4. `orderFrontRegardless()` all windows, then `makeKey()` cursor screen
 
 ### Activation
-- Mouse enter/exit events trigger `onActivate` callback
-- Singleton (`Ruler.shared` / `AlignmentGuides.shared`) tracks `activeWindow`
+- `OverlayWindow.mouseEntered` → `handleActivation()` → typed `onActivate` callback
+- `OverlayCoordinator` base tracks `activeWindow`
 - `deactivate()` old window → `activate()` new window
 - `firstMoveAlreadyReceived` passed to new window on activation
 
 ### Global State Sync (Alignment Guides)
-- `currentStyle` and `currentDirection` live in `AlignmentGuides` singleton
-- On spacebar/tab: active window performs action, singleton reads back state
+- `currentStyle` and `currentDirection` live in `AlignmentGuides` coordinator subclass
+- On spacebar/tab: active window performs action, coordinator reads back state
 - On activation: new window receives current style/direction via `activate()`
 
 ### Cursor Position Initialization
-On `activate()`, initialize `lastCursorPosition` using
+`OverlayWindow.initCursorPosition()` initializes `lastCursorPosition` from
 `NSEvent.mouseLocation - screenBounds.origin` to avoid (0,0) artifacts.
+Called by subclasses in `showInitialState()` and `activate()`.
 
 ---
 
 ## 14. CursorManager
 
-Centralized state machine (`CursorManager.swift`) with 4 states:
+Centralized state machine (`CursorManager.swift`) with 5 states:
 
 ```
-systemCrosshair → hidden → pointingHand
-                         → crosshairDrag
+Ruler:  idle ─hide()─▶ hidden ◀─transitionBack()─ pointingHand / crosshairDrag
+Guides: idle ─showResize()─▶ resize ◀─transitionBack()─ pointingHand
 ```
 
-- **systemCrosshair**: launch state, cursor rects manage crosshair
-- **hidden**: after first mouse move, NSCursor.hide(), CAShapeLayer renders
+- **idle**: default, no cursor modifications active
+- **hidden**: Ruler mode — cursor hidden, CAShapeLayer crosshair renders
+- **resize**: Guides mode — resize cursor (left-right or up-down)
 - **pointingHand**: hovering a selection/guide line
-- **crosshairDrag**: during drag-to-select
+- **crosshairDrag**: during drag-to-select (Ruler only)
+
+Uses `NSCursor.set()` (not push/pop) because borderless overlay windows
+override pushed cursors. `OverlayWindow.cursorUpdate(with:)` calls
+`CursorManager.applyCursor()` to re-apply on every system callback.
 
 Key methods:
-- `transitionToHidden()` — first mouse move
-- `transitionToPointingHand()` / `transitionToPointingHandFromSystem()` — hover
-- `transitionBackToHidden()` / `transitionBackToSystem()` — un-hover
-- `transitionToCrosshairDrag()` — drag start
-- `restore()` — unconditional cleanup (balanced pop/unhide all counters)
-- `reset()` — for multi-monitor window re-setup
+- `hide()` — Ruler launch (sets base state to .hidden)
+- `showResize(_:)` — Guides launch (sets base state to .resize)
+- `updateResize(_:)` — swap resize cursor direction (Tab toggle)
+- `transitionToPointingHand()` — hover (from .hidden or .resize)
+- `transitionToCrosshairDrag()` — drag start (from .hidden)
+- `transitionBack()` — return to base state (.hidden or .resize)
+- `applyCursor()` — re-apply current cursor (called by cursorUpdate)
+- `restore()` — unconditional cleanup for exit (unhide all, arrow cursor)
 
-SIGTERM handler in both singletons calls `CursorManager.shared.restore()`.
+SIGTERM handler in `OverlayCoordinator` base calls `CursorManager.shared.restore()`.
 
 ---
 
@@ -497,11 +516,6 @@ Bugs encountered and fixed — avoid re-introducing these:
   converted to window-local coords. Without this, UI elements appear at
   (0,0) until the first mouse move on that screen.
 
-- **hitTest/addCursorRect scope**: When subclassing NSWindow with a
-  `PassthroughView` content view, carefully manage `hitTest`, `bounds`
-  scope, and `invalidateCursorRects` — these are common sources of
-  compilation errors.
-
 ---
 
 ## 17. Testing Checklist
@@ -538,8 +552,8 @@ Bugs encountered and fixed — avoid re-introducing these:
 - [ ] Hint bar clears MacBook notch when at top
 - [ ] hideHintBar preference works (both commands)
 - [ ] CPU stays low (<5%) during mouse movement
-- [ ] System crosshair cursor visible on launch (before mouse move)
-- [ ] Crosshair/resize cursor disappears on first mouse move
+- [ ] Ruler: cursor hidden on launch, CAShapeLayer crosshair visible
+- [ ] Guides: resize cursor visible on launch
 - [ ] 10-minute inactivity auto-exit works
 - [ ] SIGTERM restores cursor state cleanly
 - [ ] Pill shows "0000 × 0000" on launch, fades in (design ruler)

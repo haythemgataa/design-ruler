@@ -29,6 +29,10 @@ final class GuideLine {
     private(set) var isHovered = false
     var isInRemoveMode = false
 
+    // Pill position state (for swap animation)
+    private var pillOnFarSide = false
+    private var pillBelowOrAfter = false
+
     // Pill layout constants (matching CrosshairView)
     private let pillHeight = DesignTokens.Pill.height
     private let outerRadius = DesignTokens.Pill.cornerRadius
@@ -84,31 +88,28 @@ final class GuideLine {
     func update(position: CGFloat, cursorAlongAxis: CGFloat, screenSize: CGSize, direction: Direction, style: GuideLineStyle) {
         self.position = position
 
+        // Line update — always instant
         CATransaction.instant {
-            // Update line path
             let linePath = CGMutablePath()
             if direction == .vertical {
-                // Full-height vertical line
                 linePath.move(to: CGPoint(x: position, y: 0))
                 linePath.addLine(to: CGPoint(x: position, y: screenSize.height))
             } else {
-                // Full-width horizontal line
                 linePath.move(to: CGPoint(x: 0, y: position))
                 linePath.addLine(to: CGPoint(x: screenSize.width, y: position))
             }
             lineLayer.path = linePath
 
-            // Update style
             lineLayer.strokeColor = style.color
             if style.useDifferenceBlend {
                 lineLayer.compositingFilter = BlendMode.difference
             } else {
                 lineLayer.compositingFilter = nil
             }
-
-            // Update pill
-            layoutPill(position: position, cursorAlongAxis: cursorAlongAxis, screenSize: screenSize, direction: direction)
         }
+
+        // Pill update — animated on flip, instant otherwise
+        layoutPill(position: position, cursorAlongAxis: cursorAlongAxis, screenSize: screenSize, direction: direction)
     }
 
     private func layoutPill(position: CGFloat, cursorAlongAxis: CGFloat, screenSize: CGSize, direction: Direction) {
@@ -148,47 +149,66 @@ final class GuideLine {
         // Position pill offset from line
         var pillX: CGFloat
         var pillY: CGFloat
+        var nowFarSide = false
+        var nowBelowOrAfter = false
 
         if direction == .vertical {
             // Vertical line: pill to the right (or left if near right edge)
             let onRight = position + 8 + pillW < screenSize.width - 12
+            nowFarSide = !onRight
             pillX = onRight ? position + 8 : position - 8 - pillW
 
             // Position along axis relative to cursor (12px offset)
             pillY = cursorAlongAxis - 12 - pillHeight
-            if pillY < 12 { pillY = cursorAlongAxis + 12 }
+            nowBelowOrAfter = pillY < 12
+            if nowBelowOrAfter { pillY = cursorAlongAxis + 12 }
         } else {
             // Horizontal line: pill above (or below if near top)
             let above = position - 8 - pillHeight > 12
+            nowFarSide = !above
             pillY = above ? position - 8 - pillHeight : position + 8
 
             // Position along axis relative to cursor (12px offset)
             pillX = cursorAlongAxis + 12
-            if pillX + pillW > screenSize.width - 12 {
+            nowBelowOrAfter = pillX + pillW > screenSize.width - 12
+            if nowBelowOrAfter {
                 pillX = cursorAlongAxis - 12 - pillW
             }
         }
 
-        let pillRect = CGRect(x: pillX, y: pillY, width: pillW, height: pillHeight)
-        let textY = round(pillY + (pillHeight - textH) / 2)
+        // Detect flip
+        let flipped = (nowFarSide != pillOnFarSide) || (nowBelowOrAfter != pillBelowOrAfter)
+        pillOnFarSide = nowFarSide
+        pillBelowOrAfter = nowBelowOrAfter
 
-        // Pill background — frame for position, path at local origin
-        pill.bgLayer.frame = pillRect
-        pill.bgLayer.path = PillRenderer.squirclePath(rect: CGRect(origin: .zero, size: pillRect.size), radius: outerRadius)
-        pill.bgLayer.fillColor = bgColor
-        pill.bgLayer.opacity = pillOpacity
+        let pillBody = {
+            let pillRect = CGRect(x: pillX, y: pillY, width: pillW, height: self.pillHeight)
+            let textY = round(pillY + (self.pillHeight - textH) / 2)
 
-        // Label layer
-        let labelX = round(pillX + padLeft)
-        pill.labelLayer.string = labelAttr
-        pill.labelLayer.frame = CGRect(x: labelX, y: textY, width: labelW, height: textH)
-        pill.labelLayer.opacity = pillOpacity
+            // Pill background — frame for position, path at local origin
+            self.pill.bgLayer.frame = pillRect
+            self.pill.bgLayer.path = PillRenderer.squirclePath(rect: CGRect(origin: .zero, size: pillRect.size), radius: self.outerRadius)
+            self.pill.bgLayer.fillColor = bgColor
+            self.pill.bgLayer.opacity = pillOpacity
 
-        // Value layer
-        let valueX = round(labelX + labelW + gap)
-        pill.valueLayer.string = valueAttr
-        pill.valueLayer.frame = CGRect(x: valueX, y: textY, width: valueW, height: textH)
-        pill.valueLayer.opacity = pillOpacity
+            // Label layer
+            let labelX = round(pillX + self.padLeft)
+            self.pill.labelLayer.string = labelAttr
+            self.pill.labelLayer.frame = CGRect(x: labelX, y: textY, width: labelW, height: textH)
+            self.pill.labelLayer.opacity = pillOpacity
+
+            // Value layer
+            let valueX = round(labelX + labelW + gap)
+            self.pill.valueLayer.string = valueAttr
+            self.pill.valueLayer.frame = CGRect(x: valueX, y: textY, width: valueW, height: textH)
+            self.pill.valueLayer.opacity = pillOpacity
+        }
+
+        if flipped {
+            CATransaction.animated(duration: DesignTokens.Animation.fast, pillBody)
+        } else {
+            CATransaction.instant(pillBody)
+        }
     }
 
     /// Set opacity on all layers (for fade in/out).

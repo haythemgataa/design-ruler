@@ -65,11 +65,8 @@ final class RulerWindow: OverlayWindow {
         onActivate?(self)
     }
 
-    override func willHandleFirstMove() {
-        crosshairView.hideSystemCrosshair()
-    }
-
     override func showInitialState() {
+        CursorManager.shared.hide()
         let mouseLocation = NSEvent.mouseLocation
         let windowPoint = NSPoint(
             x: mouseLocation.x - screenBounds.origin.x,
@@ -99,7 +96,7 @@ final class RulerWindow: OverlayWindow {
         } else if isHoveringSelection {
             isHoveringSelection = false
             crosshairView.showAfterDrag()
-            CursorManager.shared.transitionBackToHidden()
+            CursorManager.shared.transitionBack()
             selectionManager.updateHover(at: windowPoint)
         }
 
@@ -136,13 +133,13 @@ final class RulerWindow: OverlayWindow {
         crosshairView.hideForDrag()
         if isHoveringSelection {
             isHoveringSelection = false
-            CursorManager.shared.transitionBackToHidden()
+            CursorManager.shared.transitionBack()
             selectionManager.updateHover(at: .zero)
         }
         if isDragging {
             selectionManager.cancelDrag()
             isDragging = false
-            CursorManager.shared.transitionBackToHidden()
+            CursorManager.shared.transitionBack()
         }
     }
 
@@ -151,7 +148,6 @@ final class RulerWindow: OverlayWindow {
     func activate(firstMoveAlreadyReceived: Bool) {
         if firstMoveAlreadyReceived && !hasReceivedFirstMove {
             markFirstMoveReceived()
-            crosshairView.skipSystemCrosshairPhase()
         }
         crosshairView.showAfterDrag()
 
@@ -190,7 +186,7 @@ final class RulerWindow: OverlayWindow {
         if isDragging {
             isDragging = false
             crosshairView.showAfterDrag()
-            CursorManager.shared.transitionBackToHidden()
+            CursorManager.shared.transitionBack()
         }
 
         // Click on a hovered selection -> remove it and restore crosshair
@@ -198,7 +194,7 @@ final class RulerWindow: OverlayWindow {
             selectionManager.removeSelection(hovered)
             if isHoveringSelection {
                 isHoveringSelection = false
-                CursorManager.shared.transitionBackToHidden()
+                CursorManager.shared.transitionBack()
             }
             // Restore crosshair at current position
             crosshairView.showAfterDrag()
@@ -216,7 +212,7 @@ final class RulerWindow: OverlayWindow {
         isDragging = true
         if isHoveringSelection {
             isHoveringSelection = false
-            CursorManager.shared.transitionBackToHidden()
+            CursorManager.shared.transitionBack()
         }
         crosshairView.hideForDrag()
         selectionManager.startDrag(at: windowPoint)
@@ -249,7 +245,7 @@ final class RulerWindow: OverlayWindow {
         }
 
         // Hide system cursor again (custom crosshair takes over)
-        CursorManager.shared.transitionBackToHidden()
+        CursorManager.shared.transitionBack()
     }
 
     override func keyUp(with event: NSEvent) {

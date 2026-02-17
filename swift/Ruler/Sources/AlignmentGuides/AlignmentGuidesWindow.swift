@@ -1,17 +1,10 @@
 import AppKit
 import QuartzCore
 
-/// Transparent view that passes events through to the window.
-private class PassthroughView: NSView {
-    override func hitTest(_ point: NSPoint) -> NSView? {
-        return nil
-    }
-}
-
 /// Fullscreen overlay window for the Alignment Guides command.
 /// Subclasses OverlayWindow for shared window config, tracking, throttle, hint bar, and ESC.
 /// Contains only: guide line management, direction/style cycling, cursor direction state.
-/// All resize cursor management goes through CursorManager (no resetCursorRects/NSCursor.set).
+/// Cursor management via CursorManager (resize ↔ pointingHand).
 final class AlignmentGuidesWindow: OverlayWindow {
     private var guideLineManager: GuideLineManager!
     private var cursorDirection: Direction = .vertical
@@ -53,8 +46,8 @@ final class AlignmentGuidesWindow: OverlayWindow {
             containerView.addSubview(bgView)
         }
 
-        // Guideline view (transparent, passes events through)
-        let guidelineView = PassthroughView(frame: NSRect(origin: .zero, size: size))
+        // Guideline view (transparent, no hit testing needed)
+        let guidelineView = NSView(frame: NSRect(origin: .zero, size: size))
         guidelineView.wantsLayer = true
         containerView.addSubview(guidelineView)
 
@@ -88,8 +81,8 @@ final class AlignmentGuidesWindow: OverlayWindow {
         if hintBarView.superview != nil { hintBarView.pressKey(.tab) }
         guideLineManager.toggleDirection()
         cursorDirection = guideLineManager.direction
-        // Switch resize cursor via CursorManager
-        CursorManager.shared.switchResize(to: cursorDirection)
+        let newCursor: NSCursor = cursorDirection == .vertical ? .resizeLeftRight : .resizeUpDown
+        CursorManager.shared.updateResize(newCursor)
     }
 
     func releaseTabKey() {
@@ -114,28 +107,25 @@ final class AlignmentGuidesWindow: OverlayWindow {
         initCursorPosition()
         guideLineManager.showPreview()
         guideLineManager.updatePreview(at: lastCursorPosition)
-        // Show resize cursor immediately via CursorManager (replaces resetCursorRects approach)
-        if cursorDirection == .vertical {
-            CursorManager.shared.transitionToResizeLeftRight()
-        } else {
-            CursorManager.shared.transitionToResizeUpDown()
-        }
+        let resizeCursor: NSCursor = cursorDirection == .vertical ? .resizeLeftRight : .resizeUpDown
+        CursorManager.shared.showResize(resizeCursor)
         hintBarEntrance()
     }
 
     override func handleMouseMoved(to windowPoint: NSPoint) {
+        let wasHovering = guideLineManager.hasHoveredLine
+
         // Check hover first so preview knows whether to show "Remove" or coordinates
         guideLineManager.updateHover(at: windowPoint)
         guideLineManager.updatePreview(at: windowPoint)
 
-        // Cursor transitions for hover state — use CursorManager resize states
-        if guideLineManager.hasHoveredLine {
-            if CursorManager.shared.state != .pointingHand {
-                CursorManager.shared.transitionToPointingHandFromResize()
-            }
-        } else {
-            if CursorManager.shared.state == .pointingHand {
-                CursorManager.shared.transitionToResize(cursorDirection)
+        // Cursor transitions via CursorManager (only on state change)
+        let isHovering = guideLineManager.hasHoveredLine
+        if isHovering != wasHovering {
+            if isHovering {
+                CursorManager.shared.transitionToPointingHand()
+            } else {
+                CursorManager.shared.transitionBack()
             }
         }
     }
@@ -152,9 +142,7 @@ final class AlignmentGuidesWindow: OverlayWindow {
         guideLineManager.hidePreview()
         if guideLineManager.hasHoveredLine {
             guideLineManager.updateHover(at: NSPoint(x: -100, y: -100))
-            if CursorManager.shared.state == .pointingHand {
-                CursorManager.shared.transitionToResize(cursorDirection)
-            }
+            CursorManager.shared.transitionBack()
         }
     }
 
@@ -165,8 +153,8 @@ final class AlignmentGuidesWindow: OverlayWindow {
         guideLineManager.setPreviewStyle(currentStyle)
         guideLineManager.setDirection(currentDirection)
         cursorDirection = currentDirection
-        // Restore resize cursor via CursorManager
-        CursorManager.shared.switchResize(to: cursorDirection)
+        let resizeCursor: NSCursor = cursorDirection == .vertical ? .resizeLeftRight : .resizeUpDown
+        CursorManager.shared.updateResize(resizeCursor)
         guideLineManager.showPreview()
         guideLineManager.updatePreview(at: lastCursorPosition)
         if hintBarView.superview != nil {
@@ -192,8 +180,7 @@ final class AlignmentGuidesWindow: OverlayWindow {
             guideLineManager.removeLine(guideLineManager.hoveredLine!, clickPoint: windowPoint)
             guideLineManager.resetRemoveMode()
             guideLineManager.updatePreview(at: windowPoint)
-            // Revert to resize cursor via CursorManager
-            CursorManager.shared.transitionToResize(cursorDirection)
+            CursorManager.shared.transitionBack()
             return
         }
 

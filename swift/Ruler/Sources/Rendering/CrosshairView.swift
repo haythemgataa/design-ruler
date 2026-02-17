@@ -35,9 +35,6 @@ final class CrosshairView: NSView {
     private var pillIsOnLeft = false
     private var pillIsBelow = false
 
-    // System crosshair cursor (before first mouse move)
-    private var showSystemCrosshair = true
-
     // Cross-foot colors (difference blend)
     private let lineColor = CGColor(gray: 1.0, alpha: 1.0)
     private let absorbedFootColor = CGColor(srgbRed: 0.29, green: 0.87, blue: 0.50, alpha: 1.0)
@@ -55,12 +52,6 @@ final class CrosshairView: NSView {
         super.init(coder: coder)
         wantsLayer = true
         setupLayers()
-    }
-
-    override func resetCursorRects() {
-        if showSystemCrosshair {
-            addCursorRect(bounds, cursor: .crosshair)
-        }
     }
 
     /// Hide all crosshair elements (lines, feet, pill) during drag.
@@ -85,21 +76,6 @@ final class CrosshairView: NSView {
             bottomFoot.opacity = 1
             for pl in pillLayers { pl.opacity = 1 }
         }
-    }
-
-    /// Switch from system crosshair to hidden cursor (custom CAShapeLayer takes over).
-    func hideSystemCrosshair() {
-        showSystemCrosshair = false
-        window?.invalidateCursorRects(for: self)
-        CursorManager.shared.transitionToHidden()
-    }
-
-    /// Skip the system crosshair phase without calling NSCursor.hide().
-    /// Used when transitioning to a screen where the mouse has already moved
-    /// (avoids incrementing the hide counter or flashing the system crosshair).
-    func skipSystemCrosshairPhase() {
-        showSystemCrosshair = false
-        window?.invalidateCursorRects(for: self)
     }
 
     override func viewDidMoveToWindow() {

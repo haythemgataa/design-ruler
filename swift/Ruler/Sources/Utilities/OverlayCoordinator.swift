@@ -55,14 +55,17 @@ class OverlayCoordinator {
             NSMouseInRect(mouseLocation, screen.frame, false)
         } ?? NSScreen.main!
 
-        // 4. Capture all screens (subclass may override for command-specific capture)
+        // 4. Reset command-specific state from previous run (before new captures)
+        resetCommandState()
+
+        // 5. Capture all screens (subclass may override for command-specific capture)
         let captures = captureAllScreens()
 
-        // 5. Create windows from captures (subclass provides window factory)
+        // 6. Create windows from captures (subclass provides window factory)
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
 
-        // 6. Cleanup old windows
+        // 7. Cleanup old windows
         for oldWindow in windows {
             oldWindow.orderOut(nil)
             oldWindow.close()
@@ -70,9 +73,8 @@ class OverlayCoordinator {
         windows.removeAll()
         activeWindow = nil
         firstMoveReceived = false
-        resetCommandState()
 
-        // 7. Create one window per screen
+        // 8. Create one window per screen
         for capture in captures {
             let isCursorScreen = capture.screen === cursorScreen
             let window = createWindow(
@@ -85,12 +87,12 @@ class OverlayCoordinator {
             windows.append(window)
         }
 
-        // 8. Show all windows
+        // 9. Show all windows
         for window in windows {
             window.orderFrontRegardless()
         }
 
-        // 9. Make cursor screen window key and show initial state
+        // 10. Make cursor screen window key and show initial state
         let cw = windows.first { window in
             (window as? OverlayWindowProtocol)?.targetScreen === cursorScreen
         } ?? windows.first!
@@ -99,7 +101,7 @@ class OverlayCoordinator {
         activeWindow = cw
         cursorWindow = cw
 
-        // 10. Launch time, activate, signal handler, inactivity timer, run loop
+        // 11. Launch time, activate, signal handler, inactivity timer, run loop
         launchTime = CFAbsoluteTimeGetCurrent()
         NSApp.activate(ignoringOtherApps: true)
         setupSignalHandler()
