@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-16)
 
 **Core value:** Instant, accurate pixel inspection of anything on screen — zero friction from Raycast invoke to dimension readout.
-**Current focus:** v1.3 Code Unification — Phase 15 in progress
+**Current focus:** v1.3 Code Unification — Phase 15 complete
 
 ## Current Position
 
 Phase: 15 of 16 (Window Base + Cursor)
-Plan: 1 of 2 in current phase
-Status: Plan 15-01 complete, Plan 15-02 remaining
-Last activity: 2026-02-17 — Plan 15-01 complete (OverlayWindow base class + CursorManager resize states)
+Plan: 2 of 2 in current phase
+Status: Phase 15 complete, all plans executed
+Last activity: 2026-02-17 — Plan 15-02 complete (RulerWindow + AlignmentGuidesWindow subclass OverlayWindow)
 
-Progress: [████████░░] 81%
+Progress: [█████████░] 88%
 
 ## Performance Metrics
 
@@ -51,6 +51,7 @@ Progress: [████████░░] 81%
 | 14    | 01   | 2min 27s | 2     | 3     |
 | 14    | 02   | 2min 28s | 2     | 5     |
 | 15    | 01   | 2min 6s  | 2     | 2     |
+| 15    | 02   | 3min 27s | 2     | 3     |
 
 ## Accumulated Context
 
@@ -64,6 +65,7 @@ All decisions logged in PROJECT.md Key Decisions table.
 - 14-01: Class-based coordinator (not protocol) for shared stored state; OverlayWindowProtocol for type-safe window access; warmup capture moved into run() sequence
 - 14-02: ObjectIdentifier keying for per-screen EdgeDetector storage; wireCallbacks fully overridden per subclass; AlignmentGuides uses base default captureAllScreens
 - 15-01: Static configureOverlay() instead of init override; setupHintBar parameterized by HintBarMode; overridable hooks for subclass behavior
+- 15-02: willHandleFirstMove hook for RulerWindow's hideSystemCrosshair; CursorManager-only cursor management in AlignmentGuidesWindow; initCursorPosition helper in base
 
 ### Pending Todos
 
@@ -76,5 +78,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-17
-Stopped at: Completed 15-01-PLAN.md
-Resume file: .planning/phases/15-window-base-cursor/15-02-PLAN.md
+Stopped at: Completed 15-02-PLAN.md (Phase 15 complete)
+Resume file: .planning/phases/16-cleanup/16-01-PLAN.md
