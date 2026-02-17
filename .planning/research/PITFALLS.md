@@ -1,379 +1,513 @@
-# Domain Pitfalls: Hint Bar Redesign with Liquid Glass and Split Animation
+# Pitfalls Research: Standalone macOS Menu Bar App
 
-**Domain:** macOS overlay window -- adding blur/glass effects and morphing animations to existing CALayer UI
-**Researched:** 2026-02-13
-**Milestone context:** Redesigning existing hint bar from SwiftUI (NSHostingView) to a liquid glass style with a bar-splitting animation
+**Domain:** Adding a persistent menu bar app alongside an existing Raycast extension (spawn-run-exit model)
+**Researched:** 2026-02-17
+**Confidence:** HIGH — based on direct codebase analysis of `OverlayCoordinator`, `CursorManager`, `PermissionChecker`, `Package.swift`, and deep knowledge of macOS process/permission/build-system APIs
 
 ---
 
 ## Critical Pitfalls
 
-Mistakes that cause visual breakage, performance regression, or require architectural rework.
+Mistakes that cause crashes, permission denial loops, broken cursor state, or require architectural rewrites.
 
 ---
 
-### Pitfall 1: NSVisualEffectView Cannot Blur an Opaque Window's Own Content
+### Pitfall 1: NSApp.terminate(nil) in a Persistent App Kills the Whole Process
 
-**What goes wrong:** The current window is opaque (`window.isOpaque = true`, RulerWindow.swift line 43) with a frozen screenshot as background. `NSVisualEffectView` with `.behindWindow` blending mode samples content *behind the window* from the window server -- not from sibling views within the same window. Since the window is opaque, the window server sees a solid rectangle, and the blur shows a solid rectangle. No blur effect is visible. Switching to `.withinWindow` blending mode *can* work but has constraints: it blurs content from behind the view within the window's layer tree, and the screenshot must be correctly positioned as a layer below the effect view.
+**What goes wrong:**
+`OverlayCoordinator.handleExit()` calls `NSApp.terminate(nil)` (line 168 of OverlayCoordinator.swift). In the Raycast extension, this is correct: the process should die when the user presses ESC or the inactivity timer fires. In a persistent menu bar app, `NSApp.terminate(nil)` exits the entire process — quitting the app, not just ending one overlay session.
 
-**Why it happens:** `NSVisualEffectView` relies on `CABackdropLayer`, a private Core Animation class that samples pixels from the window server's composited output. An opaque window tells the window server "there is nothing behind me" -- so `.behindWindow` backdrop sampling returns nothing meaningful. The frozen screenshot exists as a bitmap assigned to a `CALayer.contents` property (RulerWindow.swift line 98), which is within the window but requires the `.withinWindow` mode and proper layer ordering to sample.
+**Why it happens:**
+The existing lifecycle equates "overlay done" with "process done." This worked when Raycast spawned a fresh process per invocation. In a persistent app, the process lives continuously and each Measure/Alignment Guides invocation is one session within that process.
 
-**Consequences:**
-- Hint bar background appears as solid gray/black instead of frosted glass
-- Or the blur works during development (non-opaque test config) but breaks in production
-- Switching `isOpaque = false` to "fix" this destroys the frozen-screenshot illusion and introduces flicker on launch
-
-**Prevention:**
-1. Do NOT use `NSVisualEffectView` with `.behindWindow` for this use case. The window must stay opaque.
-2. Use `.withinWindow` blending mode with careful view hierarchy ordering: place the `NSVisualEffectView` *above* the background image view so it can sample through the image content. Both must be in the same `NSView` subtree.
-3. Alternative: skip `NSVisualEffectView` entirely and implement blur manually -- render the screenshot region under the hint bar into a small `CIImage`, apply `CIGaussianBlur`, composite as `CALayer.contents` bitmap. One-time render (frozen screenshot), so performance is not a concern.
-4. Third option: use a separate non-opaque child `NSWindow` positioned over the hint bar area. The child window can use `.behindWindow` because the main window's content IS behind it from the window server's perspective. But this adds multi-window coordination complexity.
-
-**Detection:** If the hint bar background is a solid color with no visible blur/transparency of the screenshot beneath it, this pitfall has been hit.
-
-**Confidence:** HIGH -- based on [Apple NSVisualEffectView docs](https://developer.apple.com/documentation/appkit/nsvisualeffectview), [Reverse Engineering NSVisualEffectView](https://oskargroth.com/blog/reverse-engineering-nsvisualeffectview), and direct analysis of the codebase's opaque window setup.
-
----
-
-### Pitfall 2: NSVisualEffectView and Layer-Hosting Views Are Incompatible
-
-**What goes wrong:** The CrosshairView uses `wantsLayer = true` and directly manipulates `CAShapeLayer` sublayers (CrosshairView.swift lines 141-183). Adding an `NSVisualEffectView` as a sibling that shares the same layer tree causes the visual effect view's internal `CABackdropLayer` to malfunction. The blur effect disappears entirely.
-
-**Why it happens:** `NSVisualEffectView` creates its own internal layer hierarchy including `CABackdropLayer`. In a layer-hosting view hierarchy, the view system's layer management conflicts with manual layer management. The window server either cannot see the backdrop layer or the layer tree gets "flattened" after ~1 second of inactivity (documented WindowServer behavior for performance), destroying the backdrop's ability to sample live content.
-
-**Consequences:**
-- Blur effect silently fails (no error, no crash)
-- May appear to work initially, then breaks after 1 second of window idleness
-- Intermittent: works on some macOS versions but not others
-
-**Prevention:**
-1. Keep `NSVisualEffectView` in a *separate* NSView subtree from any layer-hosting views. The hint bar is already a separate NSView (HintBarView) added as a sibling of CrosshairView (RulerWindow.swift lines 72-77). This is the correct architecture.
-2. Verify that HintBarView itself does not become a layer-hosting view. The current `wantsLayer = true` (line 30) makes it layer-backed (safe). But adding CALayers directly to its `layer` property would make it layer-hosting (breaks blur).
-3. If you need both blur AND custom CALayers in the hint bar, stack them: `hintBarView > [NSVisualEffectView (bottom), customLayerView (top)]` where the blur view and the layer-hosting content view are siblings, not parent-child.
-
-**Detection:** If blur works initially but disappears after the window has been idle for about one second, the WindowServer layer flattening is destroying the backdrop layer.
-
-**Confidence:** HIGH -- based on [NSVisualEffectView layer-hosting incompatibility](https://databasefaq.com/index.php/answer/164756/osx-calayer-nsview-nswindow-nsvisualeffectview-how-to-use-nsvisualeffectview-in-a-layer-host-nsview), [CABackdropLayer flattening behavior](https://medium.com/@avaidyam/capluginlayer-cabackdroplayer-f56e85d9dc2c).
-
----
-
-### Pitfall 3: NSGlassEffectView / .glassEffect() Requires macOS 26 -- Breaks Deployment Target
-
-**What goes wrong:** `NSGlassEffectView` (AppKit) and `.glassEffect()` (SwiftUI) are only available on macOS 26.0 (Tahoe). The project targets macOS 13+ (Package.swift line 7: `.macOS(.v13)`). Using these APIs without availability checks causes a compile error. Using them with `if #available(macOS 26.0, *)` means the glass effect is only visible to macOS 26+ users, while macOS 13-15 users see a fallback.
-
-**Additional regression risk:** On macOS 26.2+, a known regression (FB21375029) causes `.glassEffect()` to stop working in floating/non-standard windows (which the Ruler uses -- `.statusBar` level, `.borderless`, `isOpaque = true`). The glass effect may degrade to a simple blur or disappear entirely.
-
-**Consequences:**
-- Compile error if used unconditionally
-- Two completely different code paths to maintain (glass vs. fallback)
-- Even on macOS 26, glass may not work in this window configuration
-
-**Prevention:**
-1. Do NOT use `NSGlassEffectView` or `.glassEffect()` as the primary implementation. The project targets macOS 13+ and the Ruler's window configuration may trigger the 26.2 regression.
-2. Implement the "liquid glass" visual style manually using `NSVisualEffectView` (`.withinWindow`, `.hudWindow` or `.popover` material) or CIFilter-based blur. Both work on macOS 13+.
-3. If native Liquid Glass is desired as a future enhancement, add it behind `if #available(macOS 26.0, *)` with the manual implementation as the fallback. But do not make it the primary path for this milestone.
-
-**Detection:** Build fails with "NSGlassEffectView is only available in macOS 26 or newer." Or: glass appears as opaque panel on macOS 26.2+.
-
-**Confidence:** HIGH -- [Apple NSGlassEffectView docs](https://developer.apple.com/documentation/appkit/nsglasseffectview) confirm `@available(macOS 26.0, *)`. Regression documented via FB21375029.
-
----
-
-### Pitfall 4: Replacing Bitmap-Cached View with Live Rendering Causes CPU Regression
-
-**What goes wrong:** The current HintBarView uses NSHostingView wrapping SwiftUI. SwiftUI only redraws on state changes (key press/release). If the redesign replaces this with live CALayer rendering that recalculates blur, redraws text, or updates tint colors on every mouse move, the hint bar goes from ~0% CPU to continuous work on every mouse event.
-
-**Why it happens:** The current architecture is efficient: `updatePosition()` animates `position.y` via CAAnimation (zero CPU per frame); `pressKey()`/`releaseKey()` trigger SwiftUI diffing (rare, lightweight). Replacing this with per-frame custom rendering is a regression.
-
-**Consequences:**
-- CPU during mouse movement increases from <5% to 15-30%
-- Battery drain, potential frame drops in edge detection
-- CLAUDE.md testing checklist requires "CPU stays low (<5%) during mouse movement"
-
-**Prevention:**
-1. Render blur background ONCE when hint bar is created (screenshot is frozen). Assign to `layer.contents` as bitmap.
-2. If using `NSVisualEffectView`, it caches internally -- but verify with Instruments.
-3. Text content should be rendered once and cached. Only re-render on state changes.
-4. Split/merge animation should use CALayer property animations (frame, opacity, path) -- NOT per-frame redraws.
-5. Profile before and after with Instruments Core Animation template.
-
-**Detection:** Activity Monitor shows Ruler >5% CPU during mouse movement.
-
-**Confidence:** HIGH -- CLAUDE.md Section 8 ("HintBarView (static, renders ONCE)"), MEMORY.md documents previous CPU issues with SVG rendering.
-
----
-
-### Pitfall 5: CAShapeLayer Path Morphing Requires Identical Point Counts
-
-**What goes wrong:** Animating `CAShapeLayer.path` from one shape to another (single bar morphing into two bars) produces undefined behavior if the paths have different control point counts. A single rounded rect has ~12-16 control points; two separate rounded rects have ~24-32. These cannot be directly morphed.
-
-**Consequences:**
-- Animation looks like a melting blob instead of a clean split
-- No runtime error -- just visually broken
-- May vary across macOS versions
-
-**Prevention:**
-1. Do NOT animate `CAShapeLayer.path` for the split/merge animation. Use two separate `CAShapeLayer` instances (left bar, right bar) that are always present.
-2. In "merged" state, they overlap perfectly (same frame, same path). In "split" state, they separate via `frame` animation.
-3. Animate `frame` of each layer, not `path`. This is already the pattern used for the pill in CrosshairView.swift (lines 316-341): section backgrounds use `layer.frame` for position and local-origin `path` for shape.
-4. If corner radii must change during animation (outer vs inner as bars separate), ensure both path versions have exactly the same number of `moveTo`, `addLine`, and `addCurve` calls.
-5. CLAUDE.md Section 3 explicitly warns: "Use `layer.frame` for position + local-origin `path` so Core Animation can interpolate the frame's position."
-
-**Detection:** Split animation shows distortion, warping, or flickering of bar shapes.
-
-**Confidence:** HIGH -- [Apple CAShapeLayer docs](https://developer.apple.com/documentation/quartzcore/cashapelayer): "The result of animating a path is undefined if the two paths have a different number of control points or segments." Confirmed by [calayer.com guide](https://www.calayer.com/core-animation/2017/12/25/cashapelayer-in-depth-part-ii.html).
-
----
-
-## Moderate Pitfalls
-
----
-
-### Pitfall 6: Appearance Detection Returns Wrong Value in Overlay Window Context
-
-**What goes wrong:** Using `NSApp.effectiveAppearance` or `NSAppearance.current` to determine light/dark mode for tinting may return the wrong appearance. The window is borderless with no titlebar, so it may not inherit system appearance changes. Additionally, the `appearance` property may be nil, and `effectiveAppearance` may not reflect the user's setting because the window was created before an appearance change.
-
-**Why it matters:** The current HintBarContent.swift uses `@Environment(\.colorScheme)` (lines 29, 67). SwiftUI handles this correctly via NSHostingView. If you replace SwiftUI with manual CALayer rendering, you lose automatic propagation.
-
-**Consequences:**
-- Hint bar tint colors wrong (dark on light or vice versa)
-- Does not update when user toggles dark mode while overlay is open
-
-**Prevention:**
-1. If keeping SwiftUI (NSHostingView), rely on `@Environment(\.colorScheme)` -- it works.
-2. If using manual CALayer rendering, detect at creation:
-   ```swift
-   let isDark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-   ```
-3. For mid-session changes, observe via KVO:
-   ```swift
-   NSApp.observe(\.effectiveAppearance) { [weak self] _, _ in
-       self?.updateAppearance()
-   }
-   ```
-4. Since overlay is short-lived, static appearance at creation time is usually sufficient.
-
-**Confidence:** MEDIUM -- current SwiftUI hint bar works correctly, suggesting propagation works. Concern is for the case where the view hierarchy changes significantly.
-
----
-
-### Pitfall 7: Split Animation and Mouse-Move Position Update Race Condition
-
-**What goes wrong:** The hint bar split animation fires after a timeout (e.g., 3 seconds). If the user moves the mouse during the split, `updatePosition(cursorY:screenHeight:)` is called, which may try to slide the hint bar to top/bottom. The slide animation and split animation compete for the same layers' `frame`/`position` properties.
-
-**Why it happens:** The existing `isAnimating` guard (HintBarView.swift line 75) prevents overlapping slide animations. But the split animation is new and does not set `isAnimating`. The slide code runs, sees `isAnimating == false`, and starts a slide mid-split.
-
-**Consequences:**
-- Layers teleport to unexpected positions
-- Partial split + partial slide = visual mess
-- Model values and presentation values diverge
-
-**Prevention:**
-1. Extend the animation guard to cover ALL animation types:
-   ```swift
-   enum AnimationState { case idle, sliding, splitting, merging }
-   private var animationState: AnimationState = .idle
-   ```
-2. Block `updatePosition()` during split/merge: `guard animationState == .idle else { return }`
-3. Use `CATransaction.setCompletionBlock` to reset to `.idle` after any animation completes
-4. If cursor moves near bottom during split, DEFER the slide until split completes (queue it)
-
-**Detection:** Move cursor to bottom of screen immediately after launching overlay. If hint bar jumps or shows partial split, race condition is present.
-
-**Confidence:** MEDIUM -- the existing `isAnimating` guard (HintBarView.swift line 75) proves this bug class is known; the split animation is a new animation state not covered.
-
----
-
-### Pitfall 8: CIFilter Blur on Main Thread Blocks Edge Detection
-
-**What goes wrong:** If implementing manual blur using `CIGaussianBlur`, applying the filter on the main thread blocks mouse event processing. A blur on a Retina region (800x60 points = 1600x120 pixels at 2x) takes 5-20ms. During this time, the first mouse move is delayed.
-
-**Consequences:**
-- 5-20ms delay on first appearance
-- Stacks with CGWindowListCreateImage cold-start penalty (MEMORY.md)
-- On older Macs, 50-100ms
-
-**Prevention:**
-1. Apply blur during window setup, BEFORE `makeKeyAndOrderFront`. User sees window with blur already applied.
-2. Use `CIContext(options: [.useSoftwareRenderer: false])` for GPU rendering.
-3. Crop screenshot to ONLY the hint bar region before blurring.
-4. Use small blur radius (8-12px) -- larger radii are exponentially more expensive.
-5. Pre-render on background queue during capture phase if needed.
-6. Alternative: use `NSVisualEffectView` with `.withinWindow`, which delegates blur to the window server (zero main-thread cost).
-
-**Detection:** Instruments Time Profiler shows `CIGaussianBlur` or `CIContext.createCGImage` in the launch hot path.
-
-**Confidence:** MEDIUM -- impact depends on crop region size and hardware. One-time cost is tolerable if kept under 10ms.
-
----
-
-### Pitfall 9: GlassEffectContainer Spacing Animation May Not Produce Fluid Morphing
-
-**What goes wrong:** If using the macOS 26 Liquid Glass path, the bar split animation relies on `GlassEffectContainer` / `NSGlassEffectContainerView` with animated spacing. However, the liquid morphing effect is documented for views appearing/disappearing (via `glassEffectID` + conditional rendering), not for spacing changes alone. Animating the `spacing` parameter may not trigger the liquid join/separate effect.
-
-**Consequences:**
-- Split shows cards moving apart with no glass morphing between them
-- Looks like a plain spacing animation, not a liquid glass effect
-- The "wow factor" is lost
-
-**Prevention:**
-1. Test spacing animation approach first with a minimal prototype
-2. If spacing does not produce morphing, use the alternative: conditionally show/hide a "joined" single-card state vs. "split" two-card state with `glassEffectID` tracking
-3. This requires two view structures (joined and split) toggled with `withAnimation` -- more code but the documented morphing pattern
-
-**Detection:** Visual inspection. Does the glass between cards create a fluid "liquid pulling apart" effect, or do cards simply move apart with independent backgrounds?
-
-**Confidence:** MEDIUM -- documented morphing uses conditional view insertion/removal, not spacing animation. Spacing is a reasonable hypothesis but unverified.
-
----
-
-### Pitfall 10: NSHostingView Reentrant Layout Warning During Rapid State Updates
-
-**What goes wrong:** If keeping NSHostingView for hint bar content and triggering `@Published` state changes from mouse event handlers, the warning fires: "NSHostingView is being laid out reentrantly while rendering its SwiftUI content." The view shows stale content for one or more frames.
-
-**Prevention:**
-1. Do NOT update SwiftUI state from within `mouseMoved`. Position updates already use CAAnimation, not SwiftUI state.
-2. Batch state updates with `DispatchQueue.main.async { }` to defer them out of event handlers.
-3. Better: keep SwiftUI content static and use CALayer for all dynamic elements.
-
-**Confidence:** MEDIUM -- [documented issue](https://github.com/onmyway133/notes/issues/551), and the codebase already triggers SwiftUI updates from keyboard handlers.
-
----
-
-## Minor Pitfalls
-
----
-
-### Pitfall 11: compositingFilter String Typo Causes Silent Failure
-
-**What goes wrong:** New blend modes for the glass effect (e.g., `"screenBlendMode"`, `"multiplyBlendMode"`) silently fail if the string has a typo. No error, no warning.
-
-**Prevention:** Define as constants:
+**How to avoid:**
+Refactor `handleExit()` into two distinct behaviors:
 ```swift
-enum BlendMode {
-    static let difference = "differenceBlendMode"
-    static let screen = "screenBlendMode"
-    static let multiply = "multiplyBlendMode"
+// OLD (Raycast): kill the process
+func handleExit() {
+    CursorManager.shared.restore()
+    for window in windows { window.close() }
+    NSApp.terminate(nil)  // <- WRONG for persistent app
+}
+
+// NEW (persistent): teardown session, return to idle
+func endSession() {
+    CursorManager.shared.restore()
+    for window in windows { window.orderOut(nil); window.close() }
+    windows.removeAll()
+    activeWindow = nil
+    inactivityTimer?.invalidate()
+    // Return control to the menu bar — do NOT call NSApp.terminate
 }
 ```
 
-**Confidence:** HIGH -- documented in MEMORY.md.
+The `OverlayCoordinator` base class needs a mode flag (`isEmbeddedInPersistentApp`) or a full subclass/protocol split so Raycast and standalone share the session teardown but diverge on process termination.
+
+**Warning signs:**
+- Pressing ESC while using Measure from the menu bar app quits the entire app
+- Activity Monitor shows the app process disappearing on ESC
+- The menu bar icon vanishes after one invocation
+
+**Phase to address:** App shell / lifecycle foundation — the very first phase that wires `NSStatusItem` to overlay invocation.
 
 ---
 
-### Pitfall 12: CATransaction Completion Block Fires After ALL Animations
+### Pitfall 2: app.run() Already Called — Cannot Call It Again Per Session
 
-**What goes wrong:** If split and slide animations share a `CATransaction`, the completion block fires after BOTH complete. State transitions gated on completion are delayed.
+**What goes wrong:**
+`OverlayCoordinator.run()` ends with `app.run()` (line 109 of OverlayCoordinator.swift). In the Raycast model, `NSApplication.shared.run()` is called once and the process runs until exit. In a persistent menu bar app, `NSApplication.shared.run()` is already running (started by the app delegate in `main.swift`). Calling it again from a second Measure invocation is a no-op at best; at worst it blocks on the already-running event loop and the second invocation never returns.
 
-**Prevention:**
-1. Use separate `CATransaction.begin()/commit()` blocks for independent animations.
-2. Use `CAAnimationDelegate.animationDidStop(_:finished:)` for per-animation completion.
-3. Follow existing codebase pattern: CrosshairView uses separate transactions for lines/feet vs. pill.
+**Why it happens:**
+`NSApplication.run()` starts the main run loop. If the run loop is already running (which it always is in a persistent app), the call returns immediately or re-enters the loop in a nested fashion. The overlay appears but the coordinator's post-`app.run()` teardown never executes, leaving ghost windows and corrupted `CursorManager` state.
 
-**Confidence:** HIGH -- standard Core Animation behavior.
+**How to avoid:**
+Remove `app.run()` from `OverlayCoordinator.run()` entirely in the standalone build. The event loop is already managed by the `NSApplicationDelegate`. Structure the coordinator's `run()` method so it only:
+1. Sets up capture, windows, callbacks
+2. Calls `makeKeyAndOrderFront` / `makeKey`
+3. Returns immediately (does NOT start a run loop)
 
----
-
-### Pitfall 13: Coordinate System Bug When Cropping Blur Region
-
-**What goes wrong:** Cropping the screenshot for the hint bar blur region: hint bar position is AppKit coords (origin bottom-left), `CGImage.cropping(to:)` expects CG coords (origin top-left). Wrong vertical position if not converted.
-
-**Prevention:**
+Use compile-time or runtime flags:
 ```swift
-let cgY = screenHeight - (hintBarFrame.origin.y + hintBarFrame.height)
-let cropRect = CGRect(x: hintBarFrame.origin.x * scale, y: cgY * scale,
-                       width: hintBarFrame.width * scale, height: hintBarFrame.height * scale)
+// Option A: compile-time (cleanest)
+#if STANDALONE_APP
+    // do not call app.run()
+#else
+    app.run()  // Raycast only
+#endif
+
+// Option B: runtime flag on OverlayCoordinator
+var shouldRunEventLoop: Bool = true
+// ... at end of run():
+if shouldRunEventLoop { app.run() }
 ```
-Account for Retina scale factor. Use CoordinateConverter.swift.
 
-**Confidence:** HIGH -- CLAUDE.md Section 4 documents coordinate system differences.
+**Warning signs:**
+- Second invocation of Measure never shows an overlay
+- Console shows `NSApplication.run` being called repeatedly
+- Windows from the first invocation persist into the second session
 
----
-
-### Pitfall 14: Solid Background Interfering with Glass Material
-
-**What goes wrong:** The current `MainHintCard` and `ExtraHintCard` have `.background(RoundedRectangle(...).fill(...))` modifiers rendering solid backgrounds. If `.glassEffect()` is added ON TOP, the glass has a solid color behind it instead of the screenshot, defeating translucency.
-
-**Prevention:**
-1. When using glass/blur, remove `.background()` and `.overlay()` (border) from the cards.
-2. Use conditional modifiers: either glass OR solid background, never both.
-3. Remove `.shadow()` when using glass -- glass provides its own depth cues.
-
-**Confidence:** HIGH -- straightforward view modifier conflict.
+**Phase to address:** App shell / lifecycle foundation.
 
 ---
 
-### Pitfall 15: Multi-Monitor Animation State Desynchronization
+### Pitfall 3: Screen Recording Permission Request Has No UI in a Persistent App
 
-**What goes wrong:** The hint bar currently exists only on the cursor screen (Ruler.swift line 76). If a split animation is mid-flight when the user switches screens, the animation continues on the old window while the new window has no hint bar. This is fine with the current design. But if the design changes to show hint bars on all screens, animation state must synchronize.
+**What goes wrong:**
+`PermissionChecker.requestScreenRecordingPermission()` calls `CGRequestScreenCaptureAccess()`. In the Raycast model, if denied, the overlay simply fails silently and the process exits. In a standalone app, a denied permission requires showing the user actionable UI (a dialog explaining why, a button to open System Settings). If the app just silently fails to capture and shows a blank overlay, users think it's broken and quit.
 
-**Prevention:**
-1. Keep hint bar on cursor screen only (current approach). No sync needed.
-2. If hint bar follows active screen: store animation state in shared model, cancel in-progress animations on `deactivate()`, restore to current logical state on `activate()`.
+**Why it happens:**
+`CGRequestScreenCaptureAccess()` does trigger a system prompt on first run, but:
+- It only triggers once per app bundle. Subsequent calls when denied return `false` with no prompt.
+- The system prompt appears asynchronously and the app must handle the case where the user clicks "Don't Allow."
+- A persistent app needs to recover gracefully from denial and guide users to System Settings → Privacy & Security → Screen Recording.
 
-**Confidence:** LOW -- only matters if design changes to span multiple monitors.
+**How to avoid:**
+1. Add `NSPrivacyAccessDescription` key `NSScreenCaptureUsageDescription` to Info.plist with a clear reason string.
+2. Wrap all permission-gated actions in a check with fallback UI:
+```swift
+if !PermissionChecker.hasScreenRecordingPermission() {
+    showPermissionDeniedAlert(
+        for: "Screen Recording",
+        openURL: URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!
+    )
+    return
+}
+```
+3. Implement a `PermissionStatusView` that the menu bar popover shows when permission is missing, with a "Open System Settings" button.
+4. Do NOT attempt to show an overlay when permission is denied — `CGWindowListCreateImage` returns nil, the background is black, and edge detection is non-functional.
+
+**Warning signs:**
+- App shows a black overlay silently when screen recording is denied
+- No user guidance after denying the permission prompt
+- App crashes with force-unwrap nil from `captureScreen`
+
+**Phase to address:** Permission handling (early, before any overlay work).
 
 ---
 
-## Phase-Specific Warnings
+### Pitfall 4: Global Hotkeys Require Accessibility Permission — Different From Screen Recording
 
-| Phase Topic | Likely Pitfall | Mitigation |
-|-------------|---------------|------------|
-| Glass/blur background | Opaque window blocks blur (Pitfall 1), layer-hosting conflict (Pitfall 2) | Use `.withinWindow` with proper view ordering, OR one-time CIFilter blur of cropped screenshot |
-| Deployment target | NSGlassEffectView requires macOS 26 (Pitfall 3) | Do NOT use NSGlassEffectView as primary. Implement blur manually. Add glass as macOS 26+ enhancement. |
-| Bitmap cache to live layers | CPU regression (Pitfall 4), reentrant layout (Pitfall 10) | Render blur once, cache as bitmap. Keep text static. Use CALayer animations, not per-frame redraws. |
-| Split/merge animation | Path point mismatch (Pitfall 5), race with slide (Pitfall 7) | Two separate layers with frame animation, NOT single path morph. Extend isAnimating to all animation types. |
-| Appearance-aware tinting | Wrong appearance in overlay (Pitfall 6) | Use NSApp.effectiveAppearance at creation. Observe via KVO if mid-session updates needed. |
-| CIFilter manual blur | Main thread blocking (Pitfall 8) | Crop to hint bar region only. Apply during setup before window appears. |
-| macOS 26 glass morphing | Spacing animation may not morph (Pitfall 9) | Prototype early. Fall back to conditional view toggle with glassEffectID. |
-| Animation completion | Transaction scoping (Pitfall 12), coordinate bugs (Pitfall 13) | Separate CATransaction blocks. Use CoordinateConverter for crop rects. |
-| SwiftUI glass backgrounds | Solid fill under glass (Pitfall 14) | Remove .background/.shadow when glass/blur is active. |
+**What goes wrong:**
+Registering global hotkeys (to invoke Measure or Alignment Guides from any app, not just the menu bar) requires the Accessibility permission (`AXIsProcessTrusted()`), which is completely separate from Screen Recording. Many developers assume screen recording permission is sufficient. The app fails to receive keydown events from other apps' contexts, and the hotkey silently does nothing.
+
+**Why it happens:**
+Global keyboard event monitoring via `NSEvent.addGlobalMonitorForEvents(matching: .keyDown)` or `CGEventTap` requires the Accessibility entitlement. Without it, the monitor is registered (no error) but global key events are never delivered. Local monitors (within the app) work without it, but "global" means intercepting events regardless of which app has focus.
+
+**How to avoid:**
+1. Request Accessibility permission separately with clear UI: `AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt: true] as CFDictionary)`.
+2. Add a secondary check at hotkey registration time:
+```swift
+guard AXIsProcessTrusted() else {
+    showPermissionDeniedAlert(for: "Accessibility (required for global hotkeys)",
+        openURL: URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
+    return
+}
+```
+3. Treat the Accessibility permission as optional — the app must still work via menu bar clicks if the user declines hotkeys.
+4. Do NOT hardcode hotkeys — let users configure them to avoid conflicts with other apps' global shortcuts.
+5. The Info.plist must include `NSAppleEventsUsageDescription` (if using AppleEvents) but Accessibility permission itself is user-granted via System Settings, not an entitlement that goes in the binary.
+
+**Warning signs:**
+- Hotkey works when Design Ruler is frontmost but not when other apps are focused
+- `NSEvent.addGlobalMonitorForEvents` returns a non-nil token (looks registered) but events never fire
+- No runtime error — the failure is completely silent
+
+**Phase to address:** Hotkey system (dedicated phase, after basic menu bar shell works).
 
 ---
 
-## Recommended Architecture for Blur + Split
+### Pitfall 5: setActivationPolicy(.accessory) Called Every Invocation Causes Window Ordering Chaos
 
-Based on the pitfalls above, the safest architecture is:
+**What goes wrong:**
+`OverlayCoordinator.run()` calls `app.setActivationPolicy(.accessory)` (line 66). In the Raycast model, this is fine — it runs once before the app loop. In a persistent menu bar app, this is called on every Measure/Alignment Guides invocation. Calling `setActivationPolicy` at runtime is documented to have side effects: it can cause windows to lose their front-most status, cause the Dock icon to flicker in/out, and occasionally make the key window change unexpectedly.
 
-### Primary Path (macOS 13+, no API availability issues)
+**Why it happens:**
+A persistent menu bar app should set its activation policy once at startup in the `NSApplicationDelegate.applicationDidFinishLaunching`. The policy for a menu bar app without a Dock icon is `.accessory`. Calling `setActivationPolicy(.accessory)` repeatedly during the session lifecycle is a no-op in the best case but actively harmful in some macOS versions (13/14 have had regressions here).
 
-1. **Blur background:** One-time `CIGaussianBlur` of the cropped screenshot region under the hint bar, assigned to a `CALayer.contents` bitmap. Zero per-frame cost. No NSVisualEffectView layer-hosting conflicts. Alternatively, `NSVisualEffectView` with `.withinWindow` as a sibling view below the content layers (NOT inside the layer-hosting tree).
+**How to avoid:**
+Set activation policy once in `applicationDidFinishLaunching`:
+```swift
+func applicationDidFinishLaunching(_ notification: Notification) {
+    NSApp.setActivationPolicy(.accessory)
+    // ... setup NSStatusItem ...
+}
+```
+Remove the `app.setActivationPolicy(.accessory)` call from `OverlayCoordinator.run()` in the standalone build.
 
-2. **Split animation:** Two `CAShapeLayer` instances (main card bg, extra card bg) that are ALWAYS present. In "merged" state, they overlap perfectly with combined dimensions. In "split" state, they separate via `frame` animation. Use the existing `sectionPath()` squircle approach from CrosshairView.swift.
+**Warning signs:**
+- Dock icon appears briefly when invoking Measure then disappears
+- Overlay window loses key status immediately after appearing
+- Other app's windows intermittently come to front during overlay creation
 
-3. **Content rendering:** Keep NSHostingView for text content (key caps, labels) -- it handles appearance, text rendering, and layout correctly. Position via `frame` (no per-frame updates). OR render text into bitmap and use `CATextLayer`, matching the CrosshairView pattern.
+**Phase to address:** App shell / lifecycle foundation.
 
-4. **Appearance:** Detect once at creation via `NSApp.effectiveAppearance`. Use for tint colors on the blur layer.
+---
 
-### Enhancement Path (macOS 26+, optional)
+### Pitfall 6: SIGTERM Handler Conflicts With Normal App Termination
 
-5. **Native glass:** Behind `if #available(macOS 26.0, *)`, replace the CIFilter blur with `.glassEffect()` on the SwiftUI content views. Test in the exact window configuration first (Pitfall 3). If the 26.2 regression affects this window type, skip until Apple fixes it.
+**What goes wrong:**
+`OverlayCoordinator.setupSignalHandler()` installs a SIGTERM handler (line 186 of OverlayCoordinator.swift). In the Raycast model, SIGTERM is how Raycast kills the process on user cancellation. In a persistent menu bar app, SIGTERM is the normal shutdown signal. The handler calls `handleExit()` which (currently) calls `NSApp.terminate(nil)` — creating a SIGTERM → terminate → SIGTERM loop. Additionally, the DispatchSourceSignal for SIGTERM must be torn down when the session ends, or it leaks and intercepts legitimate SIGTERM on app quit.
 
-6. **Glass morphing:** Use `GlassEffectContainer` + `glassEffectID` with conditional view toggle (not spacing animation) for the split. Test that liquid morphing actually triggers.
+**Why it happens:**
+The signal handler is designed for process lifetime, not session lifetime. In a persistent app, the signal handler must either:
+- Not be installed per-session (install once at app startup with different logic)
+- Be torn down explicitly at session end
 
-This architecture avoids all critical pitfalls while maintaining the <5% CPU target and working on macOS 13+.
+**How to avoid:**
+1. Move SIGTERM handling to the app delegate level, not the coordinator.
+2. The app delegate's SIGTERM handler should: call `endSession()` on any active coordinator, then call `NSApp.terminate(nil)`.
+3. Remove `setupSignalHandler()` from `OverlayCoordinator.run()` in the standalone build.
+4. Store `sigTermSource` at the app delegate level and cancel it on `applicationWillTerminate`.
+
+**Warning signs:**
+- App cannot be quit cleanly from the command line with `kill <pid>`
+- On app quit, the SIGTERM is intercepted by the session handler and the process restarts instead of terminating
+- Memory leak: `sigTermSource` DispatchSource keeps running after session ends
+
+**Phase to address:** App shell / lifecycle foundation.
+
+---
+
+### Pitfall 7: Inactivity Timer Fires and Quits the App Instead of Ending the Session
+
+**What goes wrong:**
+The 10-minute inactivity watchdog in `OverlayCoordinator.resetInactivityTimer()` calls `handleExit()` (line 202 of OverlayCoordinator.swift). In the Raycast model, this is correct: a forgotten overlay should exit the process. In a persistent menu bar app, the inactivity timer should dismiss the overlay and return to the menu bar state — not quit the app.
+
+**How to avoid:**
+Same fix as Pitfall 1: refactor `handleExit()` into `endSession()` that does NOT call `NSApp.terminate`. The inactivity timer callback becomes:
+```swift
+Timer.scheduledTimer(...) { [weak self] _ in
+    self?.endSession()  // dismiss overlay, return to menu bar
+}
+```
+
+**Warning signs:**
+- App quits after 10 minutes of idle Measure use
+- Menu bar icon disappears after prolonged sessions
+
+**Phase to address:** App shell / lifecycle foundation (fix alongside Pitfall 1 — same root cause).
+
+---
+
+### Pitfall 8: CursorManager.shared State Leaks Between Sessions
+
+**What goes wrong:**
+`CursorManager` is a singleton (`CursorManager.shared`). If a session ends abnormally (crash, force-quit of overlay) without calling `restore()`, the cursor remains hidden and `hideCount > 0`. The next session starts with a corrupted state: `hide()` guards on `state == .idle` (line 41 of CursorManager.swift) and does nothing — cursor stays hidden from the previous session.
+
+**Why it happens:**
+In the Raycast model, the process dies on abnormal exit — the OS restores the cursor automatically because `NSCursor.hide()` is process-scoped. In a persistent app, the process survives abnormal session exits, so singleton state must be explicitly reset.
+
+**How to avoid:**
+1. Call `CursorManager.shared.restore()` at the START of every new session (before `hide()` or `showResize()`), not just at the end.
+2. Add a `reset()` method that unconditionally resets state without unhiding (for cases where the OS already restored the cursor):
+```swift
+func resetForNewSession() {
+    // Force-restore to clean state regardless of previous session
+    restore()  // unhides all levels, sets arrow cursor, resets state
+}
+```
+3. Call `resetForNewSession()` as the first action in `OverlayCoordinator.run()`.
+
+**Warning signs:**
+- After one session crash, subsequent Measure sessions show the CAShapeLayer crosshair but the hardware cursor is also visible (double cursor), OR the cursor stays hidden after the overlay dismisses
+- `hideCount` is non-zero when `run()` starts
+
+**Phase to address:** App shell / lifecycle foundation.
+
+---
+
+### Pitfall 9: SPM Package.swift Cannot Build an NSStatusItem App — Wrong Target Type
+
+**What goes wrong:**
+The existing `Package.swift` declares an `.executableTarget` with the Raycast Swift macros as dependencies. This compiles to a command-line executable that Raycast runs. A standalone menu bar app requires an `.app` bundle with:
+- `Info.plist` (for entitlements, privacy usage descriptions, LSUIElement)
+- `NSApplicationDelegate`
+- `NSStatusItem` setup
+- Code signing identity
+- Notarization workflow
+
+SPM `.executableTarget` produces a raw binary — no `.app` bundle, no Info.plist, no code signing. Trying to ship this as a menu bar app fails at every distribution step.
+
+**How to avoid:**
+The standalone app MUST be an Xcode project (`.xcodeproj`) or Xcode workspace, not an SPM-only build. The correct architecture is:
+- Keep the existing SPM `Package.swift` for the Raycast extension (unchanged)
+- Create a new `DesignRulerApp.xcodeproj` that:
+  - Has an App target with proper bundle structure
+  - Imports the shared Swift logic as either: (a) a local SPM package dependency, or (b) compiled shared source files
+  - Manages Info.plist, entitlements, and code signing
+
+Do NOT try to add the menu bar app as a second SPM target. SPM does not support `.app` bundles.
+
+**Warning signs:**
+- Attempting to `open` the SPM build output as a `.app` fails ("not a recognized app package")
+- No code signing step in the build
+- Gatekeeper rejects the binary on first launch
+
+**Phase to address:** Build system setup — must be resolved before any standalone code is written.
+
+---
+
+### Pitfall 10: Code Signing Identity Mismatch Between SPM (Raycast) and Xcode App
+
+**What goes wrong:**
+The Raycast extension's Swift binary is signed by Raycast's build system using Raycast's code signing identity. The standalone `.app` must be signed by the developer's own Apple Developer certificate. If the standalone app imports or ships the Raycast-compiled binary, the signature is invalid. If the shared Swift source files are compiled separately for the Xcode target, they work correctly — but any confusion between the two binaries causes Gatekeeper to reject the app.
+
+**Why it happens:**
+SPM builds for Raycast use `RaycastSwiftMacros`, `RaycastSwiftPlugin`, and `RaycastTypeScriptPlugin` as dependencies (Package.swift lines 9-17). These are Raycast-specific and must NOT be compiled into the standalone app. The `@raycast` macro on `inspect()` and `alignmentGuides()` functions (Measure.swift line 4, AlignmentGuides.swift line 4) must not appear in the standalone target.
+
+**How to avoid:**
+1. The shared Swift source files (everything EXCEPT `Measure.swift` entry point and `AlignmentGuides.swift` entry point) can be compiled into both targets. The entry point files that use `@raycast` are excluded from the Xcode target.
+2. The standalone app has its OWN entry points that call `Measure.shared.run(...)` and `AlignmentGuides.shared.run(...)` directly — no `@raycast` macro needed.
+3. Do NOT add `RaycastSwiftMacros` as a dependency to the Xcode app target.
+4. Validate signing with `codesign --verify --deep --strict` before notarization.
+
+**Warning signs:**
+- Xcode reports "undefined symbol: __RaycastSwiftMacros..." at link time
+- App passes local testing but Gatekeeper rejects on another machine ("damaged and can't be opened")
+- `codesign --verify` shows mixed signing identities in the app bundle
+
+**Phase to address:** Build system setup (Pitfall 9 and 10 must be solved together in the same phase).
+
+---
+
+### Pitfall 11: Notarization Fails Due to Missing Entitlements for Screen Recording
+
+**What goes wrong:**
+A notarized macOS app that uses `CGWindowListCreateImage` or `ScreenCaptureKit` must declare `com.apple.security.temporary-exception.mach-lookup.global-name` or use the hardened runtime with the correct entitlements. Without `com.apple.security.screencapture` entitlement (or equivalent), notarization either rejects the binary or it passes notarization but the API returns nil at runtime because the hardened runtime sandbox blocks it.
+
+**Why it happens:**
+The hardened runtime (required for notarization since macOS 10.15) restricts process capabilities. `CGWindowListCreateImage` requires the Screen Recording TCC permission, which in a sandboxed app additionally requires the `com.apple.security.screen-capture` entitlement. Apps distributed outside the Mac App Store (DMG) use the hardened runtime but NOT the App Sandbox — this is the typical choice for developer tools.
+
+**How to avoid:**
+1. Do NOT enable App Sandbox for the standalone app (incompatible with `CGWindowListCreateImage` + global event taps).
+2. DO enable Hardened Runtime (required for notarization).
+3. Required entitlements for this app:
+```xml
+<!-- DesignRulerApp.entitlements -->
+<key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+<false/>
+<!-- NO App Sandbox -->
+<key>com.apple.security.cs.disable-library-validation</key>
+<false/>
+```
+4. Screen Recording permission is user-granted at runtime via `CGRequestScreenCaptureAccess()` — this is a TCC permission, NOT an entitlement. No additional entitlement is needed beyond hardened runtime.
+5. If using `CGEventTap` for global hotkeys: this also does NOT need a special entitlement — it needs the Accessibility TCC permission at runtime.
+6. Validate entitlements pre-notarization: `codesign -d --entitlements - DesignRulerApp.app`
+
+**Warning signs:**
+- Notarization tool returns "The executable does not have the hardened runtime enabled"
+- App passes notarization but `CGWindowListCreateImage` returns nil on a clean machine
+- Apple's notarization log shows rejected entitlements
+
+**Phase to address:** Distribution / notarization phase (after core functionality works).
+
+---
+
+### Pitfall 12: LSUIElement=YES in Info.plist Is Mandatory — Missing It Shows a Dock Icon
+
+**What goes wrong:**
+Without `LSUIElement = YES` in `Info.plist`, the app shows a Dock icon on launch and appears in the Cmd+Tab switcher, even if using `.accessory` activation policy. `NSApp.setActivationPolicy(.accessory)` only hides the Dock icon at runtime — the Dock icon flashes briefly on launch before the policy takes effect. For a menu bar utility that should be invisible in the Dock, the Info.plist key is essential.
+
+**How to avoid:**
+Add to Info.plist:
+```xml
+<key>LSUIElement</key>
+<true/>
+```
+This hides the Dock icon from process launch, not just after `NSApplicationDelegate` runs. Combined with `.accessory` activation policy, the app is fully invisible in Dock and Cmd+Tab from the moment it launches.
+
+**Warning signs:**
+- Dock icon appears briefly on launch then disappears
+- App shows up in Cmd+Tab switcher
+
+**Phase to address:** App shell setup (Info.plist configuration).
+
+---
+
+## Technical Debt Patterns
+
+Shortcuts that seem reasonable but create long-term problems.
+
+| Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
+|----------|-------------------|----------------|-----------------|
+| Duplicate OverlayCoordinator with `#if STANDALONE` guards | Ship quickly | Two divergent code paths, bugs in one that don't appear in the other, maintenance burden grows with each feature | Only for a proof-of-concept prototype; never for shipped code |
+| Skip Accessibility permission check for hotkeys | Simpler onboarding | Silent hotkey failure frustrates users; impossible to debug without clear permission UI | Never |
+| Skip notarization, distribute un-notarized app | Faster first release | Gatekeeper blocks on Apple Silicon and modern macOS; most users cannot open the app | Never for public distribution |
+| Hard-code global hotkey (e.g., Cmd+Shift+R) | No settings UI needed | Conflicts with other apps (Sketch, Figma use similar shortcuts) | Never — always user-configurable |
+| Reuse same `@raycast` entry point files for standalone | Avoids duplication | RaycastSwiftMacros dependency leaks into the standalone build; link errors | Never |
+
+---
+
+## Integration Gotchas
+
+Common mistakes when connecting the existing Raycast code to the standalone app target.
+
+| Integration | Common Mistake | Correct Approach |
+|-------------|----------------|------------------|
+| Shared Swift sources | Compile all files including `@raycast` annotated entry points | Exclude `Measure.swift` and `AlignmentGuides.swift` from Xcode target; create standalone-specific entry points |
+| `OverlayCoordinator.handleExit()` | Call unchanged — exits the whole app | Refactor to `endSession()` that tears down windows without `NSApp.terminate` |
+| `CursorManager.shared` singleton | Assume it resets between sessions automatically | Explicitly call `restore()` at the start of every new session |
+| Inactivity timer (10 min) | Let it call `handleExit()` unchanged | Route timer to `endSession()` instead |
+| SIGTERM handler | Install per-session from coordinator | Install once at app delegate level; coordinator does not manage signals |
+| Screen recording permission | Call `requestScreenRecordingPermission()` and proceed | Check first; show actionable UI with System Settings link on denial |
+| Accessibility permission | Not requested — assumes not needed | Request separately for hotkey registration; handle denial gracefully |
+
+---
+
+## Performance Traps
+
+Patterns that work during development but degrade in persistent operation.
+
+| Trap | Symptoms | Prevention | When It Breaks |
+|------|----------|------------|----------------|
+| Not releasing window references after session | Memory grows ~50-100MB per session over time | Explicitly `nil` all window references in `endSession()` | After 5-10 sessions |
+| Warmup CGWindowListCreateImage on every invocation (current behavior) | 100-200ms stall on every Measure launch | Move warmup to app startup, not per-session; subsequent captures are already warm | Every invocation |
+| NSStatusItem menu building on main thread with complex layout | Menu bar icon click has visible delay | Build menu in background; use static NSMenu structure | With complex dynamic menus |
+| CursorManager `hide()` guard fails silently for second session | Cursor stays visible during Measure mode | Reset CursorManager at session start (see Pitfall 8) | On second invocation |
+| EventTap created but not destroyed between sessions | Keydown events received even when no overlay is active | Disable/destroy EventTap in `endSession()`, re-enable in next session start | Accumulates with each session |
+
+---
+
+## Security Mistakes
+
+Domain-specific security issues for a macOS developer tool.
+
+| Mistake | Risk | Prevention |
+|---------|------|------------|
+| Shipping without notarization | Gatekeeper blocks all users on Apple Silicon + macOS 13+ | Notarize before any external distribution — no exceptions |
+| Storing user preferences (hotkey config) in NSUserDefaults without app group | Raycast extension and standalone app cannot share preferences | Use `UserDefaults(suiteName:)` with a shared app group if preferences should sync; otherwise keep them separate |
+| Requesting Accessibility permission at launch unconditionally | macOS privacy prompt appears before user understands why | Only request Accessibility when user first tries to configure a hotkey, with explanation |
+| Using `CGEventTap` without proper cleanup | EventTap continues monitoring after session ends — privacy concern (logs keystrokes to the existing handler) | Always disable EventTap in `endSession()`; never leave a global key monitor running when overlays are not active |
+
+---
+
+## UX Pitfalls
+
+Common UX mistakes specific to adding a persistent menu bar app to a tool designed for on-demand use.
+
+| Pitfall | User Impact | Better Approach |
+|---------|-------------|-----------------|
+| No visual indicator that Measure/Guides is running from the status bar | Users activate, the overlay appears, but if dismissed they don't know how to re-invoke | Status bar icon changes state when overlay is active; tooltip explains keyboard shortcut |
+| Permission request appears as an opaque system dialog with no context | Users click "Don't Allow" reflexively, then tools silently fail | Show an in-app explanation BEFORE triggering the system permission prompt |
+| ESC quits the app (Pitfall 1 manifestation) | Users lose all open app state | ESC ends session, returns to menu bar; Cmd+Q quits the app |
+| Hotkey conflicts with Figma/Sketch shortcuts on designer machines | Designer's primary tool becomes unreliable | Default to no hotkey; let users assign their own; validate for common conflicts |
+| Launch at login enabled by default | App appears in startup without user consent — feels like malware | Launch at login is OFF by default; user explicitly enables from menu bar menu |
+
+---
+
+## "Looks Done But Isn't" Checklist
+
+Things that appear complete in development but are missing critical pieces for production.
+
+- [ ] **ESC handling:** ESC calls `endSession()` not `NSApp.terminate` — verify app stays in Dock/menu bar after pressing ESC
+- [ ] **Second invocation:** Invoke Measure, press ESC, invoke Measure again — verify the second session works correctly with no cursor glitch
+- [ ] **Permission denial:** Remove Screen Recording permission in System Settings, invoke Measure — verify a clear, actionable dialog appears (not a blank/black overlay)
+- [ ] **Permission denial (Accessibility):** Remove Accessibility permission, trigger hotkey — verify graceful fallback with guidance, not silent failure
+- [ ] **Notarization:** Run `spctl --assess --type execute DesignRulerApp.app` on a clean machine — verify Gatekeeper approves
+- [ ] **Hardened runtime:** Run `codesign -d --entitlements - DesignRulerApp.app` — verify no unexpected entitlements and hardened runtime is enabled
+- [ ] **Dock icon absent:** Launch app fresh — verify no Dock icon appears even momentarily (`LSUIElement = YES` is set)
+- [ ] **Launch at login OFF by default:** Fresh install — verify app does not appear in Login Items
+- [ ] **CursorManager reset:** Force-quit mid-session, relaunch, invoke Measure — verify cursor hides correctly (no ghost state from previous session)
+- [ ] **Memory:** Run 20 Measure sessions in a row — verify memory is stable (Activity Monitor, no growth)
+- [ ] **EventTap cleanup:** Register hotkey, invoke and dismiss Measure 5 times — verify no duplicate hotkey events (EventTap not accumulating)
+- [ ] **App quit:** Cmd+Q while overlay is active — verify overlay dismisses cleanly and cursor is restored before process exits
+
+---
+
+## Recovery Strategies
+
+When pitfalls occur despite prevention, how to recover.
+
+| Pitfall | Recovery Cost | Recovery Steps |
+|---------|---------------|----------------|
+| NSApp.terminate in persistent app (Pitfall 1/7) | LOW | Find all `NSApp.terminate` calls in coordinator, replace with `endSession()`; add mode flag |
+| app.run() called per session (Pitfall 2) | LOW | Remove `app.run()` from coordinator in standalone build; guard with compile flag |
+| Screen recording no UI on denial (Pitfall 3) | LOW | Add permission check + alert before each capture attempt |
+| CursorManager state leak (Pitfall 8) | LOW | Add `CursorManager.shared.restore()` at start of `run()` |
+| Wrong build system — SPM-only (Pitfall 9) | HIGH | Create Xcode project from scratch; configure shared sources manually; cannot avoid this work |
+| Code signing mismatch (Pitfall 10) | MEDIUM | Identify which files use `@raycast`; exclude from Xcode target; create standalone entry points |
+| Notarization failure (Pitfall 11) | MEDIUM | Check entitlements, enable hardened runtime, re-sign, re-submit; Apple's turnaround is 5-30 min |
+| Missing LSUIElement (Pitfall 12) | LOW | Add key to Info.plist, rebuild — trivial fix but annoying if discovered after distribution |
+
+---
+
+## Pitfall-to-Phase Mapping
+
+How roadmap phases should address these pitfalls.
+
+| Pitfall | Prevention Phase | Verification |
+|---------|------------------|--------------|
+| NSApp.terminate quits persistent app (P1) | App shell / lifecycle | ESC during Measure keeps menu bar icon active |
+| app.run() called per session (P2) | App shell / lifecycle | Second invocation shows overlay without hang |
+| Permission denial has no UI (P3) | Permission handling | Deny permission, invoke Measure, see actionable dialog |
+| Accessibility permission for hotkeys (P4) | Hotkey system | Global hotkey works from Figma context |
+| setActivationPolicy repeated calls (P5) | App shell / lifecycle | No Dock icon flicker on invocation |
+| SIGTERM handler conflicts (P6) | App shell / lifecycle | `kill <pid>` quits app cleanly |
+| Inactivity timer quits app (P7) | App shell / lifecycle | Wait 10 min idle in Measure — overlay dismisses, app stays |
+| CursorManager state leaks (P8) | App shell / lifecycle | Force-quit session, re-invoke — cursor behaves correctly |
+| SPM cannot produce .app bundle (P9) | Build system setup | Xcode project builds and runs .app |
+| Code signing identity mismatch (P10) | Build system setup | `codesign --verify --deep` passes on all targets |
+| Notarization entitlements (P11) | Distribution | `spctl --assess` approves on clean machine |
+| Missing LSUIElement (P12) | App shell setup | No Dock icon on fresh launch |
 
 ---
 
 ## Sources
 
-- [Apple NSVisualEffectView documentation](https://developer.apple.com/documentation/appkit/nsvisualeffectview)
-- [Apple NSVisualEffectView.BlendingMode documentation](https://developer.apple.com/documentation/appkit/nsvisualeffectview/blendingmode)
-- [Reverse Engineering NSVisualEffectView -- Oskar Groth](https://oskargroth.com/blog/reverse-engineering-nsvisualeffectview)
-- [CAPluginLayer & CABackdropLayer -- Aditya Vaidyam](https://medium.com/@avaidyam/capluginlayer-cabackdroplayer-f56e85d9dc2c)
-- [NSVisualEffectView in Layer-Hosting Views](https://databasefaq.com/index.php/answer/164756/osx-calayer-nsview-nswindow-nsvisualeffectview-how-to-use-nsvisualeffectview-in-a-layer-host-nsview)
-- [Apple NSGlassEffectView documentation (macOS 26+)](https://developer.apple.com/documentation/appkit/nsglasseffectview)
-- [Apple NSGlassEffectContainerView documentation](https://developer.apple.com/documentation/appkit/nsglasseffectcontainerview)
-- [Liquid Glass Reference -- conorluddy](https://github.com/conorluddy/LiquidGlassReference)
-- [Apple CAShapeLayer documentation](https://developer.apple.com/documentation/quartzcore/cashapelayer)
-- [CAShapeLayer in Depth, Part II -- calayer.com](https://www.calayer.com/core-animation/2017/12/25/cashapelayer-in-depth-part-ii.html)
-- [CATransaction in Depth -- calayer.com](https://www.calayer.com/core-animation/2016/05/17/catransaction-in-depth.html)
-- [Apple Core Animation: Advanced Animation Tricks](https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/CoreAnimation_guide/AdvancedAnimationTricks/AdvancedAnimationTricks.html)
-- [objc.io: Animations Explained](https://www.objc.io/issues/12-animations/animations-explained/)
-- [Apple NSAppearance documentation](https://developer.apple.com/documentation/appkit/nsappearancecustomization/choosing_a_specific_appearance_for_your_macos_app)
-- [Observing NSAppearance changes -- Derrick Ho](https://derrickho328.medium.com/observing-nsappearance-changes-in-macos-29fc4f44b0c4)
-- [NSHostingView reentrant layout issue](https://github.com/onmyway133/notes/issues/551)
-- [Apple CATransaction setCompletionBlock docs](https://developer.apple.com/documentation/quartzcore/catransaction/1448281-setcompletionblock)
-- [Build an AppKit app with the new design -- WWDC25](https://developer.apple.com/videos/play/wwdc2025/310/)
-- [GlassEffectTest regression demo -- FB21375029](https://github.com/siracusa/GlassEffectTest)
-- [Adopting Liquid Glass -- Apple Developer Documentation](https://developer.apple.com/documentation/TechnologyOverviews/adopting-liquid-glass)
+- Direct analysis: `OverlayCoordinator.swift` — `handleExit()`, `app.run()`, `setupSignalHandler()`, `resetInactivityTimer()`
+- Direct analysis: `CursorManager.swift` — singleton state machine, `hide()` guard on `.idle`
+- Direct analysis: `PermissionChecker.swift` — `CGPreflightScreenCaptureAccess()`, `CGRequestScreenCaptureAccess()`
+- Direct analysis: `Package.swift` — `.executableTarget` with Raycast-specific dependencies
+- Direct analysis: `Measure.swift`, `AlignmentGuides.swift` — `@raycast` macro usage
+- Apple Developer Documentation: `NSApplication.ActivationPolicy` — `.regular`, `.accessory`, `.prohibited`
+- Apple Developer Documentation: `LSUIElement` Info.plist key — hides Dock icon from process launch
+- Apple Developer Documentation: Notarizing macOS software — hardened runtime requirements
+- Apple Developer Documentation: `SMAppService` — launch-at-login on macOS 13+
+- Apple Developer Documentation: `AXIsProcessTrusted` — Accessibility permission for global event monitoring
+- Apple Developer Documentation: `CGRequestScreenCaptureAccess` — TCC screen capture permission flow
+- Known macOS behavior: `setActivationPolicy` side effects when called repeatedly at runtime
+- Known macOS behavior: `NSCursor.hide()` is process-scoped — survives session boundaries in a persistent process
+
+---
+*Pitfalls research for: Adding standalone macOS menu bar app to Design Ruler Raycast extension*
+*Researched: 2026-02-17*
