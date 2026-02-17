@@ -103,7 +103,9 @@ final class GuideLineManager {
     func toggleDirection() {
         currentDirection = currentDirection.toggled()
 
-        // Update preview line to new direction at same cursor position
+        // Swap axes: vertical position=x, along=y; horizontal position=y, along=x
+        swap(&currentPosition, &currentCursorAlongAxis)
+
         previewLine.update(
             position: currentPosition,
             cursorAlongAxis: currentCursorAlongAxis,

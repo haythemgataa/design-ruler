@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-16)
 
 **Core value:** Instant, accurate pixel inspection of anything on screen — zero friction from Raycast invoke to dimension readout.
-**Current focus:** v1.3 Code Unification — Phase 16 complete (all phases done)
+**Current focus:** v1.3 Code Unification — Phase 17 complete (all phases done)
 
 ## Current Position
 
-Phase: 16 of 16 (Final Cleanup)
+Phase: 17 of 17 (Unified cursor manager fixes)
 Plan: 1 of 1 in current phase
-Status: Phase 16 complete, all plans executed. v1.3 Code Unification complete.
-Last activity: 2026-02-17 — Plan 16-01 complete (HintBarContent deduplication)
+Status: Phase 17 complete. All v1.3 Code Unification phases done.
+Last activity: 2026-02-17 — Phase 17 plan 01 executed
 
-Progress: [██████████] 100%
+Progress: [##########] 100%
 
 ## Performance Metrics
 
@@ -53,6 +53,7 @@ Progress: [██████████] 100%
 | 15    | 01   | 2min 6s  | 2     | 2     |
 | 15    | 02   | 3min 27s | 2     | 3     |
 | 16    | 01   | 2min 4s  | 1     | 1     |
+| 17    | 01   | 1min 31s | 2     | 2     |
 
 ## Accumulated Context
 
@@ -68,6 +69,11 @@ All decisions logged in PROJECT.md Key Decisions table.
 - 15-01: Static configureOverlay() instead of init override; setupHintBar parameterized by HintBarMode; overridable hooks for subclass behavior
 - 15-02: willHandleFirstMove hook for RulerWindow's hideSystemCrosshair; CursorManager-only cursor management in AlignmentGuidesWindow; initCursorPosition helper in base
 - 16-01: HintBarTextStyle returns Text (not some View) from text/exitText helpers, satisfying both direct Text and View usage sites
+- 17-01: Removed dead reset() entirely (zero call sites); doc comments reference cursorUpdate(with:) mechanism instead of disableCursorRects/mouseMoved
+
+### Roadmap Evolution
+
+- Phase 17 added: Unified cursor manager fixes
 
 ### Pending Todos
 
@@ -80,5 +86,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-17
-Stopped at: Completed 16-01-PLAN.md (Phase 16 complete, v1.3 Code Unification finished)
-Resume file: N/A (all phases complete)
+Stopped at: Completed 17-01-PLAN.md
+Resume file: .planning/phases/17-unified-cursor-manager-fixes/17-01-SUMMARY.md
