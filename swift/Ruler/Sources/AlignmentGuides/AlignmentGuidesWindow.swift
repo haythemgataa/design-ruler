@@ -10,7 +10,7 @@ private class PassthroughView: NSView {
 
 /// Fullscreen borderless window for alignment guides feature.
 /// Routes mouse + keyboard events to GuideLineManager.
-final class AlignmentGuidesWindow: NSWindow {
+final class AlignmentGuidesWindow: NSWindow, OverlayWindowProtocol {
     private(set) var targetScreen: NSScreen!
     private var guideLineManager: GuideLineManager!
     private var hintBarView: HintBarView!
