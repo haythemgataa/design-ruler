@@ -18,6 +18,7 @@
       "name": "measure",
       "title": "Measure",
       "description": "Measure pixel distances with edge detection",
+      "icon": "measure-icon.png",
       "mode": "no-view",
       "preferences": [
         {
@@ -47,7 +48,8 @@
     {
       "name": "alignment-guides",
       "title": "Alignment Guides",
-      "description": "Place guide lines to verify element alignment",
+      "description": "Place lines to verify element alignment",
+      "icon": "alignment-guides-icon.png",
       "mode": "no-view",
       "preferences": [
         {
