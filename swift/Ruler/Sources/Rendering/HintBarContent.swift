@@ -7,6 +7,37 @@ enum HintBarMode {
     case alignmentGuides
 }
 
+// MARK: - Shared Text Style
+
+/// Shared text styling for all hint bar content views.
+private struct HintBarTextStyle {
+    let isDark: Bool
+
+    var escTint: Color {
+        isDark
+            ? Color(nsColor: NSColor(srgbRed: 0xFF / 255.0, green: 0xB2 / 255.0, blue: 0xB2 / 255.0, alpha: 1))
+            : Color(nsColor: NSColor(srgbRed: 0x80 / 255.0, green: 0, blue: 0, alpha: 1))
+    }
+
+    var escTintFill: Color {
+        Color(nsColor: NSColor(srgbRed: 1, green: 0, blue: 0, alpha: 0.1))
+    }
+
+    func text(_ string: String) -> Text {
+        Text(string)
+            .font(.system(size: 16, weight: .semibold))
+            .tracking(-0.48)
+            .foregroundColor(isDark ? .white : .black)
+    }
+
+    func exitText(_ string: String) -> Text {
+        Text(string)
+            .font(.system(size: 16, weight: .semibold))
+            .tracking(-0.48)
+            .foregroundColor(escTint)
+    }
+}
+
 // MARK: - Observable State
 
 final class HintBarState: ObservableObject {
@@ -21,66 +52,46 @@ final class HintBarState: ObservableObject {
 struct HintBarContent: View {
     @ObservedObject var state: HintBarState
 
-    private var isDark: Bool { !state.isOnLightBackground }
+    private var style: HintBarTextStyle { HintBarTextStyle(isDark: !state.isOnLightBackground) }
 
     var body: some View {
         if state.mode == .inspect {
             HStack(spacing: 6) {
-                text("Use")
+                style.text("Use")
                 ArrowCluster(state: state)
-                text("to skip edges, plus")
+                style.text("to skip edges, plus")
                 KeyCap(.shift, symbol: "\u{21E7}", width: 40, height: 25,
                        symbolFont: .system(size: 16, weight: .bold, design: .rounded),
                        symbolTracking: -0.2, align: .bottomLeading, state: state)
-                text("to reverse.")
+                style.text("to reverse.")
                 KeyCap(.esc, symbol: "esc", width: 32, height: 25,
                        symbolFont: .system(size: 13, weight: .bold, design: .rounded),
                        symbolTracking: -0.2, align: .center, state: state,
-                       tint: escTint, tintFill: Color(nsColor: NSColor(srgbRed: 1, green: 0, blue: 0, alpha: 0.1)))
-                exitText("to exit.")
+                       tint: style.escTint, tintFill: style.escTintFill)
+                style.exitText("to exit.")
             }
             .padding(.horizontal, 16)
             .frame(height: 48)
         } else {
             HStack(spacing: 6) {
-                text("Press")
+                style.text("Press")
                 KeyCap(.tab, symbol: "⇥", width: 40, height: 25,
                        symbolFont: .system(size: 13, weight: .bold, design: .rounded),
                        symbolTracking: -0.2, align: .center, state: state)
-                text("to switch direction,")
+                style.text("to switch direction,")
                 KeyCap(.space, symbol: "space", width: 64, height: 25,
                        symbolFont: .system(size: 12, weight: .bold, design: .rounded),
                        symbolTracking: -0.2, align: .center, state: state)
-                text("to change color.")
+                style.text("to change color.")
                 KeyCap(.esc, symbol: "esc", width: 32, height: 25,
                        symbolFont: .system(size: 13, weight: .bold, design: .rounded),
                        symbolTracking: -0.2, align: .center, state: state,
-                       tint: escTint, tintFill: Color(nsColor: NSColor(srgbRed: 1, green: 0, blue: 0, alpha: 0.1)))
-                exitText("to exit.")
+                       tint: style.escTint, tintFill: style.escTintFill)
+                style.exitText("to exit.")
             }
             .padding(.horizontal, 16)
             .frame(height: 48)
         }
-    }
-
-    private var escTint: Color {
-        isDark
-            ? Color(nsColor: NSColor(srgbRed: 0xFF / 255.0, green: 0xB2 / 255.0, blue: 0xB2 / 255.0, alpha: 1))
-            : Color(nsColor: NSColor(srgbRed: 0x80 / 255.0, green: 0, blue: 0, alpha: 1))
-    }
-
-    private func text(_ string: String) -> Text {
-        Text(string)
-            .font(.system(size: 16, weight: .semibold))
-            .tracking(-0.48)
-            .foregroundColor(isDark ? .white : .black)
-    }
-
-    private func exitText(_ string: String) -> Text {
-        Text(string)
-            .font(.system(size: 16, weight: .semibold))
-            .tracking(-0.48)
-            .foregroundColor(escTint)
     }
 }
 
@@ -121,19 +132,13 @@ struct CollapsedAlignmentGuidesLeftContent: View {
 struct CollapsedRightContent: View {
     @ObservedObject var state: HintBarState
 
-    private var isDark: Bool { !state.isOnLightBackground }
-
-    private var escTint: Color {
-        isDark
-            ? Color(nsColor: NSColor(srgbRed: 0xFF / 255.0, green: 0xB2 / 255.0, blue: 0xB2 / 255.0, alpha: 1))
-            : Color(nsColor: NSColor(srgbRed: 0x80 / 255.0, green: 0, blue: 0, alpha: 1))
-    }
+    private var style: HintBarTextStyle { HintBarTextStyle(isDark: !state.isOnLightBackground) }
 
     var body: some View {
         KeyCap(.esc, symbol: "esc", width: 32, height: 25,
                symbolFont: .system(size: 13, weight: .bold, design: .rounded),
                symbolTracking: -0.2, align: .center, state: state,
-               tint: escTint, tintFill: Color(nsColor: NSColor(srgbRed: 1, green: 0, blue: 0, alpha: 0.1)))
+               tint: style.escTint, tintFill: style.escTintFill)
             .padding(.horizontal, 10)
             .frame(height: 48)
     }
@@ -146,13 +151,7 @@ struct HintBarGlassRoot: View {
     @ObservedObject var state: HintBarState
     @Namespace private var morphNS
 
-    private var isDark: Bool { !state.isOnLightBackground }
-
-    private var escTint: Color {
-        isDark
-            ? Color(nsColor: NSColor(srgbRed: 0xFF / 255.0, green: 0xB2 / 255.0, blue: 0xB2 / 255.0, alpha: 1))
-            : Color(nsColor: NSColor(srgbRed: 0x80 / 255.0, green: 0, blue: 0, alpha: 1))
-    }
+    private var style: HintBarTextStyle { HintBarTextStyle(isDark: !state.isOnLightBackground) }
 
     var body: some View {
         ZStack {
@@ -170,13 +169,13 @@ struct HintBarGlassRoot: View {
             if !state.isCollapsed {
                 if state.mode == .inspect {
                     HStack(spacing: 6) {
-                        text("Use")
+                        style.text("Use")
                         ArrowCluster(state: state).opacity(0)
-                        text("to skip edges, plus")
+                        style.text("to skip edges, plus")
                         shiftCap.opacity(0)
-                        text("to reverse.")
+                        style.text("to reverse.")
                         escCap.opacity(0)
-                        exitText("to exit.")
+                        style.exitText("to exit.")
                     }
                     .padding(.horizontal, 16)
                     .frame(height: 48)
@@ -184,13 +183,13 @@ struct HintBarGlassRoot: View {
                     .glassEffectID("bar", in: morphNS)
                 } else {
                     HStack(spacing: 6) {
-                        text("Press")
+                        style.text("Press")
                         tabCap.opacity(0)
-                        text("to switch direction,")
+                        style.text("to switch direction,")
                         spaceCap.opacity(0)
-                        text("to change color.")
+                        style.text("to change color.")
                         escCap.opacity(0)
-                        exitText("to exit.")
+                        style.exitText("to exit.")
                     }
                     .padding(.horizontal, 16)
                     .frame(height: 48)
@@ -236,30 +235,30 @@ struct HintBarGlassRoot: View {
             if state.mode == .inspect {
                 HStack(spacing: 6) {
                     if !state.isCollapsed {
-                        text("Use").opacity(0)
+                        style.text("Use").opacity(0)
                     }
                     ArrowCluster(state: state)
                     if !state.isCollapsed {
-                        text("to skip edges, plus").opacity(0)
+                        style.text("to skip edges, plus").opacity(0)
                     }
                     shiftCap
                     if !state.isCollapsed {
-                        text("to reverse.").opacity(0)
+                        style.text("to reverse.").opacity(0)
                     }
                 }
                 .padding(.horizontal, state.isCollapsed ? 10 : 0)
             } else {
                 HStack(spacing: 6) {
                     if !state.isCollapsed {
-                        text("Press").opacity(0)
+                        style.text("Press").opacity(0)
                     }
                     tabCap
                     if !state.isCollapsed {
-                        text("to switch direction,").opacity(0)
+                        style.text("to switch direction,").opacity(0)
                     }
                     spaceCap
                     if !state.isCollapsed {
-                        text("to change color.").opacity(0)
+                        style.text("to change color.").opacity(0)
                     }
                 }
                 .padding(.horizontal, state.isCollapsed ? 10 : 0)
@@ -268,7 +267,7 @@ struct HintBarGlassRoot: View {
             HStack(spacing: 6) {
                 escCap
                 if !state.isCollapsed {
-                    exitText("to exit.").opacity(0)
+                    style.exitText("to exit.").opacity(0)
                 }
             }
             .padding(.horizontal, state.isCollapsed ? 10 : 0)
@@ -301,23 +300,7 @@ struct HintBarGlassRoot: View {
         KeyCap(.esc, symbol: "esc", width: 32, height: 25,
                symbolFont: .system(size: 13, weight: .bold, design: .rounded),
                symbolTracking: -0.2, align: .center, state: state,
-               tint: escTint, tintFill: Color(nsColor: NSColor(srgbRed: 1, green: 0, blue: 0, alpha: 0.1)))
-    }
-
-    // MARK: - Text helpers
-
-    private func text(_ string: String) -> some View {
-        Text(string)
-            .font(.system(size: 16, weight: .semibold))
-            .tracking(-0.48)
-            .foregroundColor(isDark ? .white : .black)
-    }
-
-    private func exitText(_ string: String) -> some View {
-        Text(string)
-            .font(.system(size: 16, weight: .semibold))
-            .tracking(-0.48)
-            .foregroundColor(escTint)
+               tint: style.escTint, tintFill: style.escTintFill)
     }
 }
 
