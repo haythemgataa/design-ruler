@@ -2,11 +2,11 @@
 
 ## What This Is
 
-A macOS pixel inspector launched from Raycast. Two commands: (1) **Design Ruler** — crosshair with edge detection, W×H dimensions, arrow-key skip, drag-to-snap selections. (2) **Alignment Guides** — place vertical/horizontal guide lines to verify element alignment, color cycling, hover-to-remove, position pills. Both use fullscreen frozen overlays with per-screen multi-monitor capture, GPU-composited CAShapeLayer rendering, and liquid glass hint bars.
+A macOS pixel inspector available as both a Raycast extension and a standalone menu bar app. Two commands: (1) **Measure** — crosshair with edge detection, W×H dimensions, arrow-key skip, drag-to-snap selections. (2) **Alignment Guides** — place vertical/horizontal guide lines to verify element alignment, color cycling, hover-to-remove, position pills. Both use fullscreen frozen overlays with per-screen multi-monitor capture, GPU-composited CAShapeLayer rendering, and liquid glass hint bars.
 
 ## Core Value
 
-Instant, accurate pixel inspection of anything on screen — zero friction from Raycast invoke to dimension readout.
+Instant, accurate pixel inspection of anything on screen — zero friction from invoke to dimension readout, whether launched from Raycast or a global hotkey.
 
 ## Requirements
 
@@ -54,7 +54,17 @@ Instant, accurate pixel inspection of anything on screen — zero friction from 
 
 ### Active
 
-(None — planning next milestone)
+## Current Milestone: v2.0 Standalone App
+
+**Goal:** Make Design Ruler available as a standalone macOS menu bar app with global hotkeys and settings, while keeping full Raycast extension support.
+
+**Target features:**
+- Standalone macOS menu bar app with dropdown for both commands
+- Configurable global keyboard shortcuts for Measure and Alignment Guides
+- Settings window (hideHintBar, corrections, hotkey bindings, launch at login)
+- Coexistence detection with Raycast extension (recommend keeping one)
+- DMG distribution via GitHub releases
+- Identical overlay behavior to Raycast version
 
 ### Out of Scope
 
@@ -68,6 +78,7 @@ Instant, accurate pixel inspection of anything on screen — zero friction from 
 ## Context
 
 - Raycast extension: TypeScript thin wrapper calls Swift via `@raycast` macro bridge
+- Standalone app: native macOS menu bar app sharing same Swift overlay/detection code
 - Raycast only deploys the Swift binary — no `.bundle` directories, no `Bundle.module`
 - macOS 13+ minimum, Swift 5.9+, AppKit + CoreGraphics + QuartzCore + SwiftUI
 - CGWindowListCreateImage has a cold-start penalty on macOS 26; mitigated by 1x1 warmup capture
@@ -120,4 +131,4 @@ Instant, accurate pixel inspection of anything on screen — zero friction from 
 | HintBarTextStyle returns Text (not some View) | Satisfies both direct Text and View usage sites in SwiftUI content structs | ✓ Good |
 
 ---
-*Last updated: 2026-02-17 after v1.3 milestone*
+*Last updated: 2026-02-17 after v2.0 milestone started*

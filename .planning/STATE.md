@@ -4,17 +4,15 @@
 
 See: .planning/PROJECT.md (updated 2026-02-17)
 
-**Core value:** Instant, accurate pixel inspection of anything on screen — zero friction from Raycast invoke to dimension readout.
-**Current focus:** Planning next milestone
+**Core value:** Instant, accurate pixel inspection of anything on screen — zero friction from invoke to dimension readout, whether launched from Raycast or a global hotkey.
+**Current focus:** v2.0 Standalone App
 
 ## Current Position
 
-Phase: All complete through v1.3
-Plan: N/A
-Status: v1.3 Code Unification shipped. All 17 phases across 4 milestones complete.
-Last activity: 2026-02-17 - Completed quick task 4: Move Measure-specific files into Sources/Measure/
-
-Progress: [##########] 100%
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-02-17 — Milestone v2.0 started
 
 ## Performance Metrics
 
