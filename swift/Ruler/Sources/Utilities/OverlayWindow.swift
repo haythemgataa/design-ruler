@@ -42,12 +42,21 @@ class OverlayWindow: NSWindow, OverlayWindowProtocol {
 
     func setupTrackingArea() {
         guard let cv = contentView else { return }
+        // `.cursorUpdate` enables cursorUpdate(with:) callbacks — without it, the system
+        // would apply its own cursor logic and our CursorManager state would be overridden.
         let area = NSTrackingArea(
             rect: cv.bounds,
-            options: [.mouseEnteredAndExited, .activeAlways],
+            options: [.mouseEnteredAndExited, .cursorUpdate, .activeAlways],
             owner: self, userInfo: nil
         )
         cv.addTrackingArea(area)
+    }
+
+    /// Take over cursor management from the system. With `.cursorUpdate` on the tracking
+    /// area, the system calls this instead of applying its own cursor logic. Not calling
+    /// super is intentional — it prevents the system from resetting our managed cursor.
+    override func cursorUpdate(with event: NSEvent) {
+        CursorManager.shared.applyCursor()
     }
 
     // MARK: - Hint Bar
@@ -106,7 +115,6 @@ class OverlayWindow: NSWindow, OverlayWindowProtocol {
 
         if !hasReceivedFirstMove {
             hasReceivedFirstMove = true
-            willHandleFirstMove()
             onFirstMove?()
         }
 
@@ -153,12 +161,6 @@ class OverlayWindow: NSWindow, OverlayWindowProtocol {
     /// Called on mouseEntered. Subclasses override to call their typed onActivate callback.
     func handleActivation() {
         // Subclasses override to call their typed onActivate callback
-    }
-
-    /// Called immediately before onFirstMove?() on the very first mouse move.
-    /// RulerWindow overrides to hide the system crosshair cursor.
-    func willHandleFirstMove() {
-        // Subclasses override for first-move-specific setup
     }
 
     /// Called on mouseMoved after throttle, first-move detection, and cursor position tracking.
