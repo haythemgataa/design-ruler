@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-16)
 
 **Core value:** Instant, accurate pixel inspection of anything on screen — zero friction from Raycast invoke to dimension readout.
-**Current focus:** v1.3 Code Unification — Phase 14 complete, ready for Phase 15
+**Current focus:** v1.3 Code Unification — Phase 15 in progress
 
 ## Current Position
 
-Phase: 14 of 16 (Coordinator Base) - COMPLETE
-Plan: 2 of 2 in current phase
-Status: Phase Complete
-Last activity: 2026-02-17 — Plan 14-02 complete (Ruler/AlignmentGuides subclass OverlayCoordinator)
+Phase: 15 of 16 (Window Base + Cursor)
+Plan: 1 of 2 in current phase
+Status: Plan 15-01 complete, Plan 15-02 remaining
+Last activity: 2026-02-17 — Plan 15-01 complete (OverlayWindow base class + CursorManager resize states)
 
-Progress: [████████░░] 75%
+Progress: [████████░░] 81%
 
 ## Performance Metrics
 
@@ -50,6 +50,7 @@ Progress: [████████░░] 75%
 | 13    | 02   | 4min 1s  | 2     | 4     |
 | 14    | 01   | 2min 27s | 2     | 3     |
 | 14    | 02   | 2min 28s | 2     | 5     |
+| 15    | 01   | 2min 6s  | 2     | 2     |
 
 ## Accumulated Context
 
@@ -62,6 +63,7 @@ All decisions logged in PROJECT.md Key Decisions table.
 - 13-02: GuideLine Remove mode kept as position pill content/color swap, SelectionOverlay text formatting stays local
 - 14-01: Class-based coordinator (not protocol) for shared stored state; OverlayWindowProtocol for type-safe window access; warmup capture moved into run() sequence
 - 14-02: ObjectIdentifier keying for per-screen EdgeDetector storage; wireCallbacks fully overridden per subclass; AlignmentGuides uses base default captureAllScreens
+- 15-01: Static configureOverlay() instead of init override; setupHintBar parameterized by HintBarMode; overridable hooks for subclass behavior
 
 ### Pending Todos
 
@@ -74,5 +76,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-17
-Stopped at: Completed 14-02-PLAN.md (Phase 14 complete)
-Resume file: Next phase (15-window-base)
+Stopped at: Completed 15-01-PLAN.md
+Resume file: .planning/phases/15-window-base-cursor/15-02-PLAN.md
