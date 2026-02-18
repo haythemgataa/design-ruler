@@ -73,7 +73,9 @@
   1. `DesignRulerCore` library target exists in Package.swift and contains all existing overlay/detection/rendering Swift files
   2. `ray build` completes without errors after the SPM source restructure (Raycast build path unchanged)
   3. Xcode project builds and produces a runnable `.app` binary referencing DesignRulerCore as a local package
-**Plans**: TBD
+**Plans**: 2 plans
+  - [ ] 18-01-PLAN.md — Restructure SPM sources into DesignRulerCore library + RaycastBridge executable, verify Raycast build
+  - [ ] 18-02-PLAN.md — Create Xcode app project with xcodegen, verify xcodebuild
 
 ### Phase 19: App Lifecycle Refactor
 **Goal**: OverlayCoordinator can be invoked from a persistent app without starting or killing the event loop, and cursor state is clean at the start of every session
@@ -160,7 +162,7 @@
 | 15. Window Base + Cursor | v1.3 | 2/2 | Complete | 2026-02-17 |
 | 16. Final Cleanup | v1.3 | 1/1 | Complete | 2026-02-17 |
 | 17. Unified cursor manager fixes | v1.3 | 1/1 | Complete | 2026-02-17 |
-| 18. Build System | v2.0 | 0/TBD | Not started | - |
+| 18. Build System | v2.0 | 0/2 | Planned | - |
 | 19. App Lifecycle Refactor | v2.0 | 0/TBD | Not started | - |
 | 20. Menu Bar Shell | v2.0 | 0/TBD | Not started | - |
 | 21. Settings and Preferences | v2.0 | 0/TBD | Not started | - |
