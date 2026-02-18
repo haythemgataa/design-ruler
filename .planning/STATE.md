@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-02-18)
 
 **Core value:** Instant, accurate pixel inspection of anything on screen — zero friction from invoke to dimension readout, whether launched from Raycast or a global hotkey.
-**Current focus:** v2.0 Standalone App — Phase 19: App Lifecycle Refactor
+**Current focus:** v2.0 Standalone App — Phase 20: Menu Bar Shell
 
 ## Current Position
 
-Phase: 19 of 24 (App Lifecycle Refactor)
-Plan: 2 of 3 complete in current phase
-Status: Phase 19 in progress — 19-02 complete (MeasureCoordinator + AlignmentGuidesCoordinator in DesignRulerCore; AppDelegate wired)
-Last activity: 2026-02-18 — Completed 19-02: coordinator subclasses moved to DesignRulerCore, RaycastBridge slimmed to thin wrappers, AppDelegate wired for standalone mode
+Phase: 20 of 24 (Menu Bar Shell)
+Plan: 1 of 2 complete in current phase
+Status: Phase 20 in progress — 20-01 complete (MenuBarController with NSStatusItem, onSessionEnd callback, Phase 19 scaffolding removed)
+Last activity: 2026-02-18 — Completed 20-01: NSStatusItem menu bar icon, dropdown menu, onSessionEnd hook, debug logging and test scaffolding removed
 
 Progress: [░░░░░░░░░░] 0% (v2.0 — 0/7 phases complete)
 
@@ -49,6 +49,7 @@ Progress: [░░░░░░░░░░] 0% (v2.0 — 0/7 phases complete)
 | 18-build-system | 02 | 2min  | 1 | 6  |
 | 19-app-lifecycle-refactor | 01 | 1min 46s | 1 | 1 |
 | 19-app-lifecycle-refactor | 02 | 6min 42s | 2 | 5 |
+| 20-menu-bar-shell | 01 | 2min 58s | 2 | 5 |
 
 ## Accumulated Context
 
@@ -71,6 +72,9 @@ Key decisions for v2.0:
 - [Phase 19-app-lifecycle-refactor]: open class (not final) for coordinator subclasses in DesignRulerCore — required for cross-module subclassing from library target
 - [Phase 19-app-lifecycle-refactor]: GuideLineStyle is package type — currentStyle on AlignmentGuidesCoordinator must be package private(set) not public private(set)
 - [Phase 19-app-lifecycle-refactor]: Foundation import required in @raycast files — macro expands to NSObject/JSONDecoder references, import AppKit alone is insufficient for thin wrappers
+- [Phase 20-menu-bar-shell 20-01]: MenuBarController uses callbacks (onMeasure/onAlignmentGuides) wired by AppDelegate — decoupled from coordinator types
+- [Phase 20-menu-bar-shell 20-01]: anySessionActive guard in launch actions checked BEFORE setActive(true) to prevent stuck filled icon on rejected double-launches
+- [Phase 20-menu-bar-shell 20-01]: onSessionEnd fires last in handleExit() and on permission abort in standalone run() early return
 
 ### Research Flags (from SUMMARY.md)
 
@@ -89,5 +93,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-18
-Stopped at: Completed 19-02-PLAN.md (MeasureCoordinator and AlignmentGuidesCoordinator in DesignRulerCore; AppDelegate wired for standalone mode)
-Resume: `/gsd:execute-phase 19` (next plan: 19-03)
+Stopped at: Completed 20-01-PLAN.md (MenuBarController with NSStatusItem, onSessionEnd callback, Phase 19 scaffolding removed)
+Resume: `/gsd:execute-phase 20` (next plan: 20-02)
