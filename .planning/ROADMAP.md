@@ -98,7 +98,8 @@
   2. Clicking the menu bar icon reveals a dropdown containing Measure and Alignment Guides items
   3. Clicking Measure or Alignment Guides in the dropdown launches the corresponding fullscreen overlay
   4. Menu bar icon visually distinguishes the active-overlay state from the idle state
-**Plans**: TBD
+**Plans**: 1 plan
+  - [ ] 20-01-PLAN.md -- MenuBarController + AppDelegate cleanup + onSessionEnd hook + Xcode project update
 
 ### Phase 21: Settings and Preferences
 **Goal**: User can configure all overlay preferences, launch at login, and access About information through a persistent settings window
