@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-18)
 ## Current Position
 
 Phase: 19 of 24 (App Lifecycle Refactor)
-Plan: 1 of 3 complete in current phase
-Status: Phase 19 in progress — 19-01 complete (OverlayCoordinator RunMode + session guards)
-Last activity: 2026-02-18 — Completed 19-01: RunMode enum, isSessionActive guard, anySessionActive cross-coordinator guard, gated app.run()/terminate() in OverlayCoordinator
+Plan: 2 of 3 complete in current phase
+Status: Phase 19 in progress — 19-02 complete (MeasureCoordinator + AlignmentGuidesCoordinator in DesignRulerCore; AppDelegate wired)
+Last activity: 2026-02-18 — Completed 19-02: coordinator subclasses moved to DesignRulerCore, RaycastBridge slimmed to thin wrappers, AppDelegate wired for standalone mode
 
 Progress: [░░░░░░░░░░] 0% (v2.0 — 0/7 phases complete)
 
@@ -48,6 +48,7 @@ Progress: [░░░░░░░░░░] 0% (v2.0 — 0/7 phases complete)
 | 18-build-system | 01 | 19min | 2 | 26 |
 | 18-build-system | 02 | 2min  | 1 | 6  |
 | 19-app-lifecycle-refactor | 01 | 1min 46s | 1 | 1 |
+| 19-app-lifecycle-refactor | 02 | 6min 42s | 2 | 5 |
 
 ## Accumulated Context
 
@@ -67,6 +68,9 @@ Key decisions for v2.0:
 - [Phase 18-build-system]: Package.swift updated to macOS 14 minimum and products array declaring DesignRulerCore library
 - [Phase 18-build-system 18-02]: xcodegen info.properties injects LSUIElement into generated plist (not standalone pre-written plist)
 - [Phase 18-build-system 18-02]: CODE_SIGN_IDENTITY="-" for Debug (ad-hoc, no Apple Developer account required for local builds)
+- [Phase 19-app-lifecycle-refactor]: open class (not final) for coordinator subclasses in DesignRulerCore — required for cross-module subclassing from library target
+- [Phase 19-app-lifecycle-refactor]: GuideLineStyle is package type — currentStyle on AlignmentGuidesCoordinator must be package private(set) not public private(set)
+- [Phase 19-app-lifecycle-refactor]: Foundation import required in @raycast files — macro expands to NSObject/JSONDecoder references, import AppKit alone is insufficient for thin wrappers
 
 ### Research Flags (from SUMMARY.md)
 
@@ -85,5 +89,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-18
-Stopped at: Completed 19-01-PLAN.md (OverlayCoordinator RunMode + session lifecycle)
-Resume: `/gsd:execute-phase 19` (next plan: 19-02)
+Stopped at: Completed 19-02-PLAN.md (MeasureCoordinator and AlignmentGuidesCoordinator in DesignRulerCore; AppDelegate wired for standalone mode)
+Resume: `/gsd:execute-phase 19` (next plan: 19-03)
