@@ -1,5 +1,11 @@
 import AppKit
 
+/// Controls whether the coordinator owns the process lifetime or runs inside a persistent app.
+public enum RunMode {
+    case raycast    // Event loop owned by coordinator; terminate kills process
+    case standalone // Event loop owned by AppDelegate; session ends without killing app
+}
+
 /// Protocol for overlay windows that both MeasureWindow and AlignmentGuidesWindow conform to.
 /// Allows the coordinator base to call common methods without knowing the concrete window type.
 package protocol OverlayWindowProtocol: AnyObject {
@@ -21,6 +27,9 @@ package protocol OverlayWindowProtocol: AnyObject {
 ///   show all windows -> make key window -> launchTime -> activate -> signal handler ->
 ///   inactivity timer -> app.run()
 open class OverlayCoordinator {
+    public static var anySessionActive = false  // Cross-coordinator guard: prevents Measure + Guides overlap
+    public var runMode: RunMode = .raycast      // Default .raycast: zero changes needed in RaycastBridge
+    public var isSessionActive = false
     public var windows: [NSWindow] = []
     public weak var activeWindow: NSWindow?
     public weak var cursorWindow: NSWindow?
@@ -38,6 +47,14 @@ open class OverlayCoordinator {
     /// Run the overlay command. Enforces the locked startup order.
     /// Subclasses should NOT override this — override the hook methods instead.
     public func run(hideHintBar: Bool) {
+        // Session guards: fast-reject overlapping invocations without side effects
+        guard !isSessionActive else { return }
+        guard !OverlayCoordinator.anySessionActive else { return }
+        // Cursor reset: safe here because no session is active (guards passed above)
+        CursorManager.shared.restore()
+        isSessionActive = true
+        OverlayCoordinator.anySessionActive = true
+
         // 1. Warmup capture (1x1 pixel, absorbs CGWindowListCreateImage cold-start penalty)
         _ = CGWindowListCreateImage(
             CGRect(x: 0, y: 0, width: 1, height: 1),
@@ -106,7 +123,10 @@ open class OverlayCoordinator {
         NSApp.activate(ignoringOtherApps: true)
         setupSignalHandler()
         resetInactivityTimer()
-        app.run()
+        if runMode == .raycast {
+            app.run()
+        }
+        // Standalone: returns immediately, AppDelegate's event loop continues
     }
 
     // MARK: - Overridable Methods (subclass hooks)
@@ -158,13 +178,26 @@ open class OverlayCoordinator {
 
     // MARK: - Shared Methods (not overridden)
 
-    /// Clean exit: restore cursor, close all windows, terminate app.
+    /// Clean exit: restore cursor, close all windows, terminate app (Raycast) or return (standalone).
     public func handleExit() {
+        isSessionActive = false                     // synchronous first — allows instant re-invocation
+        OverlayCoordinator.anySessionActive = false // cross-coordinator guard cleared
         CursorManager.shared.restore()
+        inactivityTimer?.invalidate()
+        inactivityTimer = nil
+        sigTermSource?.cancel()
+        sigTermSource = nil
         for window in windows {
+            window.orderOut(nil)                    // instant visual removal
             window.close()
         }
-        NSApp.terminate(nil)
+        windows.removeAll()
+        activeWindow = nil
+        cursorWindow = nil
+        if runMode == .raycast {
+            NSApp.terminate(nil)
+        }
+        // Standalone: returns here, process stays alive
     }
 
     /// Handle first mouse move: set flag, collapse hint bar after minimum display duration.
