@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-18)
 ## Current Position
 
 Phase: 18 of 24 (Build System)
-Plan: — of — in current phase
-Status: Ready to plan
-Last activity: 2026-02-18 — Roadmap created for v2.0 milestone (phases 18-24)
+Plan: 1 of 2 complete in current phase
+Status: In progress — 18-01 complete, ready for 18-02
+Last activity: 2026-02-18 — Completed 18-01: SPM restructure into DesignRulerCore + RaycastBridge targets
 
 Progress: [░░░░░░░░░░] 0% (v2.0 — 0/7 phases complete)
 
@@ -45,6 +45,7 @@ Progress: [░░░░░░░░░░] 0% (v2.0 — 0/7 phases complete)
 | quick-2 | 01 | 2min 23s | 3   | 6     |
 | quick-3 | 01 | 5min 21s | 2   | 8     |
 | quick-4 | 01 | 3min 36s | 2   | 9     |
+| 18-build-system | 01 | 19min | 2 | 26 |
 
 ## Accumulated Context
 
@@ -60,6 +61,8 @@ Key decisions for v2.0:
 - RunMode enum added to OverlayCoordinator (~15-line change, not a rewrite)
 - CursorManager.shared.restore() called at START of every run() (singleton state leak prevention)
 - setActivationPolicy(.accessory) set once in applicationDidFinishLaunching, removed from coordinator
+- [Phase 18-build-system]: open class OverlayCoordinator (not package) required for cross-module subclassing by DesignRuler bridge target
+- [Phase 18-build-system]: Package.swift updated to macOS 14 minimum and products array declaring DesignRulerCore library
 
 ### Research Flags (from SUMMARY.md)
 
@@ -78,5 +81,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-18
-Stopped at: Phase 18 context gathered
-Resume: `/gsd:plan-phase 18`
+Stopped at: Completed 18-build-system 18-01-PLAN.md
+Resume: `/gsd:execute-plan 18-02`
