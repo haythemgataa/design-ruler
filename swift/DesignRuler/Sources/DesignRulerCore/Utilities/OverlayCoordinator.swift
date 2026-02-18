@@ -31,6 +31,7 @@ open class OverlayCoordinator {
     public var runMode: RunMode = .raycast      // Default .raycast: zero changes needed in RaycastBridge
     public var isSessionActive = false
     public var windows: [NSWindow] = []
+    private var staleWindows: [NSWindow] = []   // Standalone: holds old windows until safe to release
     public weak var activeWindow: NSWindow?
     public weak var cursorWindow: NSWindow?
     public var firstMoveReceived = false
@@ -39,6 +40,10 @@ open class OverlayCoordinator {
     public var inactivityTimer: Timer?
     public let inactivityTimeout: TimeInterval = 600 // 10 minutes
     public var sigTermSource: DispatchSourceSignal?
+
+    /// Called when the overlay session ends (ESC, inactivity, SIGTERM, or permission abort).
+    /// Safe to set from any thread — fires on whatever thread handleExit() runs on.
+    public var onSessionEnd: (() -> Void)?
 
     public init() {}
 
@@ -62,8 +67,16 @@ open class OverlayCoordinator {
         )
 
         // 2. Permission check
-        if !PermissionChecker.hasScreenRecordingPermission() {
+        let hasPermission = PermissionChecker.hasScreenRecordingPermission()
+        if !hasPermission {
             PermissionChecker.requestScreenRecordingPermission()
+            // In standalone mode, don't proceed — fullscreen windows would block the permission dialog
+            if runMode == .standalone {
+                isSessionActive = false
+                OverlayCoordinator.anySessionActive = false
+                onSessionEnd?()   // Reverts menu bar icon on permission abort
+                return
+            }
         }
 
         // 3. Detect cursor screen
@@ -83,11 +96,29 @@ open class OverlayCoordinator {
         app.setActivationPolicy(.accessory)
 
         // 7. Cleanup old windows
-        for oldWindow in windows {
-            oldWindow.orderOut(nil)
-            oldWindow.close()
+        if runMode == .raycast {
+            for oldWindow in windows {
+                oldWindow.orderOut(nil)
+                oldWindow.close()
+            }
+            windows.removeAll()
+        } else {
+            // Standalone: never close() old windows synchronously or deferred —
+            // close() on old windows can re-trigger handleExit() via stale callbacks.
+            // Just orderOut (already hidden from handleExit) and park in staleWindows.
+            // ARC releases old stale windows when replaced by next session's stale set.
+            for oldWindow in windows {
+                oldWindow.orderOut(nil)
+                // Nil out callbacks to prevent stale references
+                if let overlay = oldWindow as? OverlayWindow {
+                    overlay.onRequestExit = nil
+                    overlay.onFirstMove = nil
+                    overlay.onActivity = nil
+                }
+            }
+            staleWindows = windows
+            windows.removeAll()
         }
-        windows.removeAll()
         activeWindow = nil
         firstMoveReceived = false
 
@@ -189,15 +220,19 @@ open class OverlayCoordinator {
         sigTermSource = nil
         for window in windows {
             window.orderOut(nil)                    // instant visual removal
-            window.close()
         }
-        windows.removeAll()
         activeWindow = nil
         cursorWindow = nil
         if runMode == .raycast {
+            for window in windows {
+                window.close()
+            }
+            windows.removeAll()
             NSApp.terminate(nil)
         }
-        // Standalone: returns here, process stays alive
+        // Standalone: windows stay in array (hidden via orderOut) to keep them retained
+        // through the autorelease pool drain. The next run() call cleans them up.
+        onSessionEnd?()
     }
 
     /// Handle first mouse move: set flag, collapse hint bar after minimum display duration.
