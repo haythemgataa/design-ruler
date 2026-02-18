@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-18)
 ## Current Position
 
 Phase: 18 of 24 (Build System)
-Plan: 1 of 2 complete in current phase
-Status: In progress — 18-01 complete, ready for 18-02
-Last activity: 2026-02-18 — Completed 18-01: SPM restructure into DesignRulerCore + RaycastBridge targets
+Plan: 2 of 2 complete in current phase
+Status: Phase 18 complete — ready for Phase 19 (app target features)
+Last activity: 2026-02-18 — Completed 18-02: Xcode app project with DesignRulerCore local SPM dependency, BUILD SUCCEEDED
 
 Progress: [░░░░░░░░░░] 0% (v2.0 — 0/7 phases complete)
 
@@ -46,6 +46,7 @@ Progress: [░░░░░░░░░░] 0% (v2.0 — 0/7 phases complete)
 | quick-3 | 01 | 5min 21s | 2   | 8     |
 | quick-4 | 01 | 3min 36s | 2   | 9     |
 | 18-build-system | 01 | 19min | 2 | 26 |
+| 18-build-system | 02 | 2min  | 1 | 6  |
 
 ## Accumulated Context
 
@@ -63,6 +64,8 @@ Key decisions for v2.0:
 - setActivationPolicy(.accessory) set once in applicationDidFinishLaunching, removed from coordinator
 - [Phase 18-build-system]: open class OverlayCoordinator (not package) required for cross-module subclassing by DesignRuler bridge target
 - [Phase 18-build-system]: Package.swift updated to macOS 14 minimum and products array declaring DesignRulerCore library
+- [Phase 18-build-system 18-02]: xcodegen info.properties injects LSUIElement into generated plist (not standalone pre-written plist)
+- [Phase 18-build-system 18-02]: CODE_SIGN_IDENTITY="-" for Debug (ad-hoc, no Apple Developer account required for local builds)
 
 ### Research Flags (from SUMMARY.md)
 
@@ -81,5 +84,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-18
-Stopped at: Completed 18-build-system 18-01-PLAN.md
-Resume: `/gsd:execute-plan 18-02`
+Stopped at: Completed 18-build-system 18-02-PLAN.md (Phase 18 complete)
+Resume: `/gsd:execute-plan 19-01`

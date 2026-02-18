@@ -55,7 +55,7 @@
 
 **Milestone Goal:** Design Ruler available as a standalone macOS menu bar app with global hotkeys, settings, and DMG distribution — while keeping full Raycast extension support.
 
-- [ ] **Phase 18: Build System** - Extract DesignRulerCore library, create Xcode project, verify Raycast build still passes
+- [x] **Phase 18: Build System** - Extract DesignRulerCore library, create Xcode project, verify Raycast build still passes (completed 2026-02-18)
 - [ ] **Phase 19: App Lifecycle Refactor** - Add RunMode to OverlayCoordinator so overlay sessions end without killing the process
 - [ ] **Phase 20: Menu Bar Shell** - NSStatusItem with dropdown launching both overlay commands from a persistent app
 - [ ] **Phase 21: Settings and Preferences** - Settings window with General, Measure, and About tabs wired to AppPreferences
@@ -162,7 +162,7 @@
 | 15. Window Base + Cursor | v1.3 | 2/2 | Complete | 2026-02-17 |
 | 16. Final Cleanup | v1.3 | 1/1 | Complete | 2026-02-17 |
 | 17. Unified cursor manager fixes | v1.3 | 1/1 | Complete | 2026-02-17 |
-| 18. Build System | v2.0 | 0/2 | Planned | - |
+| 18. Build System | v2.0 | Complete    | 2026-02-18 | - |
 | 19. App Lifecycle Refactor | v2.0 | 0/TBD | Not started | - |
 | 20. Menu Bar Shell | v2.0 | 0/TBD | Not started | - |
 | 21. Settings and Preferences | v2.0 | 0/TBD | Not started | - |
