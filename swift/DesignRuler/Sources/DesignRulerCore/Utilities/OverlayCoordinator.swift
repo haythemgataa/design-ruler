@@ -20,24 +20,24 @@ package protocol OverlayWindowProtocol: AnyObject {
 ///   captureScreens() -> createWindows() -> .accessory policy -> cleanup old windows ->
 ///   show all windows -> make key window -> launchTime -> activate -> signal handler ->
 ///   inactivity timer -> app.run()
-package class OverlayCoordinator {
-    package var windows: [NSWindow] = []
-    package weak var activeWindow: NSWindow?
-    package weak var cursorWindow: NSWindow?
-    package var firstMoveReceived = false
-    package var launchTime: CFAbsoluteTime = 0
-    package let minExpandedDuration: TimeInterval = 3
-    package var inactivityTimer: Timer?
-    package let inactivityTimeout: TimeInterval = 600 // 10 minutes
-    package var sigTermSource: DispatchSourceSignal?
+open class OverlayCoordinator {
+    public var windows: [NSWindow] = []
+    public weak var activeWindow: NSWindow?
+    public weak var cursorWindow: NSWindow?
+    public var firstMoveReceived = false
+    public var launchTime: CFAbsoluteTime = 0
+    public let minExpandedDuration: TimeInterval = 3
+    public var inactivityTimer: Timer?
+    public let inactivityTimeout: TimeInterval = 600 // 10 minutes
+    public var sigTermSource: DispatchSourceSignal?
 
-    package init() {}
+    public init() {}
 
     // MARK: - Orchestrated Startup Sequence
 
     /// Run the overlay command. Enforces the locked startup order.
     /// Subclasses should NOT override this — override the hook methods instead.
-    package func run(hideHintBar: Bool) {
+    public func run(hideHintBar: Bool) {
         // 1. Warmup capture (1x1 pixel, absorbs CGWindowListCreateImage cold-start penalty)
         _ = CGWindowListCreateImage(
             CGRect(x: 0, y: 0, width: 1, height: 1),
@@ -113,7 +113,7 @@ package class OverlayCoordinator {
 
     /// Capture all screens. Default uses ScreenCapture.captureScreen() for each.
     /// Measure overrides to capture via EdgeDetector instead.
-    package func captureAllScreens() -> [(screen: NSScreen, image: CGImage?)] {
+    open func captureAllScreens() -> [(screen: NSScreen, image: CGImage?)] {
         var captures: [(screen: NSScreen, image: CGImage?)] = []
         for screen in NSScreen.screens {
             let cgImage = ScreenCapture.captureScreen(screen)
@@ -123,7 +123,7 @@ package class OverlayCoordinator {
     }
 
     /// Create a window for the given screen. Subclasses MUST override.
-    package func createWindow(for screen: NSScreen, image: CGImage?, isCursorScreen: Bool, hideHintBar: Bool) -> NSWindow {
+    open func createWindow(for screen: NSScreen, image: CGImage?, isCursorScreen: Bool, hideHintBar: Bool) -> NSWindow {
         fatalError("Subclasses must override createWindow(for:image:isCursorScreen:hideHintBar:)")
     }
 
@@ -131,14 +131,14 @@ package class OverlayCoordinator {
     /// Default wires onRequestExit, onFirstMove, onActivity.
     /// The onActivate callback is command-specific (typed to the window subclass),
     /// so subclasses override this to add onActivate and any additional callbacks.
-    package func wireCallbacks(for window: NSWindow) {
+    open func wireCallbacks(for window: NSWindow) {
         // Base does nothing — subclasses wire typed callbacks
     }
 
     /// Activate a window during multi-monitor cursor transitions.
     /// Default handles timer reset, guard, deactivate old, makeKey.
     /// AlignmentGuides overrides to pass currentStyle/currentDirection.
-    package func activateWindow(_ window: NSWindow) {
+    open func activateWindow(_ window: NSWindow) {
         resetInactivityTimer()
         guard window !== activeWindow else { return }
 
@@ -152,14 +152,14 @@ package class OverlayCoordinator {
 
     /// Reset command-specific state between runs.
     /// AlignmentGuides overrides to reset currentStyle/currentDirection.
-    package func resetCommandState() {
+    open func resetCommandState() {
         // Default: no command-specific state to reset
     }
 
     // MARK: - Shared Methods (not overridden)
 
     /// Clean exit: restore cursor, close all windows, terminate app.
-    package func handleExit() {
+    public func handleExit() {
         CursorManager.shared.restore()
         for window in windows {
             window.close()
@@ -168,7 +168,7 @@ package class OverlayCoordinator {
     }
 
     /// Handle first mouse move: set flag, collapse hint bar after minimum display duration.
-    package func handleFirstMove() {
+    public func handleFirstMove() {
         firstMoveReceived = true
         let elapsed = CFAbsoluteTimeGetCurrent() - launchTime
         let remaining = minExpandedDuration - elapsed
@@ -182,7 +182,7 @@ package class OverlayCoordinator {
     }
 
     /// Install SIGTERM handler for clean cursor restoration on process kill.
-    package func setupSignalHandler() {
+    public func setupSignalHandler() {
         signal(SIGTERM, SIG_IGN)
         let source = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
         source.setEventHandler { [weak self] in
@@ -193,7 +193,7 @@ package class OverlayCoordinator {
     }
 
     /// Reset the 10-minute inactivity watchdog timer.
-    package func resetInactivityTimer() {
+    public func resetInactivityTimer() {
         inactivityTimer?.invalidate()
         inactivityTimer = Timer.scheduledTimer(
             withTimeInterval: inactivityTimeout,
