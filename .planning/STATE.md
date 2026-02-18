@@ -2,39 +2,33 @@
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-02-17)
+See: .planning/PROJECT.md (updated 2026-02-18)
 
 **Core value:** Instant, accurate pixel inspection of anything on screen — zero friction from invoke to dimension readout, whether launched from Raycast or a global hotkey.
-**Current focus:** v2.0 Standalone App
+**Current focus:** v2.0 Standalone App — Phase 18: Build System
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-02-17 — Milestone v2.0 started
+Phase: 18 of 24 (Build System)
+Plan: — of — in current phase
+Status: Ready to plan
+Last activity: 2026-02-18 — Roadmap created for v2.0 milestone (phases 18-24)
+
+Progress: [░░░░░░░░░░] 0% (v2.0 — 0/7 phases complete)
 
 ## Performance Metrics
 
 **Velocity (v1.0):**
-- Total plans completed: 5
-- Average duration: 2min
-- Total execution time: 0.2 hours
+- Total plans completed: 5 | Average: 2min | Total: 0.2 hours
 
 **Velocity (v1.1):**
-- Total plans completed: 4
-- Average duration: 13min
-- Total execution time: ~53min
+- Total plans completed: 4 | Average: 13min | Total: ~53min
 
 **Velocity (v1.2):**
-- Total plans completed: 9
-- Average duration: 2min 38s
-- Total execution time: ~24min 57s
+- Total plans completed: 9 | Average: 2min 38s | Total: ~24min 57s
 
 **Velocity (v1.3):**
-- Total plans completed: 10
-- Average duration: 2min 53s
-- Total execution time: ~28min 49s
+- Total plans completed: 10 | Average: 2min 53s | Total: ~28min 49s
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
@@ -58,9 +52,20 @@ Last activity: 2026-02-17 — Milestone v2.0 started
 
 All decisions logged in PROJECT.md Key Decisions table.
 
-### Roadmap Evolution
+Key decisions for v2.0:
+- Use KeyboardShortcuts 2.4.0 (Carbon-based, no Accessibility permission needed for registration)
+- Use SMAppService.mainApp for launch at login (no helper bundle)
+- App Sandbox must be disabled (CGEventTap + CGWindowListCreateImage incompatible)
+- LSUIElement = YES in Info.plist (no Dock icon, no Cmd+Tab entry)
+- RunMode enum added to OverlayCoordinator (~15-line change, not a rewrite)
+- CursorManager.shared.restore() called at START of every run() (singleton state leak prevention)
+- setActivationPolicy(.accessory) set once in applicationDidFinishLaunching, removed from coordinator
 
-None pending.
+### Research Flags (from SUMMARY.md)
+
+- Phase 18: Verify exact set of files with @raycast entry points before moving files
+- Phase 22: CGEventTap session cleanup — verify disable/re-enable pattern between sessions
+- Phase 24: Sparkle 2.8.1 XPC service config — verify binaryTarget SPM pattern and EdDSA key setup
 
 ### Pending Todos
 
@@ -68,18 +73,10 @@ None.
 
 ### Blockers/Concerns
 
-None.
-
-### Quick Tasks Completed
-
-| # | Description | Date | Commit | Directory |
-|---|-------------|------|--------|-----------|
-| 2 | Rename Design Ruler command to Measure | 2026-02-17 | b4f53c8 | [2-rename-design-ruler-command-to-measure](./quick/2-rename-design-ruler-command-to-measure/) |
-| 3 | Rename swift/Ruler to swift/DesignRuler, Ruler to Measure | 2026-02-17 | 74c56bc | [3-rename-and-reorganize-swift-ruler-to-swi](./quick/3-rename-and-reorganize-swift-ruler-to-swi/) |
-| 4 | Move Measure-specific files into Sources/Measure/ | 2026-02-17 | dd43abe | [4-move-measure-specific-files-into-measure](./quick/4-move-measure-specific-files-into-measure/) |
+- Raycast extension detection path (LOW confidence): `~/Library/Application Support/com.raycast.macos/extensions/` is inferred, not documented. Implement as best-effort heuristic in Phase 23.
 
 ## Session Continuity
 
-Last session: 2026-02-17
-Stopped at: Completed quick-4 (Move Measure-specific files into Sources/Measure/)
-Resume: `/gsd:new-milestone` to start next milestone
+Last session: 2026-02-18
+Stopped at: Roadmap created for v2.0 (phases 18-24), requirements traceability updated
+Resume: `/gsd:plan-phase 18`

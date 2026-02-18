@@ -84,38 +84,38 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BUILD-01 | — | Pending |
-| BUILD-02 | — | Pending |
-| BUILD-03 | — | Pending |
-| LIFE-01 | — | Pending |
-| LIFE-02 | — | Pending |
-| LIFE-03 | — | Pending |
-| MENU-01 | — | Pending |
-| MENU-02 | — | Pending |
-| MENU-03 | — | Pending |
-| MENU-04 | — | Pending |
-| SETT-01 | — | Pending |
-| SETT-02 | — | Pending |
-| SETT-03 | — | Pending |
-| SETT-04 | — | Pending |
-| SETT-05 | — | Pending |
-| SETT-06 | — | Pending |
-| SETT-07 | — | Pending |
-| HOTK-01 | — | Pending |
-| HOTK-02 | — | Pending |
-| HOTK-03 | — | Pending |
-| COEX-01 | — | Pending |
-| COEX-02 | — | Pending |
-| DIST-01 | — | Pending |
-| DIST-02 | — | Pending |
-| DIST-03 | — | Pending |
-| DIST-04 | — | Pending |
+| BUILD-01 | Phase 18 | Pending |
+| BUILD-02 | Phase 18 | Pending |
+| BUILD-03 | Phase 18 | Pending |
+| LIFE-01 | Phase 19 | Pending |
+| LIFE-02 | Phase 19 | Pending |
+| LIFE-03 | Phase 19 | Pending |
+| MENU-01 | Phase 20 | Pending |
+| MENU-02 | Phase 20 | Pending |
+| MENU-03 | Phase 20 | Pending |
+| MENU-04 | Phase 20 | Pending |
+| SETT-01 | Phase 21 | Pending |
+| SETT-02 | Phase 21 | Pending |
+| SETT-03 | Phase 21 | Pending |
+| SETT-04 | Phase 22 | Pending |
+| SETT-05 | Phase 21 | Pending |
+| SETT-06 | Phase 21 | Pending |
+| SETT-07 | Phase 21 | Pending |
+| HOTK-01 | Phase 22 | Pending |
+| HOTK-02 | Phase 22 | Pending |
+| HOTK-03 | Phase 22 | Pending |
+| COEX-01 | Phase 23 | Pending |
+| COEX-02 | Phase 23 | Pending |
+| DIST-01 | Phase 24 | Pending |
+| DIST-02 | Phase 24 | Pending |
+| DIST-03 | Phase 24 | Pending |
+| DIST-04 | Phase 24 | Pending |
 
 **Coverage:**
 - v2.0 requirements: 26 total
-- Mapped to phases: 0
-- Unmapped: 26
+- Mapped to phases: 26
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-02-18*
-*Last updated: 2026-02-18 after initial definition*
+*Last updated: 2026-02-18 after roadmap creation (v2.0 phases 18-24)*
