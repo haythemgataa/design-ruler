@@ -1,9 +1,9 @@
 ---
-status: diagnosed
+status: resolved
 phase: 22-global-hotkeys
 source: 22-01-SUMMARY.md, 22-02-SUMMARY.md
 started: 2026-02-19T11:00:00Z
-updated: 2026-02-19T11:20:00Z
+updated: 2026-02-19
 ---
 
 ## Current Test
@@ -63,7 +63,7 @@ skipped: 0
 ## Gaps
 
 - truth: "Orange warning message appears when assigning duplicate shortcut to both commands"
-  status: failed
+  status: resolved
   reason: "User reported: no warning is shown, but the shortcut didn't register"
   severity: minor
   test: 5
@@ -76,7 +76,7 @@ skipped: 0
   debug_session: ""
 
 - truth: "Menu bar dropdown displays assigned shortcut key combinations next to Measure and Alignment Guides items"
-  status: failed
+  status: resolved
   reason: "User reported: nope, not shown"
   severity: major
   test: 9
