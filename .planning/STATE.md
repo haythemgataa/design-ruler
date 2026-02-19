@@ -56,6 +56,7 @@ Progress: [#####░░░░░] 48% (v2.0 — 3/7 phases complete, Phase 23 in 
 | 22-global-hotkeys | 01 | 4min 15s | 2 | 6 |
 | 22-global-hotkeys | 02 | 1min 4s  | 1 | 1 |
 | 22-global-hotkeys | 03 | 1min 40s | 2 | 2 |
+| 23-distribution | 01 | 3min 59s | 2 | 5 |
 | 23-distribution | 02 | 2min 56s | 2 | 4 |
 
 ## Accumulated Context
@@ -99,6 +100,9 @@ Key decisions for v2.0:
 - [Phase 22-global-hotkeys 22-03]: Guard else-branch on newShortcut != nil to survive onChange double-fire from setShortcut(nil) rejection
 - [Phase 22-global-hotkeys 22-03]: NSMenuDelegate with menuNeedsUpdate for defensive shortcut refresh on every menu open
 - [Phase 22-global-hotkeys 22-03]: menuWillOpen/menuDidClose disable/enable hotkeys during NSMenu tracking mode
+- [Phase 23-distribution 23-01]: Empty entitlements dict — CGWindowListCreateImage/CGEventTap governed by TCC, not entitlements
+- [Phase 23-distribution 23-01]: DEVELOPMENT_TEAM uses $(DEVELOPMENT_TEAM) build setting variable — CI passes via xcodebuild override
+- [Phase 23-distribution 23-01]: Re-enabled Sparkle updater (startingUpdater: true) — real EdDSA key expected before distribution
 - [Phase 23-distribution 23-02]: Two-workflow CI architecture — build on tag-push, appcast on release-publish
 - [Phase 23-distribution 23-02]: EdDSA key piped via stdin in CI (never written to disk)
 - [Phase 23-distribution 23-02]: create-dmg || true for exit code 2 warnings, with post-check for DMG existence
@@ -121,5 +125,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-19
-Stopped at: Completed 23-02-PLAN.md (CI pipeline: build-release + update-appcast workflows, appcast generation script, branded DMG background)
-Resume: Phase 23 plan 02 complete. Next: 23-03 (remaining distribution tasks)
+Stopped at: Completed 23-01-PLAN.md (Signing config: entitlements, ExportOptions.plist, Release signing, Sparkle re-enabled)
+Resume: Phase 23 plan 01 complete (02 also done). Next: 23-03 (remaining distribution tasks)
