@@ -1,10 +1,12 @@
 import AppKit
 import DesignRulerCore
+import KeyboardShortcuts
 import ServiceManagement
 import Sparkle
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     private var menuBarController: MenuBarController!
+    private var hotkeyController: HotkeyController!
     private var settingsWindowController: SettingsWindowController!
     private let updaterController = SPUStandardUpdaterController(
         startingUpdater: false,
@@ -33,11 +35,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Create menu bar and wire overlay launch callbacks
         menuBarController = MenuBarController()
-        menuBarController.onMeasure = {
+        menuBarController.onMeasure = { [weak self] in
+            self?.hotkeyController.sessionStarted(command: .measure)
             let prefs = AppPreferences.shared
             MeasureCoordinator.shared.run(hideHintBar: prefs.hideHintBar, corrections: prefs.corrections)
         }
-        menuBarController.onAlignmentGuides = {
+        menuBarController.onAlignmentGuides = { [weak self] in
+            self?.hotkeyController.sessionStarted(command: .alignmentGuides)
             AlignmentGuidesCoordinator.shared.run(hideHintBar: AppPreferences.shared.hideHintBar)
         }
         menuBarController.onCheckForUpdates = { [weak self] in
@@ -48,12 +52,30 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self.settingsWindowController.showSettings(updater: self.updaterController.updater)
         }
 
-        // Wire session-end callbacks to revert menu bar icon to idle state
+        // Create hotkey controller and wire launch callbacks
+        hotkeyController = HotkeyController()
+        hotkeyController.onLaunchMeasure = { [weak self] in
+            self?.hotkeyController.sessionStarted(command: .measure)
+            let prefs = AppPreferences.shared
+            MeasureCoordinator.shared.run(hideHintBar: prefs.hideHintBar, corrections: prefs.corrections)
+        }
+        hotkeyController.onLaunchAlignmentGuides = { [weak self] in
+            self?.hotkeyController.sessionStarted(command: .alignmentGuides)
+            AlignmentGuidesCoordinator.shared.run(hideHintBar: AppPreferences.shared.hideHintBar)
+        }
+        hotkeyController.onSetActive = { [weak self] active in
+            self?.menuBarController.setActive(active)
+        }
+        hotkeyController.registerHandlers()
+
+        // Wire session-end callbacks to revert menu bar icon and hotkey state
         MeasureCoordinator.shared.onSessionEnd = { [weak self] in
             self?.menuBarController.setActive(false)
+            self?.hotkeyController.sessionEnded()
         }
         AlignmentGuidesCoordinator.shared.onSessionEnd = { [weak self] in
             self?.menuBarController.setActive(false)
+            self?.hotkeyController.sessionEnded()
         }
     }
 

@@ -1,5 +1,6 @@
 import AppKit
 import DesignRulerCore
+import KeyboardShortcuts
 
 final class MenuBarController {
     // CRITICAL: must be stored property — ARC releases local NSStatusItem immediately
@@ -53,6 +54,14 @@ final class MenuBarController {
             keyEquivalent: ""
         )
         guidesItem.target = self
+
+        // Display assigned keyboard shortcuts next to command names.
+        // setShortcut(for:) is @MainActor in KeyboardShortcuts — safe here
+        // because setupMenu() is always called from applicationDidFinishLaunching.
+        MainActor.assumeIsolated {
+            measureItem.setShortcut(for: .measure)
+            guidesItem.setShortcut(for: .alignmentGuides)
+        }
 
         menu.addItem(NSMenuItem.separator())
 
