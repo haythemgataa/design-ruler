@@ -126,10 +126,11 @@ Plans:
   2. User can record a custom keyboard shortcut for Measure in the Settings Shortcuts tab using a recorder control
   3. User can record a custom keyboard shortcut for Alignment Guides in the Settings Shortcuts tab using a recorder control
   4. Pressing an assigned hotkey while focused on Figma (or any other app) launches the corresponding overlay
-**Plans**: 2 plans
+**Plans**: 3 plans
 Plans:
 - [ ] 22-01-PLAN.md -- Add KeyboardShortcuts dependency, HotkeyNames, HotkeyController, wire AppDelegate + menu item shortcut display
 - [ ] 22-02-PLAN.md -- Replace Shortcuts placeholder with recorder controls in Measure/Alignment Guides sections, internal conflict detection
+- [ ] 22-03-PLAN.md -- UAT gap closure: fix conflict warning disappearing and menu bar shortcut display
 
 ### Phase 23: Coexistence
 **Goal**: User who has both the standalone app and the Raycast extension installed sees a one-time recommendation to keep only one
