@@ -22,6 +22,7 @@
 
 /* Begin PBXFileReference section */
 		0BC7DBCD53F37054366E0C88 /* HotkeyController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyController.swift; sourceTree = "<group>"; };
+		10ED6B9220FB431DB96C5A4A /* DesignRuler.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DesignRuler.entitlements; sourceTree = "<group>"; };
 		352435AF79AA05A40B976755 /* AppPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppPreferences.swift; sourceTree = "<group>"; };
 		4DCB7EBB6B2A29A63383C2A5 /* Design Ruler.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Design Ruler.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		AF668E1EE53EFBB40921CA92 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -70,6 +71,7 @@
 			children = (
 				AF668E1EE53EFBB40921CA92 /* AppDelegate.swift */,
 				352435AF79AA05A40B976755 /* AppPreferences.swift */,
+				10ED6B9220FB431DB96C5A4A /* DesignRuler.entitlements */,
 				0BC7DBCD53F37054366E0C88 /* HotkeyController.swift */,
 				DD314E724D02BF2C617BAC2A /* HotkeyNames.swift */,
 				B137A9B4A6F51A0A83C8F073 /* Info.plist */,
@@ -121,11 +123,6 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
-				TargetAttributes = {
-					8112EF7E3234C429C08B9CE9 = {
-						ProvisioningStyle = Automatic;
-					};
-				};
 			};
 			buildConfigurationList = 10B11EAD51AE24ADA1898C80 /* Build configuration list for PBXProject "Design Ruler" */;
 			compatibilityVersion = "Xcode 14.0";
@@ -175,10 +172,12 @@
 			buildSettings = {
 				ARCHS = "$(ARCHS_STANDARD)";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Sources/DesignRuler.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = Sources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -198,9 +197,13 @@
 			buildSettings = {
 				ARCHS = "$(ARCHS_STANDARD)";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_ENTITLEMENTS = Sources/DesignRuler.entitlements;
+				CODE_SIGN_IDENTITY = "Developer ID Application";
+				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "$(DEVELOPMENT_TEAM)";
+				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = Sources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

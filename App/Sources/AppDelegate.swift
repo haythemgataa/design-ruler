@@ -9,7 +9,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var hotkeyController: HotkeyController!
     private var settingsWindowController: SettingsWindowController!
     private let updaterController = SPUStandardUpdaterController(
-        startingUpdater: false,
+        startingUpdater: true,
         updaterDelegate: nil,
         userDriverDelegate: nil
     )
