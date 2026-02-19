@@ -58,7 +58,7 @@
 - [x] **Phase 18: Build System** - Extract DesignRulerCore library, create Xcode project, verify Raycast build still passes (completed 2026-02-18)
 - [x] **Phase 19: App Lifecycle Refactor** - Add RunMode to OverlayCoordinator so overlay sessions end without killing the process (2 plans) (completed 2026-02-18)
 - [x] **Phase 20: Menu Bar Shell** - NSStatusItem with dropdown launching both overlay commands from a persistent app (completed 2026-02-18)
-- [ ] **Phase 21: Settings and Preferences** - Settings window with General, Measure, Shortcuts, About sections wired to UserDefaults + Sparkle (2 plans)
+- [x] **Phase 21: Settings and Preferences** - Settings window with General, Measure, Shortcuts, About sections wired to UserDefaults + Sparkle (2 plans) (completed 2026-02-19)
 - [ ] **Phase 22: Global Hotkeys** - Configurable global keyboard shortcuts triggering overlays from any application
 - [ ] **Phase 23: Coexistence** - One-time nudge when Raycast extension is also installed
 - [ ] **Phase 24: Distribution** - Code-signed, notarized DMG with GitHub Actions CI pipeline
@@ -171,7 +171,7 @@ Plans:
 | 18. Build System | v2.0 | Complete    | 2026-02-18 | - |
 | 19. App Lifecycle Refactor | v2.0 | Complete    | 2026-02-18 | - |
 | 20. Menu Bar Shell | v2.0 | Complete    | 2026-02-18 | - |
-| 21. Settings and Preferences | v2.0 | 0/TBD | Not started | - |
+| 21. Settings and Preferences | v2.0 | Complete    | 2026-02-19 | - |
 | 22. Global Hotkeys | v2.0 | 0/TBD | Not started | - |
 | 23. Coexistence | v2.0 | 0/TBD | Not started | - |
 | 24. Distribution | v2.0 | 0/TBD | Not started | - |
