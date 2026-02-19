@@ -1,3 +1,4 @@
+import KeyboardShortcuts
 import ServiceManagement
 import Sparkle
 import SwiftUI
@@ -9,6 +10,8 @@ struct SettingsView: View {
     @State private var hideHintBar: Bool
     @State private var corrections: String
     @State private var automaticallyChecksForUpdates: Bool
+    @State private var measureConflict: String?
+    @State private var guidesConflict: String?
 
     init(updater: SPUUpdater) {
         self.updater = updater
@@ -53,13 +56,39 @@ struct SettingsView: View {
                 .onChange(of: corrections) { _, newValue in
                     UserDefaults.standard.set(newValue, forKey: "corrections")
                 }
+
+                KeyboardShortcuts.Recorder("Shortcut:", name: .measure) { newShortcut in
+                    if let newShortcut, newShortcut == KeyboardShortcuts.getShortcut(for: .alignmentGuides) {
+                        KeyboardShortcuts.setShortcut(nil, for: .measure)
+                        measureConflict = "Already assigned to Alignment Guides"
+                    } else {
+                        measureConflict = nil
+                    }
+                }
+
+                if let measureConflict {
+                    Text(measureConflict)
+                        .foregroundStyle(.orange)
+                        .font(.caption)
+                }
             }
 
-            // --- Shortcuts (placeholder for Phase 22) ---
-            Section("Shortcuts") {
-                Text("Shortcuts will be available in a future update.")
-                    .foregroundStyle(.secondary)
-                    .font(.callout)
+            // --- Alignment Guides ---
+            Section("Alignment Guides") {
+                KeyboardShortcuts.Recorder("Shortcut:", name: .alignmentGuides) { newShortcut in
+                    if let newShortcut, newShortcut == KeyboardShortcuts.getShortcut(for: .measure) {
+                        KeyboardShortcuts.setShortcut(nil, for: .alignmentGuides)
+                        guidesConflict = "Already assigned to Measure"
+                    } else {
+                        guidesConflict = nil
+                    }
+                }
+
+                if let guidesConflict {
+                    Text(guidesConflict)
+                        .foregroundStyle(.orange)
+                        .font(.caption)
+                }
             }
 
             // --- About ---
