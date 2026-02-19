@@ -1,9 +1,9 @@
 ---
-status: diagnosed
+status: resolved
 phase: 21-settings-and-preferences
 source: 21-01-SUMMARY.md, 21-02-SUMMARY.md
 started: 2026-02-19T12:00:00Z
-updated: 2026-02-19T12:20:00Z
+updated: 2026-02-19T05:05:00Z
 ---
 
 ## Current Test
@@ -59,7 +59,7 @@ skipped: 0
 ## Gaps
 
 - truth: "Launch at Login toggle reflects actual SMAppService registration status when Settings window is reopened"
-  status: failed
+  status: resolved
   reason: "User reported: it works for the most part, after toggling it off, it gets removed from Login Items, but if I close Settings and reopen, I find it set to on again, even though it's still removed from Login Items, toggeling it off and on again adds it back to Login Items"
   severity: major
   test: 5
@@ -74,7 +74,7 @@ skipped: 0
   debug_session: ".planning/debug/launch-at-login-toggle-desync.md"
 
 - truth: "Sparkle updater starts without error and Check for Updates triggers update check dialog"
-  status: failed
+  status: resolved
   reason: "User reported: nothing happened. as I first launch the app I get this: Unable to Check For Updates - The updater failed to start. Please verify you have the latest version of Design Ruler and contact the app developer if the issue still persists."
   severity: major
   test: 7
