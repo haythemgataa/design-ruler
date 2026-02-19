@@ -2,9 +2,13 @@ import AppKit
 import DesignRulerCore
 import KeyboardShortcuts
 
-final class MenuBarController {
+final class MenuBarController: NSObject, NSMenuDelegate {
     // CRITICAL: must be stored property — ARC releases local NSStatusItem immediately
     private let statusItem: NSStatusItem
+
+    // Stored for menuNeedsUpdate to re-apply shortcuts on every menu open
+    private var measureItem: NSMenuItem!
+    private var guidesItem: NSMenuItem!
 
     // Callbacks wired by AppDelegate (keeps this class decoupled from coordinators)
     var onMeasure: (() -> Void)?
@@ -12,8 +16,9 @@ final class MenuBarController {
     var onOpenSettings: (() -> Void)?
     var onCheckForUpdates: (() -> Void)?
 
-    init() {
+    override init() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        super.init()
         setupButton()
         setupMenu()
     }
@@ -40,15 +45,16 @@ final class MenuBarController {
 
     private func setupMenu() {
         let menu = NSMenu()
+        menu.delegate = self
 
-        let measureItem = menu.addItem(
+        measureItem = menu.addItem(
             withTitle: "Measure",
             action: #selector(launchMeasure),
             keyEquivalent: ""
         )
         measureItem.target = self
 
-        let guidesItem = menu.addItem(
+        guidesItem = menu.addItem(
             withTitle: "Alignment Guides",
             action: #selector(launchAlignmentGuides),
             keyEquivalent: ""
@@ -89,6 +95,25 @@ final class MenuBarController {
         quitItem.target = self
 
         statusItem.menu = menu
+    }
+
+    // MARK: - NSMenuDelegate
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        MainActor.assumeIsolated {
+            measureItem.setShortcut(for: .measure)
+            guidesItem.setShortcut(for: .alignmentGuides)
+        }
+    }
+
+    func menuWillOpen(_ menu: NSMenu) {
+        KeyboardShortcuts.disable(.measure)
+        KeyboardShortcuts.disable(.alignmentGuides)
+    }
+
+    func menuDidClose(_ menu: NSMenu) {
+        KeyboardShortcuts.enable(.measure)
+        KeyboardShortcuts.enable(.alignmentGuides)
     }
 
     @objc private func launchMeasure() {
