@@ -140,7 +140,11 @@ Plans:
   2. `spctl --assess --type execute` passes on a clean machine that never ran the app before (Gatekeeper approves)
   3. DMG opens to reveal the app with a shortcut to /Applications for drag-install
   4. Pushing a version tag triggers the GitHub Actions workflow which produces a signed, notarized DMG as a release asset without manual intervention
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 23-01-PLAN.md -- Project config: entitlements, ExportOptions.plist, Release signing settings, Sparkle re-enable
+- [ ] 23-02-PLAN.md -- CI workflows: build-release (tag-push) and update-appcast (release-publish), supporting scripts
+- [ ] 23-03-PLAN.md -- User setup: Apple Developer credentials, EdDSA key generation, GitHub Secrets, real SUPublicEDKey
 
 ## Progress
 
