@@ -139,7 +139,9 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. App detects when the Design Ruler Raycast extension is also installed and alerts the user on first detection
   2. The alert appears only once — subsequent launches with the extension still installed do not repeat the nudge
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 23-01-PLAN.md -- RaycastExtensionDetector + coexistence info banner in Settings
 
 ### Phase 24: Distribution
 **Goal**: Anyone can download a notarized DMG from GitHub releases and run Design Ruler without a Gatekeeper warning
