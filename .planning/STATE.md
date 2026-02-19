@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-18)
 ## Current Position
 
 Phase: 21 of 24 (Settings and Preferences)
-Plan: 1 of 2 complete in current phase
-Status: Phase 21 in progress — 21-01 complete (Settings window with AppPreferences, SettingsView, SettingsWindowController, menu wiring, first-launch login)
-Last activity: 2026-02-19 — Completed 21-01: SwiftUI settings window, UserDefaults preferences, SMAppService launch-at-login, menu bar wiring
+Plan: 2 of 2 complete in current phase
+Status: Phase 21 complete — All plans done (Settings window, preferences, Sparkle update integration)
+Last activity: 2026-02-19 — Completed 21-02: Sparkle 2 integration with update checks from menu bar and settings
 
-Progress: [#░░░░░░░░░] 14% (v2.0 — 1/7 phases complete)
+Progress: [##░░░░░░░░] 29% (v2.0 — 2/7 phases complete)
 
 ## Performance Metrics
 
@@ -51,6 +51,7 @@ Progress: [#░░░░░░░░░] 14% (v2.0 — 1/7 phases complete)
 | 19-app-lifecycle-refactor | 02 | 6min 42s | 2 | 5 |
 | 20-menu-bar-shell | 01 | 2min 58s | 2 | 5 |
 | 21-settings-and-preferences | 01 | 2min 54s | 2 | 6 |
+| 21-settings-and-preferences | 02 | 4min 8s  | 2 | 7 |
 
 ## Accumulated Context
 
@@ -79,6 +80,9 @@ Key decisions for v2.0:
 - [Phase 21-settings-and-preferences 21-01]: AppPreferences uses computed properties over UserDefaults (not @AppStorage) for cross-context access from AppKit and SwiftUI
 - [Phase 21-settings-and-preferences 21-01]: Launch at Login toggle reads SMAppService.mainApp.status directly (not UserDefaults) to stay in sync with System Settings
 - [Phase 21-settings-and-preferences 21-01]: First-launch auto-registers login item since app distributes outside App Store
+- [Phase 21-settings-and-preferences 21-02]: SPUStandardUpdaterController initialized as inline let with startingUpdater: true (starts updater immediately at launch)
+- [Phase 21-settings-and-preferences 21-02]: SPUUpdater passed through SettingsWindowController to SettingsView (dependency injection, not global access)
+- [Phase 21-settings-and-preferences 21-02]: Placeholder SUFeedURL and SUPublicEDKey in Info.plist (real values in Phase 24)
 
 ### Research Flags (from SUMMARY.md)
 
@@ -97,5 +101,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-19
-Stopped at: Completed 21-01-PLAN.md (Settings window with AppPreferences, SettingsView, SettingsWindowController, menu wiring, first-launch login)
-Resume: `/gsd:execute-phase 21` (next plan: 21-02)
+Stopped at: Completed 21-02-PLAN.md (Sparkle 2 integration with update checks from menu bar and settings)
+Resume: `/gsd:execute-phase 22` (Phase 21 complete, next phase: 22)
