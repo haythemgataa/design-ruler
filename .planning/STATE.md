@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-18)
 ## Current Position
 
 Phase: 22 of 24 (Global Hotkeys)
-Plan: 1 of 2 complete in current phase
-Status: Executing Phase 22 — Plan 01 complete (hotkey infrastructure), Plan 02 pending (Settings recorder UI)
-Last activity: 2026-02-19 — Completed 22-01: Global hotkey infrastructure (KeyboardShortcuts dependency, HotkeyController, AppDelegate wiring, menu display)
+Plan: 2 of 2 complete in current phase
+Status: Phase 22 complete — all plans executed (hotkey infrastructure + Settings recorder UI)
+Last activity: 2026-02-19 — Completed 22-02: Settings shortcut recorder UI (KeyboardShortcuts.Recorder in Measure and Alignment Guides sections, conflict detection)
 
-Progress: [###░░░░░░░] 33% (v2.0 — 2/7 phases complete, Phase 22 in progress)
+Progress: [####░░░░░░] 43% (v2.0 — 3/7 phases complete, Phase 22 done)
 
 ## Performance Metrics
 
@@ -54,6 +54,7 @@ Progress: [###░░░░░░░] 33% (v2.0 — 2/7 phases complete, Phase 22
 | 21-settings-and-preferences | 02 | 4min 8s  | 2 | 7 |
 | 21-settings-and-preferences | 03 | 1min 22s | 2 | 2 |
 | 22-global-hotkeys | 01 | 4min 15s | 2 | 6 |
+| 22-global-hotkeys | 02 | 1min 4s  | 1 | 1 |
 
 ## Accumulated Context
 
@@ -90,6 +91,9 @@ Key decisions for v2.0:
 - [Phase 22-global-hotkeys 22-01]: onKeyUp (not onKeyDown) for hotkey handlers — prevents key-repeat re-triggering
 - [Phase 22-global-hotkeys 22-01]: DispatchQueue.main.async between cross-command exit and relaunch for autorelease pool drainage
 - [Phase 22-global-hotkeys 22-01]: MainActor.assumeIsolated for setShortcut(for:) in MenuBarController — Swift 6 toolchain strict isolation
+- [Phase 22-global-hotkeys 22-02]: Recorders placed inline in each command's section (not a separate Shortcuts tab)
+- [Phase 22-global-hotkeys 22-02]: Conflict detection via onChange closure comparing against other command's shortcut, rejecting with setShortcut(nil)
+- [Phase 22-global-hotkeys 22-02]: No keycap-style rendering for shortcuts (deferred per user decisions)
 
 ### Research Flags (from SUMMARY.md)
 
@@ -108,5 +112,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-19
-Stopped at: Completed 22-01-PLAN.md (Global hotkey infrastructure: KeyboardShortcuts dependency, HotkeyController, wiring, menu display)
-Resume: Execute 22-02-PLAN.md (Settings recorder UI with inline shortcut recorders and internal conflict detection)
+Stopped at: Completed 22-02-PLAN.md (Settings shortcut recorder UI with inline recorders and internal conflict detection)
+Resume: Phase 22 complete. Next: Phase 23 (Raycast Detection) or Phase 24 (Distribution)
