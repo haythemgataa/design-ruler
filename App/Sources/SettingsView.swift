@@ -61,7 +61,7 @@ struct SettingsView: View {
                     if let newShortcut, newShortcut == KeyboardShortcuts.getShortcut(for: .alignmentGuides) {
                         KeyboardShortcuts.setShortcut(nil, for: .measure)
                         measureConflict = "Already assigned to Alignment Guides"
-                    } else {
+                    } else if newShortcut != nil {
                         measureConflict = nil
                     }
                 }
@@ -79,7 +79,7 @@ struct SettingsView: View {
                     if let newShortcut, newShortcut == KeyboardShortcuts.getShortcut(for: .measure) {
                         KeyboardShortcuts.setShortcut(nil, for: .alignmentGuides)
                         guidesConflict = "Already assigned to Measure"
-                    } else {
+                    } else if newShortcut != nil {
                         guidesConflict = nil
                     }
                 }
