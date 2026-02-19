@@ -5,12 +5,14 @@ import SwiftUI
 struct SettingsView: View {
     let updater: SPUUpdater
 
+    @State private var launchAtLogin: Bool
     @State private var hideHintBar: Bool
     @State private var corrections: String
     @State private var automaticallyChecksForUpdates: Bool
 
     init(updater: SPUUpdater) {
         self.updater = updater
+        _launchAtLogin = State(initialValue: SMAppService.mainApp.status == .enabled)
         _hideHintBar = State(initialValue: UserDefaults.standard.bool(forKey: "hideHintBar"))
         _corrections = State(initialValue: UserDefaults.standard.string(forKey: "corrections") ?? "smart")
         _automaticallyChecksForUpdates = State(initialValue: updater.automaticallyChecksForUpdates)
@@ -20,16 +22,14 @@ struct SettingsView: View {
         Form {
             // --- General ---
             Section("General") {
-                Toggle("Launch at Login", isOn: Binding(
-                    get: { SMAppService.mainApp.status == .enabled },
-                    set: { newValue in
+                Toggle("Launch at Login", isOn: $launchAtLogin)
+                    .onChange(of: launchAtLogin) { _, newValue in
                         if newValue {
                             try? SMAppService.mainApp.register()
                         } else {
                             try? SMAppService.mainApp.unregister()
                         }
                     }
-                ))
 
                 Toggle("Hide Hint Bar", isOn: $hideHintBar)
                     .onChange(of: hideHintBar) { _, newValue in
@@ -91,6 +91,9 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .onAppear {
+            launchAtLogin = SMAppService.mainApp.status == .enabled
+        }
         .frame(width: 480)
         .fixedSize(horizontal: false, vertical: true)
     }
