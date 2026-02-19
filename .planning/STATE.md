@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-18)
 
 **Core value:** Instant, accurate pixel inspection of anything on screen — zero friction from invoke to dimension readout, whether launched from Raycast or a global hotkey.
-**Current focus:** v2.0 Standalone App — Phase 20: Menu Bar Shell
+**Current focus:** v2.0 Standalone App — Phase 21: Settings and Preferences
 
 ## Current Position
 
-Phase: 20 of 24 (Menu Bar Shell)
+Phase: 21 of 24 (Settings and Preferences)
 Plan: 1 of 2 complete in current phase
-Status: Phase 20 in progress — 20-01 complete (MenuBarController with NSStatusItem, onSessionEnd callback, Phase 19 scaffolding removed)
-Last activity: 2026-02-18 — Completed 20-01: NSStatusItem menu bar icon, dropdown menu, onSessionEnd hook, debug logging and test scaffolding removed
+Status: Phase 21 in progress — 21-01 complete (Settings window with AppPreferences, SettingsView, SettingsWindowController, menu wiring, first-launch login)
+Last activity: 2026-02-19 — Completed 21-01: SwiftUI settings window, UserDefaults preferences, SMAppService launch-at-login, menu bar wiring
 
-Progress: [░░░░░░░░░░] 0% (v2.0 — 0/7 phases complete)
+Progress: [#░░░░░░░░░] 14% (v2.0 — 1/7 phases complete)
 
 ## Performance Metrics
 
@@ -50,6 +50,7 @@ Progress: [░░░░░░░░░░] 0% (v2.0 — 0/7 phases complete)
 | 19-app-lifecycle-refactor | 01 | 1min 46s | 1 | 1 |
 | 19-app-lifecycle-refactor | 02 | 6min 42s | 2 | 5 |
 | 20-menu-bar-shell | 01 | 2min 58s | 2 | 5 |
+| 21-settings-and-preferences | 01 | 2min 54s | 2 | 6 |
 
 ## Accumulated Context
 
@@ -75,6 +76,9 @@ Key decisions for v2.0:
 - [Phase 20-menu-bar-shell 20-01]: MenuBarController uses callbacks (onMeasure/onAlignmentGuides) wired by AppDelegate — decoupled from coordinator types
 - [Phase 20-menu-bar-shell 20-01]: anySessionActive guard in launch actions checked BEFORE setActive(true) to prevent stuck filled icon on rejected double-launches
 - [Phase 20-menu-bar-shell 20-01]: onSessionEnd fires last in handleExit() and on permission abort in standalone run() early return
+- [Phase 21-settings-and-preferences 21-01]: AppPreferences uses computed properties over UserDefaults (not @AppStorage) for cross-context access from AppKit and SwiftUI
+- [Phase 21-settings-and-preferences 21-01]: Launch at Login toggle reads SMAppService.mainApp.status directly (not UserDefaults) to stay in sync with System Settings
+- [Phase 21-settings-and-preferences 21-01]: First-launch auto-registers login item since app distributes outside App Store
 
 ### Research Flags (from SUMMARY.md)
 
@@ -92,6 +96,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-18
-Stopped at: Completed 20-01-PLAN.md (MenuBarController with NSStatusItem, onSessionEnd callback, Phase 19 scaffolding removed)
-Resume: `/gsd:execute-phase 20` (next plan: 20-02)
+Last session: 2026-02-19
+Stopped at: Completed 21-01-PLAN.md (Settings window with AppPreferences, SettingsView, SettingsWindowController, menu wiring, first-launch login)
+Resume: `/gsd:execute-phase 21` (next plan: 21-02)
