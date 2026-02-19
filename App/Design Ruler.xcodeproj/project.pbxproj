@@ -12,12 +12,16 @@
 		2167655925FD6A042128F581 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8083D7E1A97B454FC557B93 /* SettingsView.swift */; };
 		449BBFE30F0F0227E8F55CFB /* AppPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 352435AF79AA05A40B976755 /* AppPreferences.swift */; };
 		58A8B33F3276F3C22047B15E /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 333112D73EBEB8B909C2DA1E /* Sparkle */; };
+		68D1C08FB1C17CA1BEF1A75D /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = 3909E3F7291E2C1D5749BD3E /* KeyboardShortcuts */; };
 		9DC6DF0CD91F335043980CE3 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDC1A43CCD6F114100681FC1 /* main.swift */; };
+		BFC3485E1372FF94BABA9DE0 /* HotkeyController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BC7DBCD53F37054366E0C88 /* HotkeyController.swift */; };
+		C2BE808A7C9F9E3AAEF639DC /* HotkeyNames.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD314E724D02BF2C617BAC2A /* HotkeyNames.swift */; };
 		C44F43EAD7A4AC58D2C961AC /* MenuBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE9C771BF5E79418EAC8B52D /* MenuBarController.swift */; };
 		FF507CAD04EC8B8A0F27CA58 /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C501D2220A1160A846E23063 /* SettingsWindowController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		0BC7DBCD53F37054366E0C88 /* HotkeyController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyController.swift; sourceTree = "<group>"; };
 		352435AF79AA05A40B976755 /* AppPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppPreferences.swift; sourceTree = "<group>"; };
 		4DCB7EBB6B2A29A63383C2A5 /* Design Ruler.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Design Ruler.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		AF668E1EE53EFBB40921CA92 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -26,6 +30,7 @@
 		C501D2220A1160A846E23063 /* SettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
 		CDC1A43CCD6F114100681FC1 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		CE9C771BF5E79418EAC8B52D /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
+		DD314E724D02BF2C617BAC2A /* HotkeyNames.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyNames.swift; sourceTree = "<group>"; };
 		E6F7EFD7C2E0F48BCDDA50F8 /* DesignRuler */ = {isa = PBXFileReference; lastKnownFileType = folder; name = DesignRuler; path = ../swift/DesignRuler; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
@@ -36,6 +41,7 @@
 			files = (
 				0817E139A5A2DB98BDB9E54B /* DesignRulerCore in Frameworks */,
 				58A8B33F3276F3C22047B15E /* Sparkle in Frameworks */,
+				68D1C08FB1C17CA1BEF1A75D /* KeyboardShortcuts in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -64,6 +70,8 @@
 			children = (
 				AF668E1EE53EFBB40921CA92 /* AppDelegate.swift */,
 				352435AF79AA05A40B976755 /* AppPreferences.swift */,
+				0BC7DBCD53F37054366E0C88 /* HotkeyController.swift */,
+				DD314E724D02BF2C617BAC2A /* HotkeyNames.swift */,
 				B137A9B4A6F51A0A83C8F073 /* Info.plist */,
 				CDC1A43CCD6F114100681FC1 /* main.swift */,
 				CE9C771BF5E79418EAC8B52D /* MenuBarController.swift */,
@@ -99,6 +107,7 @@
 			packageProductDependencies = (
 				CF72AB3F4C4512428DC84D7C /* DesignRulerCore */,
 				333112D73EBEB8B909C2DA1E /* Sparkle */,
+				3909E3F7291E2C1D5749BD3E /* KeyboardShortcuts */,
 			);
 			productName = "Design Ruler";
 			productReference = 4DCB7EBB6B2A29A63383C2A5 /* Design Ruler.app */;
@@ -129,6 +138,7 @@
 			mainGroup = 3D4E8DB9964B12EDAAB1B4D0;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				05E08EC924B7A864877F7E1C /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */,
 				2806B03A1FFD8823E9AB399E /* XCRemoteSwiftPackageReference "Sparkle" */,
 				BA4E496132F60A94FD1AAAEB /* XCLocalSwiftPackageReference "../swift/DesignRuler" */,
 			);
@@ -148,6 +158,8 @@
 			files = (
 				0CE41A90E9AAA51468BE08E5 /* AppDelegate.swift in Sources */,
 				449BBFE30F0F0227E8F55CFB /* AppPreferences.swift in Sources */,
+				BFC3485E1372FF94BABA9DE0 /* HotkeyController.swift in Sources */,
+				C2BE808A7C9F9E3AAEF639DC /* HotkeyNames.swift in Sources */,
 				C44F43EAD7A4AC58D2C961AC /* MenuBarController.swift in Sources */,
 				2167655925FD6A042128F581 /* SettingsView.swift in Sources */,
 				FF507CAD04EC8B8A0F27CA58 /* SettingsWindowController.swift in Sources */,
@@ -353,6 +365,14 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		05E08EC924B7A864877F7E1C /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sindresorhus/KeyboardShortcuts";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.4.0;
+			};
+		};
 		2806B03A1FFD8823E9AB399E /* XCRemoteSwiftPackageReference "Sparkle" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/sparkle-project/Sparkle";
@@ -368,6 +388,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 2806B03A1FFD8823E9AB399E /* XCRemoteSwiftPackageReference "Sparkle" */;
 			productName = Sparkle;
+		};
+		3909E3F7291E2C1D5749BD3E /* KeyboardShortcuts */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 05E08EC924B7A864877F7E1C /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */;
+			productName = KeyboardShortcuts;
 		};
 		CF72AB3F4C4512428DC84D7C /* DesignRulerCore */ = {
 			isa = XCSwiftPackageProductDependency;

@@ -10,6 +10,9 @@ packages:
   Sparkle:
     url: https://github.com/sparkle-project/Sparkle
     from: "2.6.0"
+  KeyboardShortcuts:
+    url: https://github.com/sindresorhus/KeyboardShortcuts
+    from: "2.4.0"
 
 targets:
   "Design Ruler":
@@ -22,6 +25,7 @@ targets:
       - package: DesignRuler
         product: DesignRulerCore
       - package: Sparkle
+      - package: KeyboardShortcuts
     info:
       path: Sources/Info.plist
       properties:
