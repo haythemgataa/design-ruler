@@ -1,13 +1,19 @@
-import SwiftUI
 import ServiceManagement
+import Sparkle
+import SwiftUI
 
 struct SettingsView: View {
+    let updater: SPUUpdater
+
     @State private var hideHintBar: Bool
     @State private var corrections: String
+    @State private var automaticallyChecksForUpdates: Bool
 
-    init() {
+    init(updater: SPUUpdater) {
+        self.updater = updater
         _hideHintBar = State(initialValue: UserDefaults.standard.bool(forKey: "hideHintBar"))
         _corrections = State(initialValue: UserDefaults.standard.string(forKey: "corrections") ?? "smart")
+        _automaticallyChecksForUpdates = State(initialValue: updater.automaticallyChecksForUpdates)
     }
 
     var body: some View {
@@ -30,7 +36,10 @@ struct SettingsView: View {
                         UserDefaults.standard.set(newValue, forKey: "hideHintBar")
                     }
 
-                // Auto-check for Updates toggle added in Plan 02 (Sparkle integration)
+                Toggle("Automatically Check for Updates", isOn: $automaticallyChecksForUpdates)
+                    .onChange(of: automaticallyChecksForUpdates) { _, newValue in
+                        updater.automaticallyChecksForUpdates = newValue
+                    }
             }
 
             // --- Measure ---
@@ -76,7 +85,9 @@ struct SettingsView: View {
 
                 Link("GitHub", destination: URL(string: "https://github.com/haythem/design-ruler")!)
 
-                // Check for Updates button added in Plan 02 (Sparkle integration)
+                Button("Check for Updates\u{2026}") {
+                    updater.checkForUpdates()
+                }
             }
         }
         .formStyle(.grouped)

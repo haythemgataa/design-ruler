@@ -1,10 +1,11 @@
 import AppKit
+import Sparkle
 import SwiftUI
 
 final class SettingsWindowController {
     private var window: NSWindow?
 
-    func showSettings() {
+    func showSettings(updater: SPUUpdater) {
         if let window, window.isVisible {
             window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
@@ -26,7 +27,7 @@ final class SettingsWindowController {
             defer: false
         )
         window.title = "Design Ruler Settings"
-        window.contentView = NSHostingView(rootView: SettingsView())
+        window.contentView = NSHostingView(rootView: SettingsView(updater: updater))
         window.isReleasedWhenClosed = false
 
         // macOS Sequoia fix: resolve constraints before centering

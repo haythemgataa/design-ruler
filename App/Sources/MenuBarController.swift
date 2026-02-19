@@ -9,6 +9,7 @@ final class MenuBarController {
     var onMeasure: (() -> Void)?
     var onAlignmentGuides: (() -> Void)?
     var onOpenSettings: (() -> Void)?
+    var onCheckForUpdates: (() -> Void)?
 
     init() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -62,6 +63,13 @@ final class MenuBarController {
         )
         settingsItem.target = self
 
+        let updateItem = menu.addItem(
+            withTitle: "Check for Updates\u{2026}",
+            action: #selector(checkForUpdates),
+            keyEquivalent: ""
+        )
+        updateItem.target = self
+
         menu.addItem(NSMenuItem.separator())
 
         let quitItem = menu.addItem(
@@ -88,6 +96,10 @@ final class MenuBarController {
 
     @objc private func openSettings() {
         onOpenSettings?()
+    }
+
+    @objc private func checkForUpdates() {
+        onCheckForUpdates?()
     }
 
     @objc private func quitApp() {

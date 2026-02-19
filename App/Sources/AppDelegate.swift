@@ -1,10 +1,16 @@
 import AppKit
 import DesignRulerCore
 import ServiceManagement
+import Sparkle
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     private var menuBarController: MenuBarController!
     private var settingsWindowController: SettingsWindowController!
+    private let updaterController = SPUStandardUpdaterController(
+        startingUpdater: true,
+        updaterDelegate: nil,
+        userDriverDelegate: nil
+    )
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -34,8 +40,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menuBarController.onAlignmentGuides = {
             AlignmentGuidesCoordinator.shared.run(hideHintBar: AppPreferences.shared.hideHintBar)
         }
+        menuBarController.onCheckForUpdates = { [weak self] in
+            self?.updaterController.checkForUpdates(nil)
+        }
         menuBarController.onOpenSettings = { [weak self] in
-            self?.settingsWindowController.showSettings()
+            guard let self else { return }
+            self.settingsWindowController.showSettings(updater: self.updaterController.updater)
         }
 
         // Wire session-end callbacks to revert menu bar icon to idle state
