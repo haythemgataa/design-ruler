@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-18)
 
 **Core value:** Instant, accurate pixel inspection of anything on screen — zero friction from invoke to dimension readout, whether launched from Raycast or a global hotkey.
-**Current focus:** v2.0 Standalone App — Phase 21: Settings and Preferences
+**Current focus:** v2.0 Standalone App — Phase 22: Global Hotkeys
 
 ## Current Position
 
-Phase: 21 of 24 (Settings and Preferences)
-Plan: 3 of 3 complete in current phase
-Status: Phase 21 complete — All plans done (Settings window, preferences, Sparkle integration, UAT gap closure)
-Last activity: 2026-02-19 — Completed 21-03: UAT gap closure (Launch at Login desync fix, Sparkle deferred startup)
+Phase: 22 of 24 (Global Hotkeys)
+Plan: 1 of 2 complete in current phase
+Status: Executing Phase 22 — Plan 01 complete (hotkey infrastructure), Plan 02 pending (Settings recorder UI)
+Last activity: 2026-02-19 — Completed 22-01: Global hotkey infrastructure (KeyboardShortcuts dependency, HotkeyController, AppDelegate wiring, menu display)
 
-Progress: [##░░░░░░░░] 29% (v2.0 — 2/7 phases complete)
+Progress: [###░░░░░░░] 33% (v2.0 — 2/7 phases complete, Phase 22 in progress)
 
 ## Performance Metrics
 
@@ -53,6 +53,7 @@ Progress: [##░░░░░░░░] 29% (v2.0 — 2/7 phases complete)
 | 21-settings-and-preferences | 01 | 2min 54s | 2 | 6 |
 | 21-settings-and-preferences | 02 | 4min 8s  | 2 | 7 |
 | 21-settings-and-preferences | 03 | 1min 22s | 2 | 2 |
+| 22-global-hotkeys | 01 | 4min 15s | 2 | 6 |
 
 ## Accumulated Context
 
@@ -86,11 +87,14 @@ Key decisions for v2.0:
 - [Phase 21-settings-and-preferences 21-02]: Placeholder SUFeedURL and SUPublicEDKey in Info.plist (real values in Phase 24)
 - [Phase 21-settings-and-preferences 21-03]: @State + .onAppear over Binding(get:set:) for SMAppService status — SwiftUI cannot observe SMAppService directly
 - [Phase 21-settings-and-preferences 21-03]: startingUpdater: false defers EdDSA key validation — Phase 24 will set real keys and re-enable
+- [Phase 22-global-hotkeys 22-01]: onKeyUp (not onKeyDown) for hotkey handlers — prevents key-repeat re-triggering
+- [Phase 22-global-hotkeys 22-01]: DispatchQueue.main.async between cross-command exit and relaunch for autorelease pool drainage
+- [Phase 22-global-hotkeys 22-01]: MainActor.assumeIsolated for setShortcut(for:) in MenuBarController — Swift 6 toolchain strict isolation
 
 ### Research Flags (from SUMMARY.md)
 
 - Phase 18: Verify exact set of files with @raycast entry points before moving files
-- Phase 22: CGEventTap session cleanup — verify disable/re-enable pattern between sessions
+- Phase 22: RESOLVED — KeyboardShortcuts uses Carbon Event Manager, not CGEventTap. Library manages its own registration lifecycle.
 - Phase 24: Sparkle 2.8.1 XPC service config — verify binaryTarget SPM pattern and EdDSA key setup
 
 ### Pending Todos
@@ -104,5 +108,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-19
-Stopped at: Completed 21-03-PLAN.md (UAT gap closure: Launch at Login desync fix, Sparkle deferred startup)
-Resume: `/gsd:execute-phase 22` (Phase 21 complete, next phase: 22)
+Stopped at: Completed 22-01-PLAN.md (Global hotkey infrastructure: KeyboardShortcuts dependency, HotkeyController, wiring, menu display)
+Resume: Execute 22-02-PLAN.md (Settings recorder UI with inline shortcut recorders and internal conflict detection)
