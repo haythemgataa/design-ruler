@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-18)
 ## Current Position
 
 Phase: 22 of 24 (Global Hotkeys)
-Plan: 2 of 2 complete in current phase
-Status: Phase 22 complete — all plans executed (hotkey infrastructure + Settings recorder UI)
-Last activity: 2026-02-19 — Completed 22-02: Settings shortcut recorder UI (KeyboardShortcuts.Recorder in Measure and Alignment Guides sections, conflict detection)
+Plan: 3 of 3 complete in current phase
+Status: Phase 22 complete — all plans executed (hotkey infrastructure + Settings recorder UI + UAT gap closure)
+Last activity: 2026-02-19 — Completed 22-03: Gap closure for conflict warning persistence and menu bar shortcut display
 
 Progress: [####░░░░░░] 43% (v2.0 — 3/7 phases complete, Phase 22 done)
 
@@ -55,6 +55,7 @@ Progress: [####░░░░░░] 43% (v2.0 — 3/7 phases complete, Phase 22 d
 | 21-settings-and-preferences | 03 | 1min 22s | 2 | 2 |
 | 22-global-hotkeys | 01 | 4min 15s | 2 | 6 |
 | 22-global-hotkeys | 02 | 1min 4s  | 1 | 1 |
+| 22-global-hotkeys | 03 | 1min 40s | 2 | 2 |
 
 ## Accumulated Context
 
@@ -94,6 +95,9 @@ Key decisions for v2.0:
 - [Phase 22-global-hotkeys 22-02]: Recorders placed inline in each command's section (not a separate Shortcuts tab)
 - [Phase 22-global-hotkeys 22-02]: Conflict detection via onChange closure comparing against other command's shortcut, rejecting with setShortcut(nil)
 - [Phase 22-global-hotkeys 22-02]: No keycap-style rendering for shortcuts (deferred per user decisions)
+- [Phase 22-global-hotkeys 22-03]: Guard else-branch on newShortcut != nil to survive onChange double-fire from setShortcut(nil) rejection
+- [Phase 22-global-hotkeys 22-03]: NSMenuDelegate with menuNeedsUpdate for defensive shortcut refresh on every menu open
+- [Phase 22-global-hotkeys 22-03]: menuWillOpen/menuDidClose disable/enable hotkeys during NSMenu tracking mode
 
 ### Research Flags (from SUMMARY.md)
 
@@ -112,5 +116,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-19
-Stopped at: Completed 22-02-PLAN.md (Settings shortcut recorder UI with inline recorders and internal conflict detection)
-Resume: Phase 22 complete. Next: Phase 23 (Raycast Detection) or Phase 24 (Distribution)
+Stopped at: Completed 22-03-PLAN.md (Gap closure: conflict warning persistence fix + menu bar shortcut display via NSMenuDelegate)
+Resume: Phase 22 fully complete (all 3 plans + UAT gaps closed). Next: Phase 23 (Raycast Detection) or Phase 24 (Distribution)
