@@ -8,6 +8,7 @@ final class MenuBarController {
     // Callbacks wired by AppDelegate (keeps this class decoupled from coordinators)
     var onMeasure: (() -> Void)?
     var onAlignmentGuides: (() -> Void)?
+    var onOpenSettings: (() -> Void)?
 
     init() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -56,10 +57,10 @@ final class MenuBarController {
 
         let settingsItem = menu.addItem(
             withTitle: "Settings\u{2026}",
-            action: nil,
-            keyEquivalent: ""
+            action: #selector(openSettings),
+            keyEquivalent: ","
         )
-        settingsItem.isEnabled = false
+        settingsItem.target = self
 
         menu.addItem(NSMenuItem.separator())
 
@@ -83,6 +84,10 @@ final class MenuBarController {
         guard !OverlayCoordinator.anySessionActive else { return }
         setActive(true)
         onAlignmentGuides?()
+    }
+
+    @objc private func openSettings() {
+        onOpenSettings?()
     }
 
     @objc private func quitApp() {

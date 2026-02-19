@@ -1,8 +1,10 @@
 import AppKit
 import DesignRulerCore
+import ServiceManagement
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     private var menuBarController: MenuBarController!
+    private var settingsWindowController: SettingsWindowController!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -14,13 +16,26 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         MeasureCoordinator.shared.runMode = .standalone
         AlignmentGuidesCoordinator.shared.runMode = .standalone
 
+        // First launch: enable launch at login by default
+        if !UserDefaults.standard.bool(forKey: "hasLaunchedBefore") {
+            UserDefaults.standard.set(true, forKey: "hasLaunchedBefore")
+            try? SMAppService.mainApp.register()
+        }
+
+        // Create settings window controller
+        settingsWindowController = SettingsWindowController()
+
         // Create menu bar and wire overlay launch callbacks
         menuBarController = MenuBarController()
         menuBarController.onMeasure = {
-            MeasureCoordinator.shared.run(hideHintBar: false, corrections: "smart")
+            let prefs = AppPreferences.shared
+            MeasureCoordinator.shared.run(hideHintBar: prefs.hideHintBar, corrections: prefs.corrections)
         }
         menuBarController.onAlignmentGuides = {
-            AlignmentGuidesCoordinator.shared.run(hideHintBar: false)
+            AlignmentGuidesCoordinator.shared.run(hideHintBar: AppPreferences.shared.hideHintBar)
+        }
+        menuBarController.onOpenSettings = { [weak self] in
+            self?.settingsWindowController.showSettings()
         }
 
         // Wire session-end callbacks to revert menu bar icon to idle state
