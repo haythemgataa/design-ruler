@@ -9,16 +9,22 @@
 /* Begin PBXBuildFile section */
 		0817E139A5A2DB98BDB9E54B /* DesignRulerCore in Frameworks */ = {isa = PBXBuildFile; productRef = CF72AB3F4C4512428DC84D7C /* DesignRulerCore */; };
 		0CE41A90E9AAA51468BE08E5 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF668E1EE53EFBB40921CA92 /* AppDelegate.swift */; };
+		2167655925FD6A042128F581 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8083D7E1A97B454FC557B93 /* SettingsView.swift */; };
+		449BBFE30F0F0227E8F55CFB /* AppPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 352435AF79AA05A40B976755 /* AppPreferences.swift */; };
 		9DC6DF0CD91F335043980CE3 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDC1A43CCD6F114100681FC1 /* main.swift */; };
-		F1E289D3C7A64B180E953FA6 /* MenuBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4A7B2C1E8F30659A2B41E73 /* MenuBarController.swift */; };
+		C44F43EAD7A4AC58D2C961AC /* MenuBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE9C771BF5E79418EAC8B52D /* MenuBarController.swift */; };
+		FF507CAD04EC8B8A0F27CA58 /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C501D2220A1160A846E23063 /* SettingsWindowController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		352435AF79AA05A40B976755 /* AppPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppPreferences.swift; sourceTree = "<group>"; };
 		4DCB7EBB6B2A29A63383C2A5 /* Design Ruler.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Design Ruler.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		AF668E1EE53EFBB40921CA92 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		B137A9B4A6F51A0A83C8F073 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		B8083D7E1A97B454FC557B93 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		C501D2220A1160A846E23063 /* SettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
 		CDC1A43CCD6F114100681FC1 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
-		D4A7B2C1E8F30659A2B41E73 /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
+		CE9C771BF5E79418EAC8B52D /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
 		E6F7EFD7C2E0F48BCDDA50F8 /* DesignRuler */ = {isa = PBXFileReference; lastKnownFileType = folder; name = DesignRuler; path = ../swift/DesignRuler; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
@@ -55,9 +61,12 @@
 			isa = PBXGroup;
 			children = (
 				AF668E1EE53EFBB40921CA92 /* AppDelegate.swift */,
+				352435AF79AA05A40B976755 /* AppPreferences.swift */,
 				B137A9B4A6F51A0A83C8F073 /* Info.plist */,
 				CDC1A43CCD6F114100681FC1 /* main.swift */,
-				D4A7B2C1E8F30659A2B41E73 /* MenuBarController.swift */,
+				CE9C771BF5E79418EAC8B52D /* MenuBarController.swift */,
+				B8083D7E1A97B454FC557B93 /* SettingsView.swift */,
+				C501D2220A1160A846E23063 /* SettingsWindowController.swift */,
 			);
 			path = Sources;
 			sourceTree = "<group>";
@@ -134,8 +143,11 @@
 			buildActionMask = 2147483647;
 			files = (
 				0CE41A90E9AAA51468BE08E5 /* AppDelegate.swift in Sources */,
+				449BBFE30F0F0227E8F55CFB /* AppPreferences.swift in Sources */,
+				C44F43EAD7A4AC58D2C961AC /* MenuBarController.swift in Sources */,
+				2167655925FD6A042128F581 /* SettingsView.swift in Sources */,
+				FF507CAD04EC8B8A0F27CA58 /* SettingsWindowController.swift in Sources */,
 				9DC6DF0CD91F335043980CE3 /* main.swift in Sources */,
-				F1E289D3C7A64B180E953FA6 /* MenuBarController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
