@@ -58,7 +58,7 @@
 - [x] **Phase 18: Build System** - Extract DesignRulerCore library, create Xcode project, verify Raycast build still passes (completed 2026-02-18)
 - [x] **Phase 19: App Lifecycle Refactor** - Add RunMode to OverlayCoordinator so overlay sessions end without killing the process (2 plans) (completed 2026-02-18)
 - [x] **Phase 20: Menu Bar Shell** - NSStatusItem with dropdown launching both overlay commands from a persistent app (completed 2026-02-18)
-- [ ] **Phase 21: Settings and Preferences** - Settings window with General, Measure, and About tabs wired to AppPreferences
+- [ ] **Phase 21: Settings and Preferences** - Settings window with General, Measure, Shortcuts, About sections wired to UserDefaults + Sparkle (2 plans)
 - [ ] **Phase 22: Global Hotkeys** - Configurable global keyboard shortcuts triggering overlays from any application
 - [ ] **Phase 23: Coexistence** - One-time nudge when Raycast extension is also installed
 - [ ] **Phase 24: Distribution** - Code-signed, notarized DMG with GitHub Actions CI pipeline
@@ -111,7 +111,10 @@
   3. Enabling Launch at Login registers the app in System Settings Login Items; disabling removes it
   4. User can view the About window (app name, version, copyright) from the menu bar
   5. User can trigger an update check via Sparkle from the menu bar (Check for Updates item present)
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 21-01-PLAN.md -- Settings window (AppPreferences + SettingsView + SettingsWindowController) with preferences wiring and first-launch login
+- [ ] 21-02-PLAN.md -- Sparkle 2 integration (SPM dependency, Info.plist keys, Check for Updates in menu + settings, auto-check toggle)
 
 ### Phase 22: Global Hotkeys
 **Goal**: User can trigger both overlay commands via configurable global keyboard shortcuts from any application
