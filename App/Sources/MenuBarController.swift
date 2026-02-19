@@ -61,14 +61,6 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         )
         guidesItem.target = self
 
-        // Display assigned keyboard shortcuts next to command names.
-        // setShortcut(for:) is @MainActor in KeyboardShortcuts — safe here
-        // because setupMenu() is always called from applicationDidFinishLaunching.
-        MainActor.assumeIsolated {
-            measureItem.setShortcut(for: .measure)
-            guidesItem.setShortcut(for: .alignmentGuides)
-        }
-
         menu.addItem(NSMenuItem.separator())
 
         let settingsItem = menu.addItem(
@@ -101,8 +93,17 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         MainActor.assumeIsolated {
-            measureItem.setShortcut(for: .measure)
-            guidesItem.setShortcut(for: .alignmentGuides)
+            Self.applyShortcut(to: measureItem, baseTitle: "Measure", for: .measure)
+            Self.applyShortcut(to: guidesItem, baseTitle: "Alignment Guides", for: .alignmentGuides)
+        }
+    }
+
+    @MainActor
+    private static func applyShortcut(to item: NSMenuItem, baseTitle: String, for name: KeyboardShortcuts.Name) {
+        if let shortcut = KeyboardShortcuts.getShortcut(for: name) {
+            item.title = "\(baseTitle)\t\(shortcut.description)"
+        } else {
+            item.title = baseTitle
         }
     }
 
