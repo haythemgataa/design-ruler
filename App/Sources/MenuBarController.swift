@@ -47,19 +47,26 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         let menu = NSMenu()
         menu.delegate = self
 
+        // Read any previously-recorded shortcuts so keyEquivalent is set at
+        // creation time (NSMenu renders key equivalents set during addItem).
+        let (mKey, mMods) = MainActor.assumeIsolated { Self.shortcutParts(for: .measure) }
+        let (gKey, gMods) = MainActor.assumeIsolated { Self.shortcutParts(for: .alignmentGuides) }
+
         measureItem = menu.addItem(
             withTitle: "Measure",
             action: #selector(launchMeasure),
-            keyEquivalent: ""
+            keyEquivalent: mKey
         )
         measureItem.target = self
+        measureItem.keyEquivalentModifierMask = mMods
 
         guidesItem = menu.addItem(
             withTitle: "Alignment Guides",
             action: #selector(launchAlignmentGuides),
-            keyEquivalent: ""
+            keyEquivalent: gKey
         )
         guidesItem.target = self
+        guidesItem.keyEquivalentModifierMask = gMods
 
         menu.addItem(NSMenuItem.separator())
 
@@ -73,7 +80,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         let updateItem = menu.addItem(
             withTitle: "Check for Updates\u{2026}",
             action: #selector(checkForUpdates),
-            keyEquivalent: ""
+            keyEquivalent: "r"
         )
         updateItem.target = self
 
@@ -82,7 +89,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         let quitItem = menu.addItem(
             withTitle: "Quit Design Ruler",
             action: #selector(quitApp),
-            keyEquivalent: ""
+            keyEquivalent: "q"
         )
         quitItem.target = self
 
@@ -93,18 +100,37 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         MainActor.assumeIsolated {
-            Self.applyShortcut(to: measureItem, baseTitle: "Measure", for: .measure)
-            Self.applyShortcut(to: guidesItem, baseTitle: "Alignment Guides", for: .alignmentGuides)
+            Self.applyShortcut(to: measureItem, for: .measure)
+            Self.applyShortcut(to: guidesItem, for: .alignmentGuides)
         }
     }
 
+    // Numpad key codes → characters (nsMenuItemKeyEquivalent returns nil for these)
+    private static let numpadKeys: [Int: String] = [
+        82: "0", 83: "1", 84: "2", 85: "3", 86: "4",
+        87: "5", 88: "6", 89: "7", 91: "8", 92: "9",
+        65: ".", 67: "*", 69: "+", 75: "/", 78: "-", 81: "=",
+    ]
+
     @MainActor
-    private static func applyShortcut(to item: NSMenuItem, baseTitle: String, for name: KeyboardShortcuts.Name) {
-        if let shortcut = KeyboardShortcuts.getShortcut(for: name) {
-            item.title = "\(baseTitle)\t\(shortcut.description)"
-        } else {
-            item.title = baseTitle
+    private static func shortcutParts(for name: KeyboardShortcuts.Name) -> (String, NSEvent.ModifierFlags) {
+        guard let shortcut = KeyboardShortcuts.getShortcut(for: name) else {
+            return ("", [])
         }
+        if let key = shortcut.nsMenuItemKeyEquivalent {
+            return (key, shortcut.modifiers)
+        }
+        if let key = numpadKeys[shortcut.carbonKeyCode] {
+            return (key, shortcut.modifiers)
+        }
+        return ("", [])
+    }
+
+    @MainActor
+    private static func applyShortcut(to item: NSMenuItem, for name: KeyboardShortcuts.Name) {
+        let (key, mods) = shortcutParts(for: name)
+        item.keyEquivalent = key
+        item.keyEquivalentModifierMask = mods
     }
 
     func menuWillOpen(_ menu: NSMenu) {
