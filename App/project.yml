@@ -7,6 +7,9 @@ options:
 packages:
   DesignRuler:
     path: ../swift/DesignRuler
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: "2.6.0"
 
 targets:
   "Design Ruler":
@@ -18,6 +21,7 @@ targets:
     dependencies:
       - package: DesignRuler
         product: DesignRulerCore
+      - package: Sparkle
     info:
       path: Sources/Info.plist
       properties:
@@ -27,6 +31,9 @@ targets:
         NSHighResolutionCapable: true
         NSPrincipalClass: NSApplication
         NSApplicationSupportsSecureRestorableState: true
+        SUFeedURL: "https://github.com/haythem/design-ruler/releases/latest/download/appcast.xml"
+        SUPublicEDKey: "PLACEHOLDER_EDDSA_PUBLIC_KEY"
+        SUEnableAutomaticChecks: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: cv.haythem.designruler
