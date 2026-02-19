@@ -42,11 +42,6 @@ Requirements for standalone app milestone. Each maps to roadmap phases.
 - [ ] **HOTK-02**: User can trigger Alignment Guides via a configured global keyboard shortcut
 - [ ] **HOTK-03**: App ships with no default hotkeys — user must assign on first launch
 
-### Coexistence
-
-- [ ] **COEX-01**: App detects when Raycast extension is also installed/running
-- [ ] **COEX-02**: User sees a one-time nudge recommending they keep only one (Raycast recommended)
-
 ### Distribution
 
 - [ ] **DIST-01**: App is code-signed with Developer ID
@@ -104,16 +99,14 @@ Which phases cover which requirements. Updated during roadmap creation.
 | HOTK-01 | Phase 22 | Pending |
 | HOTK-02 | Phase 22 | Pending |
 | HOTK-03 | Phase 22 | Pending |
-| COEX-01 | Phase 23 | Pending |
-| COEX-02 | Phase 23 | Pending |
-| DIST-01 | Phase 24 | Pending |
-| DIST-02 | Phase 24 | Pending |
-| DIST-03 | Phase 24 | Pending |
-| DIST-04 | Phase 24 | Pending |
+| DIST-01 | Phase 23 | Pending |
+| DIST-02 | Phase 23 | Pending |
+| DIST-03 | Phase 23 | Pending |
+| DIST-04 | Phase 23 | Pending |
 
 **Coverage:**
-- v2.0 requirements: 26 total
-- Mapped to phases: 26
+- v2.0 requirements: 24 total
+- Mapped to phases: 24
 - Unmapped: 0
 
 ---

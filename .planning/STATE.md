@@ -9,7 +9,7 @@ See: .planning/PROJECT.md (updated 2026-02-18)
 
 ## Current Position
 
-Phase: 22 of 24 (Global Hotkeys)
+Phase: 22 of 23 (Global Hotkeys)
 Plan: 3 of 3 complete in current phase
 Status: Phase 22 complete — all plans executed (hotkey infrastructure + Settings recorder UI + UAT gap closure)
 Last activity: 2026-02-19 — Completed 22-03: Gap closure for conflict warning persistence and menu bar shortcut display
@@ -111,10 +111,10 @@ None.
 
 ### Blockers/Concerns
 
-- Raycast extension detection path (LOW confidence): `~/Library/Application Support/com.raycast.macos/extensions/` is inferred, not documented. Implement as best-effort heuristic in Phase 23.
+None.
 
 ## Session Continuity
 
 Last session: 2026-02-19
 Stopped at: Completed 22-03-PLAN.md (Gap closure: conflict warning persistence fix + menu bar shortcut display via NSMenuDelegate)
-Resume: Phase 22 fully complete (all 3 plans + UAT gaps closed). Next: Phase 23 (Raycast Detection) or Phase 24 (Distribution)
+Resume: Phase 22 fully complete (all 3 plans + UAT gaps closed). Next: Phase 23 (Distribution)

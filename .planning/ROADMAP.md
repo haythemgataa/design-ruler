@@ -2,52 +2,52 @@
 
 ## Milestones
 
-- ✅ **v1.0 Enhancement** — Phases 1-5 (shipped 2026-02-13)
-- ✅ **v1.1 Hint Bar Redesign** — Phases 6-8 (shipped 2026-02-14)
-- ✅ **v1.2 Alignment Guides** — Phases 9-11 (shipped 2026-02-16)
-- ✅ **v1.3 Code Unification** — Phases 12-17 (shipped 2026-02-17)
-- 📋 **v2.0 Standalone App** — Phases 18-24 (planned)
+- ✅ **v1.0 Enhancement** — Phases 1-5 (shipped 2023-02-13)
+- ✅ **v1.1 Hint Bar Redesign** — Phases 6-8 (shipped 2023-02-14)
+- ✅ **v1.2 Alignment Guides** — Phases 9-11 (shipped 2023-02-16)
+- ✅ **v1.3 Code Unification** — Phases 12-17 (shipped 2023-02-17)
+- 📋 **v2.0 Standalone App** — Phases 18-23 (planned)
 
 ## Phases
 
 <details>
-<summary>✅ v1.0 Enhancement (Phases 1-5) — SHIPPED 2026-02-13</summary>
+<summary>✅ v1.0 Enhancement (Phases 1-5) — SHIPPED 2023-02-13</summary>
 
-- [x] Phase 1: Debug Cleanup and Process Safety (1/1 plans) — completed 2026-02-13
-- [x] Phase 2: Cursor State Machine (1/1 plans) — completed 2026-02-13
-- [x] Phase 3: Snap Failure Shake (1/1 plans) — completed 2026-02-13
-- [x] Phase 4: Selection Pill Clamping (1/1 plans) — completed 2026-02-13
-- [x] Phase 5: Help Toggle System (1/1 plans) — completed 2026-02-13
-
-</details>
-
-<details>
-<summary>✅ v1.1 Hint Bar Redesign (Phases 6-8) — SHIPPED 2026-02-14</summary>
-
-- [x] Phase 6: Remove Help Toggle System (1/1 plans) — completed 2026-02-14
-- [x] Phase 7: Hint Bar Visual Redesign (2/2 plans) — completed 2026-02-14
-- [x] Phase 8: Launch-to-Collapse Animation (1/1 plans) — completed 2026-02-14
+- [x] Phase 1: Debug Cleanup and Process Safety (1/1 plans) — completed 2023-02-13
+- [x] Phase 2: Cursor State Machine (1/1 plans) — completed 2023-02-13
+- [x] Phase 3: Snap Failure Shake (1/1 plans) — completed 2023-02-13
+- [x] Phase 4: Selection Pill Clamping (1/1 plans) — completed 2023-02-13
+- [x] Phase 5: Help Toggle System (1/1 plans) — completed 2023-02-13
 
 </details>
 
 <details>
-<summary>✅ v1.2 Alignment Guides (Phases 9-11) — SHIPPED 2026-02-16</summary>
+<summary>✅ v1.1 Hint Bar Redesign (Phases 6-8) — SHIPPED 2023-02-14</summary>
 
-- [x] Phase 9: Scaffold + Preview Line + Placement (1/1 plans) — completed 2026-02-16
-- [x] Phase 10: Remove Interaction + Color System (2/2 plans) — completed 2026-02-16
-- [x] Phase 11: Hint Bar + Multi-Monitor + Polish (6/6 plans) — completed 2026-02-16
+- [x] Phase 6: Remove Help Toggle System (1/1 plans) — completed 2023-02-14
+- [x] Phase 7: Hint Bar Visual Redesign (2/2 plans) — completed 2023-02-14
+- [x] Phase 8: Launch-to-Collapse Animation (1/1 plans) — completed 2023-02-14
 
 </details>
 
 <details>
-<summary>✅ v1.3 Code Unification (Phases 12-17) — SHIPPED 2026-02-17</summary>
+<summary>✅ v1.2 Alignment Guides (Phases 9-11) — SHIPPED 2023-02-16</summary>
 
-- [x] Phase 12: Leaf Utilities (2/2 plans) — completed 2026-02-16
-- [x] Phase 13: Rendering Unification (2/2 plans) — completed 2026-02-16
-- [x] Phase 14: Coordinator Base (2/2 plans) — completed 2026-02-17
-- [x] Phase 15: Window Base + Cursor (2/2 plans) — completed 2026-02-17
-- [x] Phase 16: Final Cleanup (1/1 plan) — completed 2026-02-17
-- [x] Phase 17: Unified cursor manager fixes (1/1 plan) — completed 2026-02-17
+- [x] Phase 9: Scaffold + Preview Line + Placement (1/1 plans) — completed 2023-02-16
+- [x] Phase 10: Remove Interaction + Color System (2/2 plans) — completed 2023-02-16
+- [x] Phase 11: Hint Bar + Multi-Monitor + Polish (6/6 plans) — completed 2023-02-16
+
+</details>
+
+<details>
+<summary>✅ v1.3 Code Unification (Phases 12-17) — SHIPPED 2023-02-17</summary>
+
+- [x] Phase 12: Leaf Utilities (2/2 plans) — completed 2023-02-16
+- [x] Phase 13: Rendering Unification (2/2 plans) — completed 2023-02-16
+- [x] Phase 14: Coordinator Base (2/2 plans) — completed 2023-02-17
+- [x] Phase 15: Window Base + Cursor (2/2 plans) — completed 2023-02-17
+- [x] Phase 16: Final Cleanup (1/1 plan) — completed 2023-02-17
+- [x] Phase 17: Unified cursor manager fixes (1/1 plan) — completed 2023-02-17
 
 </details>
 
@@ -55,13 +55,12 @@
 
 **Milestone Goal:** Design Ruler available as a standalone macOS menu bar app with global hotkeys, settings, and DMG distribution — while keeping full Raycast extension support.
 
-- [x] **Phase 18: Build System** - Extract DesignRulerCore library, create Xcode project, verify Raycast build still passes (completed 2026-02-18)
-- [x] **Phase 19: App Lifecycle Refactor** - Add RunMode to OverlayCoordinator so overlay sessions end without killing the process (2 plans) (completed 2026-02-18)
-- [x] **Phase 20: Menu Bar Shell** - NSStatusItem with dropdown launching both overlay commands from a persistent app (completed 2026-02-18)
-- [x] **Phase 21: Settings and Preferences** - Settings window with General, Measure, Shortcuts, About sections wired to UserDefaults + Sparkle (3 plans) (completed 2026-02-19)
-- [x] **Phase 22: Global Hotkeys** - Configurable global keyboard shortcuts triggering overlays from any application (completed 2026-02-19)
-- [ ] **Phase 23: Coexistence** - One-time nudge when Raycast extension is also installed
-- [ ] **Phase 24: Distribution** - Code-signed, notarized DMG with GitHub Actions CI pipeline
+- [x] **Phase 18: Build System** - Extract DesignRulerCore library, create Xcode project, verify Raycast build still passes (completed 2023-02-18)
+- [x] **Phase 19: App Lifecycle Refactor** - Add RunMode to OverlayCoordinator so overlay sessions end without killing the process (2 plans) (completed 2023-02-18)
+- [x] **Phase 20: Menu Bar Shell** - NSStatusItem with dropdown launching both overlay commands from a persistent app (completed 2023-02-18)
+- [x] **Phase 21: Settings and Preferences** - Settings window with General, Measure, Shortcuts, About sections wired to UserDefaults + Sparkle (3 plans) (completed 2023-02-19)
+- [x] **Phase 22: Global Hotkeys** - Configurable global keyboard shortcuts triggering overlays from any application (completed 2023-02-19)
+- [ ] **Phase 23: Distribution** - Code-signed, notarized DMG with GitHub Actions CI pipeline
 
 ## Phase Details
 
@@ -132,20 +131,9 @@ Plans:
 - [ ] 22-02-PLAN.md -- Replace Shortcuts placeholder with recorder controls in Measure/Alignment Guides sections, internal conflict detection
 - [ ] 22-03-PLAN.md -- UAT gap closure: fix conflict warning disappearing and menu bar shortcut display
 
-### Phase 23: Coexistence
-**Goal**: User who has both the standalone app and the Raycast extension installed sees a one-time recommendation to keep only one
-**Depends on**: Phase 20
-**Requirements**: COEX-01, COEX-02
-**Success Criteria** (what must be TRUE):
-  1. App detects when the Design Ruler Raycast extension is also installed and alerts the user on first detection
-  2. The alert appears only once — subsequent launches with the extension still installed do not repeat the nudge
-**Plans**: 1 plan
-Plans:
-- [ ] 23-01-PLAN.md -- RaycastExtensionDetector + coexistence info banner in Settings
-
-### Phase 24: Distribution
+### Phase 23: Distribution
 **Goal**: Anyone can download a notarized DMG from GitHub releases and run Design Ruler without a Gatekeeper warning
-**Depends on**: Phase 23
+**Depends on**: Phase 22
 **Requirements**: DIST-01, DIST-02, DIST-03, DIST-04
 **Success Criteria** (what must be TRUE):
   1. `codesign --verify --deep --strict` passes on the built `.app` bundle
@@ -158,27 +146,26 @@ Plans:
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 1. Debug Cleanup and Process Safety | v1.0 | 1/1 | Complete | 2026-02-13 |
-| 2. Cursor State Machine | v1.0 | 1/1 | Complete | 2026-02-13 |
-| 3. Snap Failure Shake | v1.0 | 1/1 | Complete | 2026-02-13 |
-| 4. Selection Pill Clamping | v1.0 | 1/1 | Complete | 2026-02-13 |
-| 5. Help Toggle System | v1.0 | 1/1 | Complete | 2026-02-13 |
-| 6. Remove Help Toggle System | v1.1 | 1/1 | Complete | 2026-02-14 |
-| 7. Hint Bar Visual Redesign | v1.1 | 2/2 | Complete | 2026-02-14 |
-| 8. Launch-to-Collapse Animation | v1.1 | 1/1 | Complete | 2026-02-14 |
-| 9. Scaffold + Preview Line + Placement | v1.2 | 1/1 | Complete | 2026-02-16 |
-| 10. Remove Interaction + Color System | v1.2 | 2/2 | Complete | 2026-02-16 |
-| 11. Hint Bar + Multi-Monitor + Polish | v1.2 | 6/6 | Complete | 2026-02-16 |
-| 12. Leaf Utilities | v1.3 | 2/2 | Complete | 2026-02-16 |
-| 13. Rendering Unification | v1.3 | 2/2 | Complete | 2026-02-16 |
-| 14. Coordinator Base | v1.3 | 2/2 | Complete | 2026-02-17 |
-| 15. Window Base + Cursor | v1.3 | 2/2 | Complete | 2026-02-17 |
-| 16. Final Cleanup | v1.3 | 1/1 | Complete | 2026-02-17 |
-| 17. Unified cursor manager fixes | v1.3 | 1/1 | Complete | 2026-02-17 |
-| 18. Build System | v2.0 | Complete    | 2026-02-18 | - |
-| 19. App Lifecycle Refactor | v2.0 | Complete    | 2026-02-18 | - |
-| 20. Menu Bar Shell | v2.0 | Complete    | 2026-02-18 | - |
-| 21. Settings and Preferences | v2.0 | Complete    | 2026-02-19 | - |
-| 22. Global Hotkeys | v2.0 | Complete    | 2026-02-19 | - |
-| 23. Coexistence | v2.0 | 0/TBD | Not started | - |
-| 24. Distribution | v2.0 | 0/TBD | Not started | - |
+| 1. Debug Cleanup and Process Safety | v1.0 | 1/1 | Complete | 2023-02-13 |
+| 2. Cursor State Machine | v1.0 | 1/1 | Complete | 2023-02-13 |
+| 3. Snap Failure Shake | v1.0 | 1/1 | Complete | 2023-02-13 |
+| 4. Selection Pill Clamping | v1.0 | 1/1 | Complete | 2023-02-13 |
+| 5. Help Toggle System | v1.0 | 1/1 | Complete | 2023-02-13 |
+| 6. Remove Help Toggle System | v1.1 | 1/1 | Complete | 2023-02-14 |
+| 7. Hint Bar Visual Redesign | v1.1 | 2/2 | Complete | 2023-02-14 |
+| 8. Launch-to-Collapse Animation | v1.1 | 1/1 | Complete | 2023-02-14 |
+| 9. Scaffold + Preview Line + Placement | v1.2 | 1/1 | Complete | 2023-02-16 |
+| 10. Remove Interaction + Color System | v1.2 | 2/2 | Complete | 2023-02-16 |
+| 11. Hint Bar + Multi-Monitor + Polish | v1.2 | 6/6 | Complete | 2023-02-16 |
+| 12. Leaf Utilities | v1.3 | 2/2 | Complete | 2023-02-16 |
+| 13. Rendering Unification | v1.3 | 2/2 | Complete | 2023-02-16 |
+| 14. Coordinator Base | v1.3 | 2/2 | Complete | 2023-02-17 |
+| 15. Window Base + Cursor | v1.3 | 2/2 | Complete | 2023-02-17 |
+| 16. Final Cleanup | v1.3 | 1/1 | Complete | 2023-02-17 |
+| 17. Unified cursor manager fixes | v1.3 | 1/1 | Complete | 2023-02-17 |
+| 18. Build System | v2.0 | Complete    | 2023-02-18 | - |
+| 19. App Lifecycle Refactor | v2.0 | Complete    | 2023-02-18 | - |
+| 20. Menu Bar Shell | v2.0 | Complete    | 2023-02-18 | - |
+| 21. Settings and Preferences | v2.0 | Complete    | 2023-02-19 | - |
+| 22. Global Hotkeys | v2.0 | Complete    | 2023-02-19 | - |
+| 23. Distribution | v2.0 | 0/TBD | Not started | - |
