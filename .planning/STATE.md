@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-18)
 
 **Core value:** Instant, accurate pixel inspection of anything on screen — zero friction from invoke to dimension readout, whether launched from Raycast or a global hotkey.
-**Current focus:** v2.0 Standalone App — Phase 22: Global Hotkeys
+**Current focus:** v2.0 Standalone App — Phase 23: Distribution
 
 ## Current Position
 
-Phase: 22 of 23 (Global Hotkeys)
-Plan: 3 of 3 complete in current phase
-Status: Phase 22 complete — all plans executed (hotkey infrastructure + Settings recorder UI + UAT gap closure)
-Last activity: 2026-02-19 — Completed 22-03: Gap closure for conflict warning persistence and menu bar shortcut display
+Phase: 23 of 23 (Distribution)
+Plan: 2 of 3 complete in current phase
+Status: Executing Phase 23 — CI pipeline workflows and appcast generation complete
+Last activity: 2026-02-19 — Completed 23-02: CI pipeline (build-release + update-appcast workflows, branded DMG background)
 
-Progress: [####░░░░░░] 43% (v2.0 — 3/7 phases complete, Phase 22 done)
+Progress: [#####░░░░░] 48% (v2.0 — 3/7 phases complete, Phase 23 in progress)
 
 ## Performance Metrics
 
@@ -56,6 +56,7 @@ Progress: [####░░░░░░] 43% (v2.0 — 3/7 phases complete, Phase 22 d
 | 22-global-hotkeys | 01 | 4min 15s | 2 | 6 |
 | 22-global-hotkeys | 02 | 1min 4s  | 1 | 1 |
 | 22-global-hotkeys | 03 | 1min 40s | 2 | 2 |
+| 23-distribution | 02 | 2min 56s | 2 | 4 |
 
 ## Accumulated Context
 
@@ -98,6 +99,10 @@ Key decisions for v2.0:
 - [Phase 22-global-hotkeys 22-03]: Guard else-branch on newShortcut != nil to survive onChange double-fire from setShortcut(nil) rejection
 - [Phase 22-global-hotkeys 22-03]: NSMenuDelegate with menuNeedsUpdate for defensive shortcut refresh on every menu open
 - [Phase 22-global-hotkeys 22-03]: menuWillOpen/menuDidClose disable/enable hotkeys during NSMenu tracking mode
+- [Phase 23-distribution 23-02]: Two-workflow CI architecture — build on tag-push, appcast on release-publish
+- [Phase 23-distribution 23-02]: EdDSA key piped via stdin in CI (never written to disk)
+- [Phase 23-distribution 23-02]: create-dmg || true for exit code 2 warnings, with post-check for DMG existence
+- [Phase 23-distribution 23-02]: Single-item appcast sufficient for stable-channel-only v1 pipeline
 
 ### Research Flags (from SUMMARY.md)
 
@@ -116,5 +121,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-19
-Stopped at: Completed 22-03-PLAN.md (Gap closure: conflict warning persistence fix + menu bar shortcut display via NSMenuDelegate)
-Resume: Phase 22 fully complete (all 3 plans + UAT gaps closed). Next: Phase 23 (Distribution)
+Stopped at: Completed 23-02-PLAN.md (CI pipeline: build-release + update-appcast workflows, appcast generation script, branded DMG background)
+Resume: Phase 23 plan 02 complete. Next: 23-03 (remaining distribution tasks)
