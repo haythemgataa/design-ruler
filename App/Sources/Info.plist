@@ -29,9 +29,9 @@
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 	<key>SUFeedURL</key>
-	<string>https://github.com/haythem/design-ruler/releases/latest/download/appcast.xml</string>
+	<string>https://github.com/haythemgataa/design-ruler/releases/latest/download/appcast.xml</string>
 	<key>SUPublicEDKey</key>
-	<string>PLACEHOLDER_EDDSA_PUBLIC_KEY</string>
+	<string>nQlHBasrae63Ai7buw0NQAWV7wMXI70LCFLFbnULImw=</string>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
 </dict>

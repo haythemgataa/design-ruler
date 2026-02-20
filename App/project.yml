@@ -35,8 +35,8 @@ targets:
         NSHighResolutionCapable: true
         NSPrincipalClass: NSApplication
         NSApplicationSupportsSecureRestorableState: true
-        SUFeedURL: "https://github.com/haythem/design-ruler/releases/latest/download/appcast.xml"
-        SUPublicEDKey: "PLACEHOLDER_EDDSA_PUBLIC_KEY"
+        SUFeedURL: "https://github.com/haythemgataa/design-ruler/releases/latest/download/appcast.xml"
+        SUPublicEDKey: "nQlHBasrae63Ai7buw0NQAWV7wMXI70LCFLFbnULImw="
         SUEnableAutomaticChecks: true
     settings:
       base:

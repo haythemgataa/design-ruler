@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-18)
 ## Current Position
 
 Phase: 23 of 23 (Distribution)
-Plan: 2 of 3 complete in current phase
-Status: Executing Phase 23 — CI pipeline workflows and appcast generation complete
-Last activity: 2026-02-19 — Completed 23-02: CI pipeline (build-release + update-appcast workflows, branded DMG background)
+Plan: 3 of 3 complete in current phase
+Status: Phase 23 complete — all plans executed (signing config + CI pipeline + user credential setup)
+Last activity: 2026-02-20 — Completed 23-03: User credential setup (real EdDSA key, GitHub Secrets, correct repo URL)
 
-Progress: [#####░░░░░] 48% (v2.0 — 3/7 phases complete, Phase 23 in progress)
+Progress: [######░░░░] 57% (v2.0 — 4/7 phases complete, Phase 23 done)
 
 ## Performance Metrics
 
@@ -58,6 +58,7 @@ Progress: [#####░░░░░] 48% (v2.0 — 3/7 phases complete, Phase 23 in 
 | 22-global-hotkeys | 03 | 1min 40s | 2 | 2 |
 | 23-distribution | 01 | 3min 59s | 2 | 5 |
 | 23-distribution | 02 | 2min 56s | 2 | 4 |
+| 23-distribution | 03 | user-driven | 2 | 2 |
 
 ## Accumulated Context
 
@@ -107,6 +108,8 @@ Key decisions for v2.0:
 - [Phase 23-distribution 23-02]: EdDSA key piped via stdin in CI (never written to disk)
 - [Phase 23-distribution 23-02]: create-dmg || true for exit code 2 warnings, with post-check for DMG existence
 - [Phase 23-distribution 23-02]: Single-item appcast sufficient for stable-channel-only v1 pipeline
+- [Phase 23-distribution 23-03]: Real EdDSA public key set by user (not placeholder)
+- [Phase 23-distribution 23-03]: SUFeedURL corrected to haythemgataa/design-ruler (matching actual GitHub remote)
 
 ### Research Flags (from SUMMARY.md)
 
@@ -124,6 +127,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-19
-Stopped at: Completed 23-01-PLAN.md (Signing config: entitlements, ExportOptions.plist, Release signing, Sparkle re-enabled)
-Resume: Phase 23 plan 01 complete (02 also done). Next: 23-03 (remaining distribution tasks)
+Last session: 2026-02-20
+Stopped at: Completed 23-03-PLAN.md (User credential setup: real EdDSA key, GitHub Secrets, correct repo URL)
+Resume: Phase 23 fully complete (all 3 plans). Next: Phase verification
