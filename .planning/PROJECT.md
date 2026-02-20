@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A macOS pixel inspector available as both a Raycast extension and a standalone menu bar app. Two commands: (1) **Measure** — crosshair with edge detection, W×H dimensions, arrow-key skip, drag-to-snap selections. (2) **Alignment Guides** — place vertical/horizontal guide lines to verify element alignment, color cycling, hover-to-remove, position pills. Both use fullscreen frozen overlays with per-screen multi-monitor capture, GPU-composited CAShapeLayer rendering, and liquid glass hint bars.
+A macOS pixel inspector available as both a Raycast extension and a standalone menu bar app with configurable global hotkeys and auto-updates. Two commands: (1) **Measure** — crosshair with edge detection, W×H dimensions, arrow-key skip, drag-to-snap selections. (2) **Alignment Guides** — place vertical/horizontal guide lines to verify element alignment, color cycling, hover-to-remove, position pills. Both use fullscreen frozen overlays with per-screen multi-monitor capture, GPU-composited CAShapeLayer rendering, and liquid glass hint bars. Distributed as a code-signed, notarized DMG via GitHub Releases.
 
 ## Core Value
 
@@ -52,42 +52,50 @@ Instant, accurate pixel inspection of anything on screen — zero friction from 
 - ✓ ScreenCapture utility and CoordinateConverter rect methods — v1.3
 - ✓ HintBarContent deduplication via shared HintBarTextStyle — v1.3
 
+- ✓ DesignRulerCore SPM library shared by Raycast extension and standalone Xcode app — v2.0
+- ✓ RunMode enum gating app.run()/NSApp.terminate() for standalone lifecycle — v2.0
+- ✓ Session guards (isSessionActive + anySessionActive) preventing overlapping invocations — v2.0
+- ✓ CursorManager.restore() at start of every session (singleton state leak prevention) — v2.0
+- ✓ NSStatusItem menu bar icon with Measure/Guides/Settings/Quit dropdown — v2.0
+- ✓ Menu bar icon active state (ruler.fill / ruler) with anySessionActive guard — v2.0
+- ✓ onSessionEnd callback decoupling MenuBarController from coordinator types — v2.0
+- ✓ SwiftUI Settings window (General, Measure, Shortcuts, About) with AppPreferences singleton — v2.0
+- ✓ Launch at Login via SMAppService.mainApp with .onAppear re-sync — v2.0
+- ✓ Sparkle 2 auto-update integration with EdDSA signature verification — v2.0
+- ✓ Configurable global hotkeys via KeyboardShortcuts 2.4.0 (Carbon Event Manager) — v2.0
+- ✓ Session-aware hotkey dispatch: toggle-off, cross-switch, normal launch — v2.0
+- ✓ Shortcut recorder UI with inline conflict detection — v2.0
+- ✓ Menu bar shortcut symbol display via NSMenuDelegate refresh — v2.0
+- ✓ Developer ID code signing with Hardened Runtime — v2.0
+- ✓ Notarization via notarytool for Gatekeeper approval — v2.0
+- ✓ Branded DMG installer with /Applications alias — v2.0
+- ✓ Dual GitHub Actions CI: build-release (tag-push) + update-appcast (release-publish) — v2.0
+
 ### Active
 
-## Current Milestone: v2.0 Standalone App
-
-**Goal:** Make Design Ruler available as a standalone macOS menu bar app with global hotkeys and settings, while keeping full Raycast extension support.
-
-**Target features:**
-- Standalone macOS menu bar app with dropdown for both commands
-- Configurable global keyboard shortcuts for Measure and Alignment Guides
-- Settings window (hideHintBar, corrections, hotkey bindings, launch at login)
-- Coexistence detection with Raycast extension (recommend keeping one)
-- DMG distribution via GitHub releases
-- Identical overlay behavior to Raycast version
+(No active requirements — planning next milestone)
 
 ### Out of Scope
 
-- Copy dimensions to clipboard — this is an inspection tool, not a measurement export tool
-- Accessibility (AX) based detection — adds complexity with minimal benefit over image-based
+- Copy dimensions to clipboard — inspection tool, not measurement export
+- Accessibility (AX) based detection — complexity with minimal benefit over image-based
 - Snap-to-edge cursor behavior — disorienting, arrow-key skipping is better
 - Partial snap (snap 3 sides when 4th fails) — hand-drawn edge won't be pixel-accurate
-- Edge detection sensitivity preference — tolerance=1 works well for most designs, adding UI complexity not justified
-- Tap-to-clear discoverability hint — users will discover it naturally
+- Edge detection sensitivity preference — tolerance=1 works well, UI complexity not justified
+- App Store distribution — Sandbox blocks CGEventTap and CGWindowListCreateImage
+- Multiple simultaneous overlay sessions — one session at a time matches Raycast behavior
 
 ## Context
 
-- Raycast extension: TypeScript thin wrapper calls Swift via `@raycast` macro bridge
-- Standalone app: native macOS menu bar app sharing same Swift overlay/detection code
-- Raycast only deploys the Swift binary — no `.bundle` directories, no `Bundle.module`
-- macOS 13+ minimum, Swift 5.9+, AppKit + CoreGraphics + QuartzCore + SwiftUI
+- Shipped v2.0 Standalone App with ~5,562 LOC Swift + 73 LOC TypeScript across 23 phases (5 milestones)
+- Dual distribution: Raycast extension (TypeScript thin wrapper → Swift via `@raycast` macro) + standalone menu bar app (DMG)
+- DesignRulerCore SPM library contains all shared overlay/detection/rendering code
+- macOS 14+ minimum, Swift 5.9+, AppKit + CoreGraphics + QuartzCore + SwiftUI + KeyboardShortcuts + Sparkle
+- Two commands: `design-ruler` (inspect) and `alignment-guides` (guides)
+- Standalone app: LSUIElement menu bar agent, global hotkeys via Carbon Event Manager, Sparkle auto-updates
+- CI/CD: GitHub Actions dual-workflow (build-release on tag-push, update-appcast on release-publish)
 - CGWindowListCreateImage has a cold-start penalty on macOS 26; mitigated by 1x1 warmup capture
 - Coordinate system duality: AppKit (bottom-left origin) for UI, CG (top-left origin) for pixel scanning
-- Shipped v1.3 Code Unification with ~3,300 LOC Swift across 17 phases (4 milestones)
-- Two commands: `design-ruler` (inspect) and `alignment-guides` (guides)
-- Shared base classes: OverlayCoordinator (lifecycle), OverlayWindow (window setup)
-- Shared utilities: PillRenderer, DesignTokens, ScreenCapture, CoordinateConverter, CursorManager, PermissionChecker, HintBarView
-- Codebase map at `.planning/codebase/` (7 documents, mapped 2026-02-13)
 
 ## Constraints
 
@@ -96,6 +104,8 @@ Instant, accurate pixel inspection of anything on screen — zero friction from 
 - **No NSCursor push/pop or resetCursorRects**: Pushed cursors get overridden on borderless windows — use `NSCursor.set()` via CursorManager + `cursorUpdate(with:)` override
 - **Capture before window**: Must capture screen before creating overlay to avoid self-interference
 - **Performance**: CPU must stay <5% during mouse movement — CALayer-only updates, no draw() overrides
+- **No App Sandbox**: CGEventTap + CGWindowListCreateImage incompatible with sandbox
+- **No App Store**: Sandbox requirement blocks core functionality — DMG distribution only
 
 ## Key Decisions
 
@@ -129,6 +139,17 @@ Instant, accurate pixel inspection of anything on screen — zero friction from 
 | Static configureOverlay() instead of init override | NSWindow init is complex; static method called after init is simpler and more explicit | ✓ Good |
 | CursorManager 6-state machine (expanded from 4) | Replaces AlignmentGuidesWindow's parallel cursor system; single authority for all cursor transitions | ✓ Good |
 | HintBarTextStyle returns Text (not some View) | Satisfies both direct Text and View usage sites in SwiftUI content structs | ✓ Good |
+| DesignRulerCore as open-class SPM library | Cross-module subclassing from both Raycast bridge and standalone app targets | ✓ Good |
+| RunMode enum (.raycast / .standalone) on OverlayCoordinator | ~15-line change gates app.run() and NSApp.terminate() without rewrite | ✓ Good |
+| MenuBarController callbacks (no coordinator imports) | Decoupled architecture — AppDelegate wires onMeasure/onAlignmentGuides/onSessionEnd | ✓ Good |
+| AppPreferences computed properties over UserDefaults | Cross-context access from AppKit and SwiftUI; no @AppStorage limitations | ✓ Good |
+| SMAppService.mainApp for Launch at Login | No helper bundle needed; .onAppear re-sync prevents desync with System Settings | ✓ Good |
+| KeyboardShortcuts 2.4.0 (Carbon Event Manager) | No Accessibility permission for registration; onKeyUp prevents key-repeat re-triggering | ✓ Good |
+| Session-aware hotkey dispatch (toggle/cross-switch/launch) | DispatchQueue.main.async between cross-command exit and relaunch for autorelease pool drainage | ✓ Good |
+| Sparkle 2 with EdDSA verification | Industry-standard macOS auto-update; deferred startup until real keys configured | ✓ Good |
+| Dual CI workflows (build-release + update-appcast) | Separation of concerns: tag-push builds DMG, release-publish generates appcast | ✓ Good |
+| Empty entitlements (Hardened Runtime only) | CGWindowListCreateImage/CGEventTap governed by TCC, not entitlements | ✓ Good |
+| LSUIElement = YES | Menu bar agent — no Dock icon, no Cmd+Tab entry | ✓ Good |
 
 ---
-*Last updated: 2026-02-17 after v2.0 milestone started*
+*Last updated: 2026-02-20 after v2.0 milestone completion*

@@ -71,3 +71,22 @@
 
 ---
 
+
+## v2.0 Standalone App (Shipped: 2026-02-20)
+
+**Phases completed:** 6 phases (18-23), 14 plans
+**Timeline:** 3 days (Feb 18 - Feb 20, 2026)
+**Codebase:** ~5,562 LOC Swift + 73 LOC TypeScript
+**Git range:** `1b0e2d0`..`29978e0`
+**Changes:** 45 files changed, +1,353 / -384 lines
+
+**Key accomplishments:**
+- Extracted DesignRulerCore SPM library shared by both Raycast extension and standalone Xcode app
+- Added RunMode lifecycle so overlay sessions end without killing the standalone app process
+- Created persistent menu bar app with NSStatusItem dropdown for both overlay commands
+- Built SwiftUI settings window with preferences, launch-at-login, and Sparkle auto-updates
+- Implemented configurable global hotkeys via KeyboardShortcuts with conflict detection and toggle/cross-switch dispatch
+- Configured code signing, notarization, and dual GitHub Actions CI workflows for automated DMG distribution
+
+---
+
