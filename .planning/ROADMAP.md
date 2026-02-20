@@ -60,7 +60,7 @@
 - [x] **Phase 20: Menu Bar Shell** - NSStatusItem with dropdown launching both overlay commands from a persistent app (completed 2023-02-18)
 - [x] **Phase 21: Settings and Preferences** - Settings window with General, Measure, Shortcuts, About sections wired to UserDefaults + Sparkle (3 plans) (completed 2023-02-19)
 - [x] **Phase 22: Global Hotkeys** - Configurable global keyboard shortcuts triggering overlays from any application (completed 2023-02-19)
-- [ ] **Phase 23: Distribution** - Code-signed, notarized DMG with GitHub Actions CI pipeline
+- [x] **Phase 23: Distribution** - Code-signed, notarized DMG with GitHub Actions CI pipeline (completed 2026-02-20)
 
 ## Phase Details
 
@@ -172,4 +172,4 @@ Plans:
 | 20. Menu Bar Shell | v2.0 | Complete    | 2023-02-18 | - |
 | 21. Settings and Preferences | v2.0 | Complete    | 2023-02-19 | - |
 | 22. Global Hotkeys | v2.0 | Complete    | 2023-02-19 | - |
-| 23. Distribution | v2.0 | 0/TBD | Not started | - |
+| 23. Distribution | v2.0 | Complete    | 2026-02-20 | - |
