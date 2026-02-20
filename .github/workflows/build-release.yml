@@ -1,0 +1,128 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-sign-notarize:
+    name: Build, Sign, Notarize & Package
+    runs-on: macos-15
+
+    env:
+      DEVELOPER_ID_CERT_BASE64: ${{ secrets.DEVELOPER_ID_CERT_BASE64 }}
+      DEVELOPER_ID_CERT_PASSWORD: ${{ secrets.DEVELOPER_ID_CERT_PASSWORD }}
+      KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      NOTARY_PASSWORD: ${{ secrets.NOTARY_PASSWORD }}
+      TEAM_ID: ${{ secrets.TEAM_ID }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from tag
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          BUILD_NUMBER=$(git rev-list --count HEAD)
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "BUILD_NUMBER=$BUILD_NUMBER" >> $GITHUB_ENV
+
+      - name: Install tools
+        run: brew install create-dmg xcodegen
+
+      - name: Import signing certificate
+        run: |
+          echo -n "$DEVELOPER_ID_CERT_BASE64" | base64 --decode -o $RUNNER_TEMP/certificate.p12
+          KEYCHAIN_PATH=$RUNNER_TEMP/signing.keychain-db
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security import $RUNNER_TEMP/certificate.p12 \
+            -P "$DEVELOPER_ID_CERT_PASSWORD" \
+            -A -t cert -f pkcs12 \
+            -k $KEYCHAIN_PATH
+          security set-key-partition-list -S apple-tool:,apple: \
+            -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
+
+      - name: Generate Xcode project
+        run: cd App && xcodegen generate
+
+      - name: Archive
+        run: |
+          cd App
+          xcodebuild archive \
+            -project "Design Ruler.xcodeproj" \
+            -scheme "Design Ruler" \
+            -configuration Release \
+            -destination "generic/platform=macOS" \
+            -archivePath "$RUNNER_TEMP/DesignRuler.xcarchive" \
+            MARKETING_VERSION="$VERSION" \
+            CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+            CODE_SIGN_IDENTITY="Developer ID Application" \
+            DEVELOPMENT_TEAM="$TEAM_ID" \
+            OTHER_CODE_SIGN_FLAGS="--timestamp --options runtime"
+
+      - name: Export
+        run: |
+          cd App
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/DesignRuler.xcarchive" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -exportOptionsPlist "ExportOptions.plist"
+
+      - name: Copy DMG background
+        run: cp scripts/assets/dmg-background.png "$RUNNER_TEMP/dmg-background.png"
+
+      - name: Extract volume icon from app bundle
+        run: |
+          VOLICON=$(find "$RUNNER_TEMP/export/Design Ruler.app/Contents/Resources" -name "*.icns" | head -1)
+          echo "VOLICON=$VOLICON" >> $GITHUB_ENV
+
+      - name: Create DMG
+        run: |
+          create-dmg \
+            --volname "Design Ruler" \
+            --volicon "$VOLICON" \
+            --background "$RUNNER_TEMP/dmg-background.png" \
+            --window-pos 200 120 \
+            --window-size 600 400 \
+            --icon-size 128 \
+            --icon "Design Ruler.app" 150 200 \
+            --app-drop-link 450 200 \
+            --hide-extension "Design Ruler.app" \
+            --no-internet-enable \
+            "$RUNNER_TEMP/Design-Ruler-$VERSION.dmg" \
+            "$RUNNER_TEMP/export/" || true
+          # create-dmg may exit with code 2 for warnings; verify DMG exists
+          test -f "$RUNNER_TEMP/Design-Ruler-$VERSION.dmg"
+
+      - name: Notarize DMG
+        run: |
+          xcrun notarytool store-credentials "notary-profile" \
+            --apple-id "$APPLE_ID" \
+            --team-id "$TEAM_ID" \
+            --password "$NOTARY_PASSWORD"
+          xcrun notarytool submit "$RUNNER_TEMP/Design-Ruler-$VERSION.dmg" \
+            --keychain-profile "notary-profile" \
+            --wait
+          xcrun stapler staple "$RUNNER_TEMP/Design-Ruler-$VERSION.dmg"
+
+      - name: Create draft release
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            "$RUNNER_TEMP/Design-Ruler-$VERSION.dmg" \
+            --draft \
+            --title "Design Ruler $VERSION" \
+            --generate-notes
+
+      - name: Cleanup keychain
+        if: always()
+        run: security delete-keychain $RUNNER_TEMP/signing.keychain-db 2>/dev/null || true

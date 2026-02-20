@@ -1,132 +1,261 @@
-# Technology Stack: Hint Bar Redesign
+# Technology Stack: Standalone macOS Menu Bar App
 
-**Project:** Design Ruler -- hint bar redesign with glass background, split animation, multi-state
-**Researched:** 2026-02-13
-**Scope:** NSVisualEffectView glass background, bar split animation via frame animations, state machine, appearance-aware ESC tint
+**Project:** Design Ruler — standalone macOS app alongside Raycast extension
+**Researched:** 2026-02-17
+**Scope:** New dependencies and integration decisions for menu bar, global hotkeys, settings window, launch-at-login, coexistence detection, DMG distribution. Existing overlay/detection system already validated — not re-researched.
 
 ---
 
-## Recommended Stack
+## What Changes vs. What Stays
 
-### Core Framework
+### Stays Exactly the Same (zero changes needed)
+All overlay logic: `OverlayCoordinator`, `OverlayWindow`, `Measure`, `AlignmentGuides`, `EdgeDetector`, `ColorMap`, `CrosshairView`, `CursorManager`, `PillRenderer`, `HintBarView`, `PermissionChecker`, `ScreenCapture`, `DesignTokens` — every Swift file under `Sources/` compiles unchanged into the standalone target.
+
+### What the Standalone App Adds
+An app shell around the existing coordinator subclasses: NSStatusItem menu bar icon, global hotkey registration, settings window, launch-at-login toggle, Raycast coexistence detection, and a DMG/notarization CI pipeline.
+
+---
+
+## New Runtime Dependencies
+
+### KeyboardShortcuts — Global Hotkeys
 
 | Technology | Version | Purpose | Why |
 |------------|---------|---------|-----|
-| NSVisualEffectView | macOS 10.10+ | Glass/vibrancy background for hint bar | Already available at macOS 13 target. `.withinWindow` blending blurs the frozen screenshot behind the bar. No new SDK requirement. |
-| SwiftUI (via NSHostingView) | macOS 13+ | Content rendering (keycaps, text, layout) | Already in use for HintBarContent. Keep for declarative UI; add glass backgrounds at the AppKit layer around it. |
-| Core Animation (CAKeyframeAnimation, CATransaction) | macOS 10.5+ | Split/merge animation, position swap animation | Already used for the existing slide animation. Frame-based animations for splitting one bar into two. |
-| NSAppearance | macOS 10.14+ | Appearance-reactive ESC tint | `viewDidChangeEffectiveAppearance()` callback + `effectiveAppearance.bestMatch()` for the tint overlay layer. |
+| KeyboardShortcuts | 2.4.0 | User-customizable global hotkeys (Cmd+Shift+M / Cmd+Shift+G defaults) | Uses Carbon `RegisterEventHotKey` internally, which fires system-wide without requiring Accessibility permission. Wraps the raw Carbon API in a type-safe Swift interface and persists the user's chosen shortcut to `UserDefaults` automatically. Also provides a ready-made `KeyboardShortcuts.Recorder` SwiftUI view for the settings pane. Alternative: raw `RegisterEventHotKey` (verified working — see below) but you get none of the persistence, conflict handling, or recorder UI for free. |
 
-### Supporting Libraries
+**Verification:** `RegisterEventHotKey` tested in Swift REPL — `result == noErr`, `kVK_ANSI_M`, `cmdKey | shiftKey`, round-trip `UnregisterEventHotKey` OK. KeyboardShortcuts 2.4.0 released 2025-09-18 on GitHub (`sindresorhus/KeyboardShortcuts`). `Package.swift` declares `platforms: [.macOS(.v10_15)]` — compatible with our macOS 13+ target. Confidence: HIGH.
 
-| Library | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| `@Environment(\.colorScheme)` | SwiftUI 1.0+ | Dark/light mode in SwiftUI content | Already used in HintBarContent.swift for keycap colors. Continues unchanged. |
-| Timer (Foundation) | macOS 10.0+ | Idle timer for auto-collapse | 3s inactivity timer to trigger expanded -> collapsed transition. |
-| NSAnimationContext | macOS 10.3+ | Coordinated AppKit view animations | Alternative to raw CATransaction for fade + position animations during split/merge. |
+**Critical constraint:** `NSEvent.addGlobalMonitorForEvents(matching: .keyDown)` requires Accessibility permission granted by the user. `RegisterEventHotKey` (Carbon) does NOT. KeyboardShortcuts uses Carbon for its core, so no Accessibility permission is needed for hotkey activation.
+
+**SPM integration:**
+```swift
+.package(url: "https://github.com/sindresorhus/KeyboardShortcuts", from: "2.4.0")
+```
 
 ---
 
-## Technology Decisions
+### Sparkle — Auto-Update (Optional but Expected)
 
-### Decision 1: NSVisualEffectView (withinWindow) -- not SwiftUI .glassEffect()
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| Sparkle | 2.8.1 | In-app software updates for DMG-distributed app | DMG-distributed apps have no App Store update channel. Users expect update prompts. Sparkle is the de-facto standard for non-App-Store macOS apps. Version 2.x is XPC-based with privilege separation. Works without App Sandbox (only requires hardened runtime for notarization). |
 
-**Chosen:** `NSVisualEffectView` with `.withinWindow` blending and `.hudWindow` material
+**Verification:** Stable release 2.8.1 published 2025-11-15. SPM distribution via `binaryTarget` with `Sparkle-for-Swift-Package-Manager.zip`. Non-sandboxed apps need no extra entitlements beyond hardened runtime. Confidence: HIGH (industry standard for 15+ years).
 
-**Why not SwiftUI `.glassEffect()`:**
+**SPM integration:**
+```swift
+.package(url: "https://github.com/sparkle-project/Sparkle", from: "2.8.1")
+```
 
-| Criterion | NSVisualEffectView | SwiftUI .glassEffect() |
-|-----------|-------------------|----------------------|
-| Availability | macOS 10.10+ (well within 13+ target) | macOS 26.0+ only |
-| Backward compat | No conditional compilation needed | Requires `#available(macOS 26, *)` + fallback |
-| Known regressions | Stable, mature API | FB21375029: broken in floating/non-standard windows on 26.2+ |
-| Split animation | Glass bg is an NSView -- animate its frame directly | Glass is a SwiftUI modifier -- cannot animate independently of content |
-| Overlay window compat | `.withinWindow` blending documented for custom windows | Undocumented behavior in opaque borderless windows |
-
-**The split animation is the deciding factor.** The bar splits into two independent pieces that move to different positions. Each piece needs its own glass background. With NSVisualEffectView, each piece IS an NSView with frame-based positioning -- Core Animation can animate them independently. With SwiftUI `.glassEffect()`, the glass is tied to the SwiftUI view tree, and frame positioning must go through SwiftUI layout, which fights against explicit CAKeyframeAnimation.
-
-**Future enhancement:** When macOS 26 is the minimum deployment target (years away), consider migrating to `NSGlassEffectView` for true Liquid Glass refraction.
-
-### Decision 2: Hybrid SwiftUI + AppKit Architecture
-
-**Chosen:** AppKit NSViews for glass backgrounds and positioning; SwiftUI (NSHostingView) for content rendering inside the glass.
-
-**Rationale:**
-- Glass backgrounds = NSVisualEffectView (AppKit)
-- Keycaps, text, layout = SwiftUI (already built, declarative, appearance-reactive)
-- Position animations = Core Animation on NSView.layer (existing pattern)
-- State machine = Swift enum in HintBarView (AppKit NSView)
-
-This is the same hybrid pattern already used: `HintBarView` (NSView) hosts `NSHostingView<HintBarContent>` (SwiftUI). The new design adds NSVisualEffectView wrappers around the hosting views.
-
-### Decision 3: Frame-Based Split Animation -- not SwiftUI Animation
-
-**Chosen:** `NSAnimationContext` / `CATransaction` for split/merge animation with explicit frame positioning.
-
-**Why not SwiftUI animation:**
-- The split requires two NSVisualEffectViews moving to different positions simultaneously
-- SwiftUI `withAnimation` cannot drive NSView frame changes
-- The existing slide animation (bottom <-> top) uses CAKeyframeAnimation and must continue working
-- Mixing SwiftUI animation (for content) with Core Animation (for glass bg position) creates timing mismatches
-
-**Why NSAnimationContext for split, CAKeyframeAnimation for slide:**
-- Split is a standard ease-in/ease-out transition (fade + position) -- `NSAnimationContext` is simpler
-- Slide requires teleport behavior (exit bottom, enter top) which needs keyframe values -- `CAKeyframeAnimation` is necessary
-
-### Decision 4: NSVisualEffectView.Material -- .hudWindow
-
-**Chosen:** `.hudWindow` material
-
-**Why:**
-- Designed for heads-up display elements floating over arbitrary content
-- Provides a dark translucent frosted appearance that works on both light and dark screenshots
-- Automatically adapts to system appearance (dark/light mode)
-- Alternative `.popover` is too opaque; `.sidebar` has wrong semantic meaning
-
-### Decision 5: withinWindow Blending -- not behindWindow
-
-**Chosen:** `.withinWindow` blending mode
-
-**Why:**
-- The overlay window is opaque with a frozen screenshot as background
-- `.behindWindow` would sample the actual desktop (which may have changed), breaking the frozen-frame illusion
-- `.withinWindow` samples sibling views within the same window -- the screenshot bgView
-- The blur will show the screenshot content, which is the correct visual
-
-**Risk:** Needs prototype verification. If `.withinWindow` does not correctly sample the bgView's `layer.contents` (CGImage), the blur may show black. See PITFALLS.md for mitigation.
+**If skipping Sparkle:** Users must manually check GitHub releases. Acceptable for v1.0, defer to v1.1.
 
 ---
 
-## API Availability Summary
+## Native SDK (No New Dependencies)
 
-| API | Min macOS | Our Target | Conditional? | Purpose |
-|-----|-----------|------------|-------------|---------|
-| `NSVisualEffectView` | 10.10 | 13.0 | No | Glass background |
-| `.withinWindow` blending | 10.10 | 13.0 | No | Blur frozen screenshot |
-| `.hudWindow` material | 10.14 | 13.0 | No | HUD appearance |
-| `CALayer.cornerCurve` | 10.15 | 13.0 | No | Squircle corners |
-| `NSAnimationContext` | 10.3 | 13.0 | No | Split/merge animation |
-| `CAKeyframeAnimation` | 10.5 | 13.0 | No | Slide animation (existing) |
-| `viewDidChangeEffectiveAppearance()` | 10.14 | 13.0 | No | Appearance change callback |
-| `@Environment(\.colorScheme)` | 10.15 | 13.0 | No | SwiftUI dark/light |
-| `NSHostingView` | 10.15 | 13.0 | No | SwiftUI bridge |
-| Timer (Foundation) | 10.0 | 13.0 | No | Idle timer |
+All of these are available from system frameworks already linked. Zero new Package.swift entries required.
 
-**Everything is available unconditionally at macOS 13+. No `#available` guards needed.**
+### Menu Bar Icon — AppKit NSStatusItem
+
+```swift
+import AppKit
+
+let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+statusItem.button?.image = NSImage(systemSymbolName: "ruler", accessibilityDescription: "Design Ruler")
+statusItem.menu = buildMenu()
+```
+
+`NSStatusItem` + `NSStatusBarButton` verified in Swift REPL. Provides the icon, click target, and menu attachment. Use `NSMenu` (not `NSPopover`) for the dropdown — menus are native, keyboard-navigable, and do not require `NSApplication.activate()`. Confidence: HIGH.
+
+**Activation policy for a menu-bar-only app:** Set `LSUIElement = YES` in `Info.plist` (equivalent to `.prohibited` at launch — no dock icon, no Cmd+Tab entry). When showing the Settings window, switch to `.accessory` so the window can be brought forward; revert when the window closes. Tested: `setActivationPolicy(.accessory)` returns `true`.
 
 ---
 
-## Package.swift Changes
+### Launch at Login — ServiceManagement SMAppService
 
-### None Required
+```swift
+import ServiceManagement
 
-All APIs are from system frameworks already imported:
-- **AppKit** (`NSVisualEffectView`, `NSAnimationContext`, `NSAppearance`)
-- **SwiftUI** (`NSHostingView`, `@Environment`)
-- **QuartzCore** (`CAKeyframeAnimation`, `CATransaction`, `CALayer`)
-- **Foundation** (`Timer`)
+// Register
+try SMAppService.mainApp.register()
 
-Current `platforms: [.macOS(.v13)]` is correct. No dependency additions.
+// Unregister
+try SMAppService.mainApp.unregister()
+
+// Status check
+let status = SMAppService.mainApp.status
+// .notRegistered / .enabled / .requiresApproval / .notFound
+```
+
+`SMAppService.mainApp` registers the running app bundle itself as a login item — no helper app bundle needed (the old `SMLoginItemSetEnabled` pattern). Available macOS 13.0+, which matches our deployment target exactly. Verified in Swift REPL: `SMAppService available at macOS 13.0`, `SMAppService.mainApp: OK`. Confidence: HIGH.
+
+**User-facing:** If `status == .requiresApproval`, direct the user to System Settings → General → Login Items to approve. Show this in the Settings window when toggle is on but approval is pending.
+
+---
+
+### Settings Window — AppKit NSWindowController + SwiftUI content
+
+No library needed. Use `NSWindowController` containing a SwiftUI `NSHostingView`. This is the same hybrid pattern already used for `HintBarView`. A two-tab Settings window (General | About) with `NSToolbar` covers all needed settings:
+
+- General tab: hotkey recorders (`KeyboardShortcuts.Recorder`), Launch at Login toggle, Hide Hint Bar checkbox, Corrections picker
+- About tab: version, link to GitHub releases
+
+The native SwiftUI `Settings {}` scene (available macOS 13+) is designed for the `@main` SwiftUI App protocol, which this app does not use (it uses `NSApplicationDelegate`). Stick with `NSWindowController`.
+
+**sindresorhus/Settings library:** Adds toolbar-tab boilerplate reduction. Adds one more dependency. Not worth it for two tabs — build the `NSWindowController` directly (20-30 lines). Skip this library.
+
+---
+
+### Coexistence Detection — AppKit NSWorkspace
+
+```swift
+import AppKit
+
+func isRaycastRunning() -> Bool {
+    NSWorkspace.shared.runningApplications
+        .contains { $0.bundleIdentifier == "com.raycast.macos" }
+}
+
+// Subscribe to launch/quit notifications
+NSWorkspace.shared.notificationCenter.addObserver(
+    forName: NSWorkspace.didLaunchApplicationNotification,
+    object: nil, queue: .main
+) { _ in updateMenuBarState() }
+```
+
+Verified in Swift REPL: query returns Raycast instance when Raycast is running. `NSWorkspace.didLaunchApplicationNotification` and `didTerminateApplicationNotification` allow reactive updates.
+
+**Strategy:** If Raycast is running when the user triggers a hotkey, show a non-blocking warning in the menu bar dropdown ("Raycast extension also active — hotkeys may conflict"). Do not disable the standalone hotkey or unregister it. Carbon `RegisterEventHotKey` conflict behavior: the most-recently-registered app typically wins, but behavior is non-deterministic. Warning is the right UX; suppression is not.
+
+---
+
+### Settings Persistence — Foundation UserDefaults
+
+```swift
+UserDefaults.standard.set(true, forKey: "hideHintBar")
+UserDefaults.standard.set("smart", forKey: "corrections")
+```
+
+Verified in Swift REPL. `UserDefaults.standard` automatically scoped to the app's bundle ID. No `synchronize()` call needed (deprecated pattern — macOS persists automatically). Confidence: HIGH.
+
+---
+
+## Build Infrastructure (CI Tooling, Not App Dependencies)
+
+### Xcode Project
+
+**Required.** The current codebase is a Swift Package Manager `.executableTarget` built by Raycast's toolchain. A standalone `.app` bundle needs:
+- `Info.plist` (bundle ID, version, `LSUIElement = YES`, `NSHighResolutionCapable`)
+- Entitlements file (hardened runtime, no App Sandbox)
+- App icon (`AppIcon.icns`)
+- Proper code signing configuration
+
+SPM does not support entitlements natively on executable targets. The standalone target must be an Xcode project (`.xcodeproj`) alongside the existing SPM package.
+
+**Do NOT use XcodeGen** (2.44.1, 2025-07-22). It adds a YAML-to-project build step to CI with no meaningful payoff for a single-target app. A checked-in `.xcodeproj` is simpler and more transparent. The `.xcodeproj` references the same Swift source files from `swift/DesignRuler/Sources/` directly.
+
+### Source Sharing Strategy
+
+The `@raycast` entry-point functions in `Measure.swift` and `AlignmentGuides.swift` cannot be compiled into the standalone target (they depend on `RaycastSwiftMacros`). Use separate entry files:
+
+```
+swift/DesignRuler/Sources/Measure/Measure.swift        ← shared (coordinator logic)
+swift/DesignRuler/Sources/Measure/MeasureEntry.swift   ← Raycast target only (@raycast func inspect)
+StandaloneApp/AppDelegate.swift                        ← standalone only (calls Measure.shared.run)
+```
+
+No `#if canImport(RaycastSwiftMacros)` conditional compilation. Two separate files targeting two separate compilation units. Clean, no build-time surprises.
+
+### OverlayCoordinator Refactoring
+
+`OverlayCoordinator.run()` currently calls `app.run()` (which blocks, correct for a Raycast process that owns the run loop). `handleExit()` calls `NSApp.terminate(nil)` (kills the process, correct for Raycast).
+
+In the standalone app, the run loop is already running (the app is always alive). Two changes needed:
+
+```swift
+// Add to OverlayCoordinator:
+var isStandaloneMode = false
+var onCommandComplete: (() -> Void)?
+
+func run(hideHintBar: Bool) {
+    // ... existing startup sequence ...
+    if !isStandaloneMode {
+        app.run()  // blocks for Raycast only
+    }
+}
+
+func handleExit() {
+    CursorManager.shared.restore()
+    for window in windows { window.close() }
+    if isStandaloneMode {
+        onCommandComplete?()   // notify menu bar app
+    } else {
+        NSApp.terminate(nil)   // Raycast: kill process
+    }
+}
+```
+
+This is a two-line addition to `OverlayCoordinator` — not a rewrite. The Raycast path is unchanged.
+
+### DMG Packaging
+
+**create-dmg 1.2.3** (released 2025-11-18). A bash script (not a binary) that wraps `hdiutil` to produce a styled DMG with background image, icon positioning, and `/Applications` symlink. Install via `brew install create-dmg` in CI. Do not vendor it into the repository.
+
+```bash
+# CI packaging step
+create-dmg \
+  --volname "Design Ruler" \
+  --background "Assets/dmg-background.png" \
+  --window-pos 200 120 \
+  --window-size 660 400 \
+  --icon-size 128 \
+  --icon "DesignRuler.app" 180 170 \
+  --hide-extension "DesignRuler.app" \
+  --app-drop-link 480 170 \
+  "DesignRuler-{VERSION}.dmg" \
+  "build/Release/"
+```
+
+### Code Signing and Notarization
+
+```bash
+# Archive
+xcodebuild archive \
+  -project DesignRuler.xcodeproj \
+  -scheme DesignRuler \
+  -archivePath build/DesignRuler.xcarchive
+
+# Export signed .app
+xcodebuild -exportArchive \
+  -archivePath build/DesignRuler.xcarchive \
+  -exportOptionsPlist ExportOptions.plist \
+  -exportPath build/Release
+
+# Notarize
+xcrun notarytool submit DesignRuler.dmg \
+  --apple-id "$APPLE_ID" \
+  --team-id "$TEAM_ID" \
+  --password "$APP_SPECIFIC_PASSWORD" \
+  --wait
+
+# Staple
+xcrun stapler staple DesignRuler.dmg
+```
+
+`xcrun notarytool` version 1.1.0 confirmed available. No new tooling needed beyond standard Xcode CLI tools.
+
+**Entitlements file** (non-sandboxed, hardened runtime):
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" ...>
+<plist version="1.0"><dict>
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key><false/>
+  <key>com.apple.security.cs.disable-library-validation</key><false/>
+</dict></plist>
+```
+
+No special entitlements for `CGWindowListCreateImage` (screen recording is a TCC permission, not an entitlement). `SMAppService` works with hardened runtime and no sandbox.
 
 ---
 
@@ -134,29 +263,76 @@ Current `platforms: [.macOS(.v13)]` is correct. No dependency additions.
 
 | Category | Recommended | Alternative | Why Not |
 |----------|-------------|-------------|---------|
-| Glass material | NSVisualEffectView (.hudWindow) | SwiftUI .glassEffect() | macOS 26+ only; regression in floating windows; cannot animate frame independently |
-| Glass material | NSVisualEffectView (.hudWindow) | NSGlassEffectView | macOS 26+ only; deployment target would exclude macOS 13-25 users |
-| Glass material | NSVisualEffectView (.hudWindow) | CALayer CIGaussianBlur filter | High CPU; CIFilter(name:) can silently return nil (MEMORY.md) |
-| Glass material | NSVisualEffectView (.hudWindow) | Custom blur via CIImage | Requires manual rendering pipeline; not GPU-composited by WindowServer |
-| Blending mode | .withinWindow | .behindWindow | Samples desktop, not screenshot; breaks frozen-frame illusion |
-| Split animation | NSAnimationContext + frame | SwiftUI matchedGeometryEffect | Cannot control NSVisualEffectView positions; wrong abstraction level |
-| Split animation | NSAnimationContext + frame | GlassEffectContainer morphing | macOS 26+ only; spacing animation may not produce fluid morph |
-| Slide animation | CAKeyframeAnimation (keep existing) | NSAnimationContext | Teleport pattern (exit one side, enter other) requires keyframe values |
-| State machine | Swift enum in HintBarView | SwiftUI @State | State drives NSView frame animations; must be in AppKit layer |
-| Content rendering | SwiftUI via NSHostingView | Pure AppKit (NSBezierPath) | SwiftUI already built, declarative, appearance-reactive; rewriting wastes time |
-| Idle timer | Foundation Timer | DispatchSourceTimer | Timer is simpler for single-threaded main queue use; no dealloc crash risk |
+| Global hotkeys | KeyboardShortcuts 2.4.0 | Raw Carbon `RegisterEventHotKey` | Raw Carbon works but requires manual persistence, conflict handling, and a custom recorder UI — all of which KeyboardShortcuts provides for free |
+| Global hotkeys | KeyboardShortcuts 2.4.0 | `NSEvent.addGlobalMonitorForEvents` | Requires Accessibility permission granted by user — an extra permission prompt that CGWindowListCreateImage does not require |
+| Settings window | NSWindowController + SwiftUI | sindresorhus/Settings | Adds a dependency for boilerplate reduction; two tabs do not justify it |
+| Settings window | NSWindowController + SwiftUI | SwiftUI Settings scene | Designed for `@main` SwiftUI App; this app uses NSApplicationDelegate; mixing paradigms adds complexity |
+| Launch at login | SMAppService | LaunchAgent plist | LaunchAgent requires writing to `/Library/LaunchAgents` (needs privilege escalation) or `~/Library/LaunchAgents` (manual management). SMAppService handles everything through the OS safely |
+| Launch at login | SMAppService | SMLoginItemSetEnabled + helper bundle | Deprecated in macOS 13; helper bundle adds build complexity |
+| Auto-update | Sparkle 2.8.1 | None (manual check GitHub) | Acceptable for v1.0 release; users expect update prompts for paid/free tools |
+| Auto-update | Sparkle 2.8.1 | Custom update checker | Sparkle handles delta updates, EdDSA signing, background download, progress UI — reimplementing all of this is wasteful |
+| Project structure | Xcode .xcodeproj | XcodeGen YAML | One extra CI step with no meaningful benefit for a single-target project |
+| DMG | create-dmg | hdiutil directly | hdiutil requires 15+ manual steps for a polished DMG; create-dmg encapsulates them |
+
+---
+
+## What NOT to Add
+
+| Avoid | Why | Instead |
+|-------|-----|---------|
+| App Sandbox | Adds entitlement complexity for no distribution benefit (not App Store). CGWindowListCreateImage works without sandbox; adding sandbox would break it or require additional entitlements | Do not sandbox. Use hardened runtime only. |
+| Accessibility permission request | `NSEvent.addGlobalMonitorForEvents` for hotkeys requires Accessibility. KeyboardShortcuts uses Carbon, which does not. | Use KeyboardShortcuts — zero extra permission prompts |
+| LoginItemHelper target | Old pattern (pre-macOS 13). Helper bundle adds a second build target, extra code signing, and notarization surface. | Use `SMAppService.mainApp` |
+| NSPopover for menu | Popovers need app activation; menus do not. Menu bar apps using NSPopover require `NSApp.activate(ignoringOtherApps:)` which causes dock-bounce and disrupts the active app. | Use `NSMenu` attached to `statusItem.menu` |
+| Dock icon | `LSUIElement = NO` would show the app in the dock and Cmd+Tab. This is wrong UX for a tool that lives in the menu bar and should be invisible until invoked. | `LSUIElement = YES` in `Info.plist`, activate only when showing Settings |
+
+---
+
+## API Availability Summary
+
+| API | Min macOS | Our Target | Conditional? | Purpose |
+|-----|-----------|------------|-------------|---------|
+| `NSStatusItem` / `NSStatusBar` | 10.0 | 13.0 | No | Menu bar icon |
+| `NSStatusBarButton` | 10.10 | 13.0 | No | Icon button with action |
+| `RegisterEventHotKey` (Carbon) | 10.0 | 13.0 | No | System-wide hotkey registration |
+| `SMAppService.mainApp` | 13.0 | 13.0 | No | Launch at login (no helper) |
+| `NSWorkspace.runningApplications` | 10.0 | 13.0 | No | Coexistence detection |
+| `NSWorkspace.didLaunchApplicationNotification` | 10.0 | 13.0 | No | Reactive coexistence updates |
+| `UserDefaults.standard` | 10.0 | 13.0 | No | Settings persistence |
+| `NSWindowController` | 10.0 | 13.0 | No | Settings window shell |
+| `NSHostingView` | 10.15 | 13.0 | No | SwiftUI content in settings |
+| `setActivationPolicy(_:)` | 10.6 | 13.0 | No | Hide/show dock icon |
+
+**Everything available unconditionally at macOS 13+. No `#available` guards needed for any new capability.**
+
+---
+
+## Package.swift Changes (New Standalone Target)
+
+The existing `Package.swift` for the Raycast target stays unchanged. The standalone app uses an Xcode project (`.xcodeproj`) with Swift Package dependencies:
+
+```swift
+// StandaloneApp dependencies in Xcode project:
+// - KeyboardShortcuts (required)
+// - Sparkle (optional, can add later)
+// NO RaycastSwiftMacros (standalone does not use @raycast)
+```
 
 ---
 
 ## Sources
 
-- [NSVisualEffectView -- Apple Developer Documentation](https://developer.apple.com/documentation/appkit/nsvisualeffectview) -- HIGH confidence
-- [NSVisualEffectView.BlendingMode.withinWindow](https://developer.apple.com/documentation/appkit/nsvisualeffectview/blendingmode-swift.enum/withinwindow) -- HIGH confidence
-- [NSVisualEffectView.Material.hudWindow](https://developer.apple.com/documentation/appkit/nsvisualeffectview/material/hudwindow) -- HIGH confidence
-- [NSGlassEffectView -- Apple Developer Documentation](https://developer.apple.com/documentation/appkit/nsglasseffectview) -- macOS 26+
-- [Build an AppKit app with the new design -- WWDC25 Session 310](https://developer.apple.com/videos/play/wwdc2025/310/)
-- [Reverse Engineering NSVisualEffectView](https://oskargroth.com/blog/reverse-engineering-nsvisualeffectview) -- CABackdropLayer internals
-- [WindowServer on macOS](https://andreafortuna.org/2025/10/05/macos-windowserver) -- compositor performance
-- [NSWindow Styles showcase](https://github.com/lukakerr/NSWindowStyles) -- borderless + visual effect configurations
-- [CABackdropLayer & CAPluginLayer](https://medium.com/@avaidyam/capluginlayer-cabackdroplayer-f56e85d9dc2c) -- blur sampling behavior
-- Codebase: HintBarView.swift, HintBarContent.swift, RulerWindow.swift, CrosshairView.swift
+- `RegisterEventHotKey` — verified in Swift REPL, Carbon framework, macOS 10.0+ — HIGH confidence
+- `NSStatusItem` / `NSStatusBarButton` — verified in Swift REPL, AppKit — HIGH confidence
+- `SMAppService.mainApp` — verified in Swift REPL, ServiceManagement, macOS 13.0+ — HIGH confidence
+- `NSWorkspace.runningApplications` — verified in Swift REPL, AppKit — HIGH confidence
+- `KeyboardShortcuts` 2.4.0 — [github.com/sindresorhus/KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts) releases/latest, Package.swift inspected via GitHub API — HIGH confidence
+- `Sparkle` 2.8.1 — [github.com/sparkle-project/Sparkle](https://github.com/sparkle-project/Sparkle) releases inspected via GitHub API, Installation.md and Security.md read — HIGH confidence
+- `create-dmg` 1.2.3 — [github.com/create-dmg/create-dmg](https://github.com/create-dmg/create-dmg) releases/latest, `brew info create-dmg` — HIGH confidence
+- `xcrun notarytool` 1.1.0 — confirmed via `xcrun notarytool --version` on local system — HIGH confidence
+- LinearMouse CI workflow — [github.com/linearmouse/linearmouse](https://github.com/linearmouse/linearmouse) `.github/workflows/build.yml` inspected — MEDIUM confidence (real-world validation of xcodebuild + create-dmg + notarytool pipeline)
+- OverlayCoordinator integration analysis — codebase inspection of `OverlayCoordinator.swift` lines 109, 167 — HIGH confidence
+
+---
+*Stack research for: standalone macOS menu bar app addition to Design Ruler*
+*Researched: 2026-02-17*

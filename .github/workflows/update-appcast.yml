@@ -1,0 +1,67 @@
+name: Update Appcast
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  generate-appcast:
+    name: Generate & Upload Appcast
+    runs-on: macos-15
+
+    env:
+      SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract release info
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          BUILD_NUMBER=$(git rev-list --count HEAD)
+          DMG_NAME="Design-Ruler-$VERSION.dmg"
+          DOWNLOAD_URL="https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/$DMG_NAME"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "BUILD_NUMBER=$BUILD_NUMBER" >> $GITHUB_ENV
+          echo "DMG_NAME=$DMG_NAME" >> $GITHUB_ENV
+          echo "DOWNLOAD_URL=$DOWNLOAD_URL" >> $GITHUB_ENV
+
+      - name: Download DMG from release
+        run: |
+          gh release download "$GITHUB_REF_NAME" \
+            --pattern "*.dmg" \
+            --dir "$RUNNER_TEMP"
+
+      - name: Download Sparkle tools
+        run: |
+          curl -sL "https://github.com/sparkle-project/Sparkle/releases/download/2.8.1/Sparkle-2.8.1.tar.xz" \
+            -o /tmp/Sparkle.tar.xz
+          mkdir -p /tmp/sparkle-tools
+          tar xf /tmp/Sparkle.tar.xz -C /tmp/sparkle-tools
+
+      - name: Generate EdDSA signature
+        run: |
+          SIGN_OUTPUT=$(echo "$SPARKLE_PRIVATE_KEY" | /tmp/sparkle-tools/bin/sign_update --ed-key-file - "$RUNNER_TEMP/$DMG_NAME")
+          ED_SIGNATURE=$(echo "$SIGN_OUTPUT" | sed -n 's/.*sparkle:edSignature="\([^"]*\)".*/\1/p')
+          FILE_LENGTH=$(echo "$SIGN_OUTPUT" | sed -n 's/.*length="\([^"]*\)".*/\1/p')
+          echo "ED_SIGNATURE=$ED_SIGNATURE" >> $GITHUB_ENV
+          echo "FILE_LENGTH=$FILE_LENGTH" >> $GITHUB_ENV
+
+      - name: Generate appcast.xml
+        run: |
+          export VERSION BUILD_NUMBER ED_SIGNATURE FILE_LENGTH DOWNLOAD_URL
+          export REPO_URL="https://github.com/$GITHUB_REPOSITORY"
+          chmod +x scripts/generate-appcast.sh
+          scripts/generate-appcast.sh "$RUNNER_TEMP/appcast.xml"
+
+      - name: Upload appcast.xml to release
+        run: |
+          gh release upload "$GITHUB_REF_NAME" \
+            "$RUNNER_TEMP/appcast.xml" \
+            --clobber
