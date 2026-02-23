@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		020CAD954DD2E772CFB76B20 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8E2A2FC6A019669DE4932532 /* Assets.xcassets */; };
 		0817E139A5A2DB98BDB9E54B /* DesignRulerCore in Frameworks */ = {isa = PBXBuildFile; productRef = CF72AB3F4C4512428DC84D7C /* DesignRulerCore */; };
 		0CE41A90E9AAA51468BE08E5 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF668E1EE53EFBB40921CA92 /* AppDelegate.swift */; };
 		2167655925FD6A042128F581 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8083D7E1A97B454FC557B93 /* SettingsView.swift */; };
@@ -25,6 +26,7 @@
 		10ED6B9220FB431DB96C5A4A /* DesignRuler.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DesignRuler.entitlements; sourceTree = "<group>"; };
 		352435AF79AA05A40B976755 /* AppPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppPreferences.swift; sourceTree = "<group>"; };
 		4DCB7EBB6B2A29A63383C2A5 /* Design Ruler.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Design Ruler.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		8E2A2FC6A019669DE4932532 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		AF668E1EE53EFBB40921CA92 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		B137A9B4A6F51A0A83C8F073 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		B8083D7E1A97B454FC557B93 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -71,6 +73,7 @@
 			children = (
 				AF668E1EE53EFBB40921CA92 /* AppDelegate.swift */,
 				352435AF79AA05A40B976755 /* AppPreferences.swift */,
+				8E2A2FC6A019669DE4932532 /* Assets.xcassets */,
 				10ED6B9220FB431DB96C5A4A /* DesignRuler.entitlements */,
 				0BC7DBCD53F37054366E0C88 /* HotkeyController.swift */,
 				DD314E724D02BF2C617BAC2A /* HotkeyNames.swift */,
@@ -99,6 +102,7 @@
 			buildConfigurationList = 56C27278BCDA1203E3DC3452 /* Build configuration list for PBXNativeTarget "Design Ruler" */;
 			buildPhases = (
 				A682E2A40E8DB529D122EB58 /* Sources */,
+				3B0D7791988A306DD8355240 /* Resources */,
 				2645785510ACC042BC93DECF /* Frameworks */,
 			);
 			buildRules = (
@@ -147,6 +151,17 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		3B0D7791988A306DD8355240 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				020CAD954DD2E772CFB76B20 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		A682E2A40E8DB529D122EB58 /* Sources */ = {

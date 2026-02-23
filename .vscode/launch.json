@@ -19,6 +19,26 @@
             "target": "Ruler",
             "configuration": "release",
             "preLaunchTask": "swift: Build Release Ruler (swift/Ruler)"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:design-ruler}/swift/DesignRuler",
+            "name": "Debug DesignRuler (swift/DesignRuler)",
+            "target": "DesignRuler",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug DesignRuler (swift/DesignRuler)"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:design-ruler}/swift/DesignRuler",
+            "name": "Release DesignRuler (swift/DesignRuler)",
+            "target": "DesignRuler",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release DesignRuler (swift/DesignRuler)"
         }
     ]
 }

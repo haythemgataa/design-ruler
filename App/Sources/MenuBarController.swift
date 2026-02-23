@@ -17,7 +17,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     var onCheckForUpdates: (() -> Void)?
 
     override init() {
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
         setupButton()
         setupMenu()
@@ -25,7 +25,8 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     private func setupButton() {
         guard let button = statusItem.button else { return }
-        let image = NSImage(systemSymbolName: "ruler", accessibilityDescription: "Design Ruler")
+        let image = NSImage(named: "MenuBarIcon")
+        image?.size = NSSize(width: 22, height: 22)
         image?.isTemplate = true
         button.image = image
         button.toolTip = "Design Ruler"
@@ -36,8 +37,8 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     func setActive(_ active: Bool) {
         DispatchQueue.main.async { [weak self] in
             guard let button = self?.statusItem.button else { return }
-            let symbolName = active ? "ruler.fill" : "ruler"
-            let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: "Design Ruler")
+            let image = NSImage(named: "MenuBarIcon")
+            image?.size = NSSize(width: 22, height: 22)
             image?.isTemplate = true
             button.image = image
         }
@@ -59,6 +60,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         )
         measureItem.target = self
         measureItem.keyEquivalentModifierMask = mMods
+        measureItem.image = NSImage(systemSymbolName: "guidepoint.vertical.numbers", accessibilityDescription: nil)
 
         guidesItem = menu.addItem(
             withTitle: "Alignment Guides",
@@ -67,6 +69,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         )
         guidesItem.target = self
         guidesItem.keyEquivalentModifierMask = gMods
+        guidesItem.image = NSImage(systemSymbolName: "arrowtriangle.left.and.line.vertical.and.arrowtriangle.right.fill", accessibilityDescription: nil)
 
         menu.addItem(NSMenuItem.separator())
 
@@ -76,6 +79,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             keyEquivalent: ","
         )
         settingsItem.target = self
+        settingsItem.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: nil)
 
         let updateItem = menu.addItem(
             withTitle: "Check for Updates\u{2026}",
@@ -83,6 +87,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             keyEquivalent: "r"
         )
         updateItem.target = self
+        updateItem.image = NSImage(systemSymbolName: "arrow.triangle.2.circlepath", accessibilityDescription: nil)
 
         menu.addItem(NSMenuItem.separator())
 
@@ -92,6 +97,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             keyEquivalent: "q"
         )
         quitItem.target = self
+        quitItem.image = NSImage(systemSymbolName: "power", accessibilityDescription: nil)
 
         statusItem.menu = menu
     }
