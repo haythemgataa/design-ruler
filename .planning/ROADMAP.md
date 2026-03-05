@@ -85,7 +85,10 @@
   3. User moves the mouse while zoomed and the view pans to keep the cursor visible (no clipping at edges)
   4. Each monitor maintains its own independent zoom level when using multiple screens
   5. Zoom resets to 1x when the user presses ESC to exit the session
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 24-01-PLAN.md -- ZoomState model, coordinate mapping, design tokens
+- [ ] 24-02-PLAN.md -- OverlayWindow zoom integration, coordinator reset
 
 ### Phase 25: Measure Zoom Integration
 **Goal**: Edge detection, crosshair rendering, dimension readout, arrow key skipping, and drag-to-select all produce correct results at any zoom level
@@ -150,7 +153,7 @@ Phases execute in numeric order: 24 -> 25 -> 26 -> 27
 | 21. Settings & Prefs | v2.0 | 3/3 | Complete | 2026-02-19 |
 | 22. Global Hotkeys | v2.0 | 3/3 | Complete | 2026-02-19 |
 | 23. Distribution | v2.0 | 3/3 | Complete | 2026-02-20 |
-| 24. Zoom Transform | v2.1 | 0/? | Not started | - |
+| 24. Zoom Transform | v2.1 | 0/2 | Not started | - |
 | 25. Measure Zoom | v2.1 | 0/? | Not started | - |
 | 26. Guides Zoom | v2.1 | 0/? | Not started | - |
 | 27. Zoom UX Polish | v2.1 | 0/? | Not started | - |
