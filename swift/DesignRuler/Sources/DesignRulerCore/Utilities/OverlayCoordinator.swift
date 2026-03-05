@@ -193,8 +193,9 @@ open class OverlayCoordinator {
         resetInactivityTimer()
         guard window !== activeWindow else { return }
 
-        // Deactivate old window
+        // Deactivate old window and reset its zoom to 1x
         (activeWindow as? OverlayWindowProtocol)?.deactivate()
+        (activeWindow as? OverlayWindow)?.resetZoom()
 
         // Activate new window
         activeWindow = window
@@ -218,6 +219,10 @@ open class OverlayCoordinator {
         inactivityTimer = nil
         sigTermSource?.cancel()
         sigTermSource = nil
+        // Reset zoom on all windows before closing (SHUX-03)
+        for window in windows {
+            (window as? OverlayWindow)?.resetZoom()
+        }
         for window in windows {
             window.orderOut(nil)                    // instant visual removal
         }
