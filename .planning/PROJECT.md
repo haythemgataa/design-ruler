@@ -73,7 +73,16 @@ Instant, accurate pixel inspection of anything on screen — zero friction from 
 
 ### Active
 
-(No active requirements — planning next milestone)
+**Current Milestone: v2.1 Zoom**
+
+**Goal:** Add full-screen zoom to both Measure and Alignment Guides, cycling through 2x → 4x → 1x on Z key press, with fully functional crosshair and edge detection at every zoom level.
+
+**Target features:**
+- Full-screen zoom centered on cursor (Z key)
+- Progressive zoom levels: 2x → 4x → 1x cycle
+- Fully functional edge detection and crosshair while zoomed
+- Alignment Guides zoom with working preview/placement/hover-remove
+- Zoom level indicator in hint bar or overlay
 
 ### Out of Scope
 
@@ -152,4 +161,4 @@ Instant, accurate pixel inspection of anything on screen — zero friction from 
 | LSUIElement = YES | Menu bar agent — no Dock icon, no Cmd+Tab entry | ✓ Good |
 
 ---
-*Last updated: 2026-02-20 after v2.0 milestone completion*
+*Last updated: 2026-03-05 after v2.1 milestone start*

@@ -2,18 +2,17 @@
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-02-20)
+See: .planning/PROJECT.md (updated 2026-03-05)
 
 **Core value:** Instant, accurate pixel inspection of anything on screen — zero friction from invoke to dimension readout, whether launched from Raycast or a global hotkey.
-**Current focus:** Planning next milestone
+**Current focus:** v2.1 Zoom
 
 ## Current Position
 
-Phase: All 23 phases complete (5 milestones shipped)
-Status: v2.0 Standalone App milestone archived
-Last activity: 2026-02-20 — Completed v2.0 milestone archival
-
-Progress: [##########] 100% (v2.0 shipped)
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-03-05 — Milestone v2.1 started
 
 ## Performance Metrics
 
@@ -53,6 +52,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-20
-Stopped at: v2.0 milestone archived
-Resume: Start next milestone with /gsd:new-milestone
+Last session: 2026-03-05
+Stopped at: Defining v2.1 requirements
+Resume: Continue milestone setup
