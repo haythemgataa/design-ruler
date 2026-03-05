@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-03-05)
 ## Current Position
 
 Phase: 24 of 27 (Zoom Transform Infrastructure)
-Plan: 0 of ? in current phase
-Status: Ready to plan
-Last activity: 2026-03-05 — Roadmap created for v2.1 Zoom
+Plan: 1 of 2 in current phase
+Status: Executing
+Last activity: 2026-03-05 — Completed 24-01 (ZoomState model + coordinate mapping)
 
-Progress: [░░░░░░░░░░] 0% (v2.1)
+Progress: [██░░░░░░░░] 12% (v2.1)
 
 ## Performance Metrics
 
@@ -39,6 +39,10 @@ Progress: [░░░░░░░░░░] 0% (v2.1)
 
 All decisions logged in PROJECT.md Key Decisions table.
 
+- [24-01] ZoomState is a value type struct for per-window independent zoom (SHUX-02)
+- [24-01] Coordinate mapping via package-level free functions for cleaner call sites
+- [24-01] Pan offset in capture-space, translate applied in scaled-space via CATransform3DTranslate
+
 ### Pending Todos
 
 None.
@@ -50,5 +54,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-05
-Stopped at: Roadmap created for v2.1 Zoom milestone (4 phases, 17 requirements mapped)
-Resume: Plan Phase 24 (Zoom Transform Infrastructure)
+Stopped at: Completed 24-01-PLAN.md (ZoomState model + coordinate mapping + design tokens)
+Resume: Execute 24-02-PLAN.md (OverlayWindow zoom integration)

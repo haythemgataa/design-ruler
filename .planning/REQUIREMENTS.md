@@ -9,10 +9,10 @@ Requirements for zoom feature. Each maps to roadmap phases.
 
 ### Zoom Core
 
-- [ ] **ZOOM-01**: User can press Z to zoom the overlay to 2x centered on cursor
-- [ ] **ZOOM-02**: User can press Z again to cycle to 4x, then back to 1x
+- [x] **ZOOM-01**: User can press Z to zoom the overlay to 2x centered on cursor
+- [x] **ZOOM-02**: User can press Z again to cycle to 4x, then back to 1x
 - [ ] **ZOOM-03**: Zoom transitions are animated (smooth scale, not instant jump)
-- [ ] **ZOOM-04**: View pans to follow cursor movement while zoomed
+- [x] **ZOOM-04**: View pans to follow cursor movement while zoomed
 - [ ] **ZOOM-05**: Zoom level indicator visible on screen (shows "2x" or "4x")
 
 ### Measure Integration
@@ -33,7 +33,7 @@ Requirements for zoom feature. Each maps to roadmap phases.
 ### Shared UX
 
 - [ ] **SHUX-01**: Hint bar shows Z key shortcut for zoom
-- [ ] **SHUX-02**: Zoom state is per-window (multi-monitor independent)
+- [x] **SHUX-02**: Zoom state is per-window (multi-monitor independent)
 - [ ] **SHUX-03**: Zoom resets to 1x on session exit
 
 ## Future Requirements
@@ -60,10 +60,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ZOOM-01 | Phase 24 | Pending |
-| ZOOM-02 | Phase 24 | Pending |
+| ZOOM-01 | Phase 24 | Complete (24-01) |
+| ZOOM-02 | Phase 24 | Complete (24-01) |
 | ZOOM-03 | Phase 24 | Pending |
-| ZOOM-04 | Phase 24 | Pending |
+| ZOOM-04 | Phase 24 | Complete (24-01) |
 | ZOOM-05 | Phase 27 | Pending |
 | MEAS-01 | Phase 25 | Pending |
 | MEAS-02 | Phase 25 | Pending |
@@ -75,7 +75,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | GUID-03 | Phase 26 | Pending |
 | GUID-04 | Phase 26 | Pending |
 | SHUX-01 | Phase 27 | Pending |
-| SHUX-02 | Phase 24 | Pending |
+| SHUX-02 | Phase 24 | Complete (24-01) |
 | SHUX-03 | Phase 24 | Pending |
 
 **Coverage:**
