@@ -60,29 +60,29 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ZOOM-01 | — | Pending |
-| ZOOM-02 | — | Pending |
-| ZOOM-03 | — | Pending |
-| ZOOM-04 | — | Pending |
-| ZOOM-05 | — | Pending |
-| MEAS-01 | — | Pending |
-| MEAS-02 | — | Pending |
-| MEAS-03 | — | Pending |
-| MEAS-04 | — | Pending |
-| MEAS-05 | — | Pending |
-| GUID-01 | — | Pending |
-| GUID-02 | — | Pending |
-| GUID-03 | — | Pending |
-| GUID-04 | — | Pending |
-| SHUX-01 | — | Pending |
-| SHUX-02 | — | Pending |
-| SHUX-03 | — | Pending |
+| ZOOM-01 | Phase 24 | Pending |
+| ZOOM-02 | Phase 24 | Pending |
+| ZOOM-03 | Phase 24 | Pending |
+| ZOOM-04 | Phase 24 | Pending |
+| ZOOM-05 | Phase 27 | Pending |
+| MEAS-01 | Phase 25 | Pending |
+| MEAS-02 | Phase 25 | Pending |
+| MEAS-03 | Phase 25 | Pending |
+| MEAS-04 | Phase 25 | Pending |
+| MEAS-05 | Phase 25 | Pending |
+| GUID-01 | Phase 26 | Pending |
+| GUID-02 | Phase 26 | Pending |
+| GUID-03 | Phase 26 | Pending |
+| GUID-04 | Phase 26 | Pending |
+| SHUX-01 | Phase 27 | Pending |
+| SHUX-02 | Phase 24 | Pending |
+| SHUX-03 | Phase 24 | Pending |
 
 **Coverage:**
 - v2.1 requirements: 17 total
-- Mapped to phases: 0
-- Unmapped: 17 ⚠️
+- Mapped to phases: 17
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-05*
-*Last updated: 2026-03-05 after initial definition*
+*Last updated: 2026-03-05 after roadmap creation*
