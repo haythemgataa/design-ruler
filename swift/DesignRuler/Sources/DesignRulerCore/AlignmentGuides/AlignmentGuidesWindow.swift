@@ -37,14 +37,15 @@ package final class AlignmentGuidesWindow: OverlayWindow {
         let size = screenFrame.size
         let containerView = NSView(frame: NSRect(origin: .zero, size: size))
 
-        // Background image view
-        if let img = screenshot {
-            let bgView = NSView(frame: NSRect(origin: .zero, size: size))
-            bgView.wantsLayer = true
-            bgView.layer?.contents = img
-            bgView.layer?.contentsGravity = .resize
-            containerView.addSubview(bgView)
-        }
+        // Background view hosts the content layer (receives zoom transform).
+        // UI elements (guidelineView, hint bar) stay in containerView above bgView
+        // so they remain at normal screen-space size when zoomed.
+        setupContentLayer(screenshot: screenshot, screenSize: size)
+        let bgView = NSView(frame: NSRect(origin: .zero, size: size))
+        bgView.wantsLayer = true
+        bgView.layer!.addSublayer(contentLayer!)
+        contentLayer?.contentsScale = backingScaleFactor
+        containerView.addSubview(bgView)
 
         // Guideline view (transparent, no hit testing needed)
         let guidelineView = NSView(frame: NSRect(origin: .zero, size: size))

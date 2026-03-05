@@ -5,9 +5,11 @@ import QuartzCore
 ///
 /// Provides: shared NSWindow configuration (10 properties), tracking area setup,
 /// hint bar creation/positioning/collapse, throttled mouse move with first-move detection,
-/// ESC key handling, and mouseEntered delegation. Subclasses override hook methods
-/// (handleMouseMoved, handleKeyDown, handleActivation, showInitialState, deactivate)
-/// for command-specific behavior.
+/// ESC key handling, mouseEntered delegation, and zoom infrastructure (content layer,
+/// Z key toggle, pan tracking, zoom reset).
+///
+/// Subclasses override hook methods (handleMouseMoved, handleKeyDown, handleActivation,
+/// showInitialState, deactivate) for command-specific behavior.
 package class OverlayWindow: NSWindow, OverlayWindowProtocol {
     package private(set) var targetScreen: NSScreen!
     package var hintBarView: HintBarView!
@@ -15,6 +17,11 @@ package class OverlayWindow: NSWindow, OverlayWindowProtocol {
     private var lastMoveTime: Double = 0
     package private(set) var hasReceivedFirstMove = false
     package private(set) var lastCursorPosition: NSPoint = .zero
+
+    // Zoom infrastructure (per-window, satisfies SHUX-02)
+    package var zoomState = ZoomState()
+    package var contentLayer: CALayer?
+    private var isAnimatingZoom = false
 
     // Callbacks for multi-monitor coordination
     package var onRequestExit: (() -> Void)?
@@ -96,6 +103,87 @@ package class OverlayWindow: NSWindow, OverlayWindowProtocol {
         container.addSubview(bgView, positioned: .below, relativeTo: referenceView)
     }
 
+    // MARK: - Zoom Content Layer
+
+    /// Create the content layer that holds the screenshot and receives zoom transforms.
+    /// Subclasses call this during setupViews, then add contentLayer as a sublayer of their
+    /// background view. UI elements (crosshair, pills, hint bar, guide lines) stay outside
+    /// the content layer so they remain at normal screen-space size.
+    package func setupContentLayer(screenshot: CGImage?, screenSize: CGSize) {
+        let layer = CALayer()
+        layer.frame = NSRect(origin: .zero, size: screenSize)
+        layer.contentsGravity = .resize
+        layer.magnificationFilter = .nearest  // Crisp pixels at 2x/4x
+        layer.minificationFilter = .nearest
+        if let img = screenshot {
+            layer.contents = img
+        }
+        self.contentLayer = layer
+    }
+
+    // MARK: - Zoom
+
+    /// Toggle zoom level: 1x -> 2x -> 4x -> 1x. Called on Z key press.
+    /// Animates the transform change with 0.25s easeOut (ZOOM-01, ZOOM-02, ZOOM-03).
+    package func handleZoomToggle() {
+        let newLevel = zoomState.level.next()
+        let cursorPoint = lastCursorPosition
+        let screenSize = screenBounds.size
+
+        // Calculate pan offset that keeps cursor fixed on screen
+        let newPanOffset = panOffsetForZoom(
+            cursorWindowPoint: cursorPoint,
+            currentZoom: zoomState,
+            newLevel: newLevel,
+            screenSize: screenSize
+        )
+        let clampedPan = clampPanOffset(newPanOffset, zoomLevel: newLevel, screenSize: screenSize)
+
+        zoomState.level = newLevel
+        zoomState.panOffset = clampedPan
+
+        // Animate the transform change (0.25s easeOut per locked decision)
+        guard let cl = contentLayer else { return }
+        isAnimatingZoom = true
+        CATransaction.animated(duration: DesignTokens.Animation.zoom) {
+            cl.transform = zoomState.contentTransform
+        }
+        // Clear animation flag after duration
+        DispatchQueue.main.asyncAfter(deadline: .now() + DesignTokens.Animation.zoom) { [weak self] in
+            self?.isAnimatingZoom = false
+        }
+    }
+
+    /// Update pan offset so the cursor tracks 1:1 while zoomed (ZOOM-04).
+    /// Called on mouse move after handleMouseMoved. Suppressed during zoom animation.
+    package func updateZoomPan(for windowPoint: NSPoint) {
+        guard zoomState.isZoomed, !isAnimatingZoom else { return }
+        // 1:1 cursor tracking: the cursor at windowPoint should map to the same
+        // capture-space point as it would at 1x (i.e., windowPoint itself).
+        let capturePoint = windowPoint  // At 1x, window coords = capture coords
+        let s = zoomState.level.rawValue
+        let newPanX = (windowPoint.x / s) - capturePoint.x
+        let newPanY = (windowPoint.y / s) - capturePoint.y
+        zoomState.panOffset = clampPanOffset(
+            CGPoint(x: newPanX, y: newPanY),
+            zoomLevel: zoomState.level,
+            screenSize: screenBounds.size
+        )
+        CATransaction.instant {
+            contentLayer?.transform = zoomState.contentTransform
+        }
+    }
+
+    /// Reset zoom to 1x immediately. Called on ESC exit and monitor transitions.
+    package func resetZoom() {
+        guard zoomState.isZoomed else { return }
+        zoomState.reset()
+        CATransaction.instant {
+            contentLayer?.transform = CATransform3DIdentity
+        }
+        isAnimatingZoom = false
+    }
+
     // MARK: - Window Properties
 
     override package var canBecomeKey: Bool { true }
@@ -122,6 +210,7 @@ package class OverlayWindow: NSWindow, OverlayWindowProtocol {
         lastCursorPosition = windowPoint
 
         handleMouseMoved(to: windowPoint)
+        updateZoomPan(for: windowPoint)
 
         if hintBarView.superview != nil {
             hintBarView.updatePosition(cursorY: windowPoint.y, screenHeight: screenBounds.height)
@@ -133,6 +222,10 @@ package class OverlayWindow: NSWindow, OverlayWindowProtocol {
         if Int(event.keyCode) == 53 { // ESC
             if hintBarView.superview != nil { hintBarView.pressKey(.esc) }
             onRequestExit?()
+            return
+        }
+        if Int(event.keyCode) == 6 { // Z key — zoom toggle (shared infrastructure)
+            handleZoomToggle()
             return
         }
         handleKeyDown(with: event)

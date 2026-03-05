@@ -34,6 +34,16 @@ package final class MeasureWindow: OverlayWindow {
         let size = screenFrame.size
         let containerView = NSView(frame: NSRect(origin: .zero, size: size))
 
+        // Background view hosts the content layer (receives zoom transform).
+        // UI elements (crosshairView, selection layers, hint bar) stay in containerView
+        // above bgView so they remain at normal screen-space size when zoomed.
+        setupContentLayer(screenshot: screenshot, screenSize: size)
+        let bgView = NSView(frame: NSRect(origin: .zero, size: size))
+        bgView.wantsLayer = true
+        bgView.layer!.addSublayer(contentLayer!)
+        contentLayer?.contentsScale = backingScaleFactor
+        containerView.addSubview(bgView)
+
         let cv = CrosshairView(frame: NSRect(origin: .zero, size: size))
         cv.screenFrame = screenFrame
         self.crosshairView = cv
@@ -52,9 +62,9 @@ package final class MeasureWindow: OverlayWindow {
         setupHintBar(mode: .inspect, screenSize: size, screenshot: screenshot, hideHintBar: hideHintBar, container: containerView)
     }
 
-    /// Set frozen screenshot as background below the crosshair view.
+    /// Set frozen screenshot as content layer contents (called by coordinator after capture).
     package func setBackground(_ cgImage: CGImage) {
-        setBackground(cgImage, below: crosshairView)
+        contentLayer?.contents = cgImage
     }
 
     package var hasSelections: Bool { selectionManager.hasSelections }
