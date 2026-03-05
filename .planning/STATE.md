@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-03-05)
 
 ## Current Position
 
-Phase: 24 of 27 (Zoom Transform Infrastructure)
-Plan: 1 of 2 in current phase
-Status: Executing
-Last activity: 2026-03-05 — Completed 24-01 (ZoomState model + coordinate mapping)
+Phase: 24 of 27 (Zoom Transform Infrastructure) -- COMPLETE
+Plan: 2 of 2 in current phase
+Status: Phase complete
+Last activity: 2026-03-05 — Completed 24-02 (OverlayWindow zoom integration + coordinator reset)
 
-Progress: [██░░░░░░░░] 12% (v2.1)
+Progress: [██████░░░░] 25% (v2.1)
 
 ## Performance Metrics
 
@@ -42,6 +42,9 @@ All decisions logged in PROJECT.md Key Decisions table.
 - [24-01] ZoomState is a value type struct for per-window independent zoom (SHUX-02)
 - [24-01] Coordinate mapping via package-level free functions for cleaner call sites
 - [24-01] Pan offset in capture-space, translate applied in scaled-space via CATransform3DTranslate
+- [24-02] Z key handled at OverlayWindow base level because zoom is shared infrastructure
+- [24-02] Content layer hosted inside dedicated bgView for clean NSView-to-CALayer ownership
+- [24-02] Zoom reset uses direct OverlayWindow cast rather than protocol extension (simpler)
 
 ### Pending Todos
 
@@ -54,5 +57,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-05
-Stopped at: Completed 24-01-PLAN.md (ZoomState model + coordinate mapping + design tokens)
-Resume: Execute 24-02-PLAN.md (OverlayWindow zoom integration)
+Stopped at: Completed 24-02-PLAN.md (OverlayWindow zoom integration + coordinator zoom reset)
+Resume: Execute Phase 25 planning (Measure Zoom Integration)
