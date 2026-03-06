@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-03-05)
 
 **Core value:** Instant, accurate pixel inspection of anything on screen — zero friction from invoke to dimension readout, whether launched from Raycast or a global hotkey.
-**Current focus:** Phase 25 — Measure Zoom Integration (v2.1)
+**Current focus:** Phase 27 — Zoom UX Polish (v2.1)
 
 ## Current Position
 
-Phase: 25 of 27 (Measure Zoom Integration) -- COMPLETE
-Plan: 2 of 2 in current phase
-Status: Phase Complete
-Last activity: 2026-03-06 — Completed 25-02 (Peek pan for arrow key edge skipping)
+Phase: 27 of 27 (Zoom UX Polish)
+Plan: 1 of 1 in current phase
+Status: Plan Complete
+Last activity: 2026-03-06 — Completed 27-01 (Zoom level hint bar feedback)
 
 Progress: [███████░░░] 35% (v2.1)
 
@@ -52,6 +52,9 @@ All decisions logged in PROJECT.md Key Decisions table.
 - [25-02] Three-phase DispatchWorkItem chain for peek pan (pan-out 0.2s + hold 0.6s + return 0.2s)
 - [25-02] animatePanOffset helper on OverlayWindow for reusable smooth pan transitions
 - [25-02] Shift+arrow peeks in the actual edge direction being un-skipped, not the arrow direction
+- [27-01] ZoomKeyCap is standalone SwiftUI view (not reusing KeyCap) for clean flash animation with ZStack
+- [27-01] Scale+opacity transition instead of scale+blur (SwiftUI AnyTransition has no .blur member)
+- [27-01] AlignmentGuides fallback pill positioned below cursor (no dimension pill to anchor to)
 
 ### Pending Todos
 
@@ -64,5 +67,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-06
-Stopped at: Completed 25-02-PLAN.md (Peek pan for arrow key edge skipping) -- Phase 25 complete
-Resume: Execute phase 26
+Stopped at: Completed 27-01-PLAN.md (Zoom level hint bar feedback)
+Resume: Phase 27 complete, proceed to next phase or manual testing

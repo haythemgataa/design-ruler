@@ -13,7 +13,7 @@ Requirements for zoom feature. Each maps to roadmap phases.
 - [x] **ZOOM-02**: User can press Z again to cycle to 4x, then back to 1x
 - [x] **ZOOM-03**: Zoom transitions are animated (smooth scale, not instant jump)
 - [x] **ZOOM-04**: View pans to follow cursor movement while zoomed
-- [ ] **ZOOM-05**: Zoom level indicator visible on screen (shows "2x" or "4x")
+- [x] **ZOOM-05**: Zoom level indicator visible on screen (shows "2x" or "4x")
 
 ### Measure Integration
 
@@ -32,7 +32,7 @@ Requirements for zoom feature. Each maps to roadmap phases.
 
 ### Shared UX
 
-- [ ] **SHUX-01**: Hint bar shows Z key shortcut for zoom
+- [x] **SHUX-01**: Hint bar shows Z key shortcut for zoom
 - [x] **SHUX-02**: Zoom state is per-window (multi-monitor independent)
 - [x] **SHUX-03**: Zoom resets to 1x on session exit
 
@@ -64,7 +64,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ZOOM-02 | Phase 24 | Complete (24-01) |
 | ZOOM-03 | Phase 24 | Complete (24-02) |
 | ZOOM-04 | Phase 24 | Complete (24-01) |
-| ZOOM-05 | Phase 27 | Pending |
+| ZOOM-05 | Phase 27 | Complete |
 | MEAS-01 | Phase 25 | Complete |
 | MEAS-02 | Phase 25 | Complete |
 | MEAS-03 | Phase 25 | Complete |
@@ -74,7 +74,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | GUID-02 | Phase 26 | Pending |
 | GUID-03 | Phase 26 | Pending |
 | GUID-04 | Phase 26 | Pending |
-| SHUX-01 | Phase 27 | Pending |
+| SHUX-01 | Phase 27 | Complete |
 | SHUX-02 | Phase 24 | Complete (24-01) |
 | SHUX-03 | Phase 24 | Complete (24-02) |
 

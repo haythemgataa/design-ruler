@@ -71,7 +71,7 @@
 - [x] **Phase 24: Zoom Transform Infrastructure** - Z key zoom cycle with animated transform and cursor-following pan in OverlayWindow base
 - [x] **Phase 25: Measure Zoom Integration** - Edge detection, crosshair, dimensions, arrow keys, and drag-to-select all working correctly at 2x and 4x (completed 2026-03-06)
 - [ ] **Phase 26: Guides Zoom Integration** - Preview line, placement, hover-remove, and existing guide rendering all working correctly while zoomed
-- [ ] **Phase 27: Zoom UX Polish** - Zoom level indicator, hint bar Z key shortcut, and session reset
+- [x] **Phase 27: Zoom UX Polish** - Zoom level indicator, hint bar Z key shortcut, and session reset (completed 2026-03-06)
 
 ## Phase Details
 
@@ -163,4 +163,4 @@ Phases execute in numeric order: 24 -> 25 -> 26 -> 27
 | 24. Zoom Transform | v2.1 | Complete    | 2026-03-05 | 2026-03-05 |
 | 25. Measure Zoom | 2/2 | Complete    | 2026-03-06 | - |
 | 26. Guides Zoom | v2.1 | 0/1 | Not started | - |
-| 27. Zoom UX Polish | v2.1 | 0/1 | Not started | - |
+| 27. Zoom UX Polish | 1/1 | Complete   | 2026-03-06 | - |
