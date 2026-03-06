@@ -8,7 +8,7 @@ package final class HintBarView: NSView {
     // MARK: - Public key identifiers
 
     package enum KeyID: Hashable, CaseIterable {
-        case up, down, left, right, shift, esc, tab, space
+        case up, down, left, right, shift, esc, tab, space, zoom
     }
 
     package enum BarState {
@@ -158,6 +158,12 @@ package final class HintBarView: NSView {
 
     package func pressKey(_ key: KeyID) { state.pressedKeys.insert(key) }
     package func releaseKey(_ key: KeyID) { state.pressedKeys.remove(key) }
+
+    // MARK: - Public API: zoom flash
+
+    package func flashZoomLevel(_ level: ZoomLevel) {
+        state.flashZoomLevel(level)
+    }
 
     // MARK: - Public API: mode setting
 
