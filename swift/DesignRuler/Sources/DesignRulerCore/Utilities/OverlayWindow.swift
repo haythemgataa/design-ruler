@@ -111,7 +111,12 @@ package class OverlayWindow: NSWindow, OverlayWindowProtocol {
     /// the content layer so they remain at normal screen-space size.
     package func setupContentLayer(screenshot: CGImage?, screenSize: CGSize) {
         let layer = CALayer()
-        layer.frame = NSRect(origin: .zero, size: screenSize)
+        // anchorPoint MUST be (0,0) — all zoom math (panOffsetForZoom, clampPanOffset,
+        // contentTransform) assumes origin-based scaling. Default (0.5, 0.5) would scale
+        // from center, breaking cursor anchoring and pan clamping.
+        layer.anchorPoint = CGPoint(x: 0, y: 0)
+        layer.bounds = NSRect(origin: .zero, size: screenSize)
+        layer.position = .zero
         layer.contentsGravity = .resize
         layer.magnificationFilter = .nearest  // Crisp pixels at 2x/4x
         layer.minificationFilter = .nearest

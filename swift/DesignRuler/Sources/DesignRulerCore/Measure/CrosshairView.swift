@@ -118,7 +118,9 @@ package final class CrosshairView: NSView {
     }
 
     /// Batch-update cursor + edges. Only updates layer properties (GPU-composited).
-    package func update(cursor: NSPoint, edges: DirectionalEdges) {
+    /// `zoomScale` scales visual edge positions so crosshair lines align with the zoomed content.
+    /// W×H dimensions always show capture-space (unzoomed) measurements.
+    package func update(cursor: NSPoint, edges: DirectionalEdges, zoomScale: CGFloat = 1.0) {
         cursorPosition = cursor
 
         let cx = cursor.x
@@ -126,10 +128,17 @@ package final class CrosshairView: NSView {
         let vw = bounds.width
         let vh = bounds.height
 
-        let leftX = edges.left.map { cx - $0.distance } ?? 0
-        let rightX = edges.right.map { cx + $0.distance } ?? vw
-        let topY = edges.top.map { cy + $0.distance } ?? vh
-        let bottomY = edges.bottom.map { cy - $0.distance } ?? 0
+        // Capture-space distances (unscaled) for dimension pill
+        let leftDist = edges.left?.distance ?? cx
+        let rightDist = edges.right?.distance ?? (vw - cx)
+        let topDist = edges.top?.distance ?? (vh - cy)
+        let bottomDist = edges.bottom?.distance ?? cy
+
+        // Window-space edge positions (scaled by zoom, clamped to window bounds)
+        let leftX = max(0, edges.left.map { cx - $0.distance * zoomScale } ?? 0)
+        let rightX = min(vw, edges.right.map { cx + $0.distance * zoomScale } ?? vw)
+        let topY = min(vh, edges.top.map { cy + $0.distance * zoomScale } ?? vh)
+        let bottomY = max(0, edges.bottom.map { cy - $0.distance * zoomScale } ?? 0)
 
         CATransaction.instant {
             // --- Lines path ---
@@ -168,8 +177,9 @@ package final class CrosshairView: NSView {
         }
 
         // --- Dimension pill (separate transaction for swap animation) ---
-        let w = Int(rightX - leftX)
-        let h = Int(topY - bottomY)
+        // W×H always shows capture-space (unzoomed) distances
+        let w = Int(leftDist + rightDist)
+        let h = Int(topDist + bottomDist)
 
         layoutPill(cx: cx, cy: cy, vw: vw, w: w, h: h)
     }

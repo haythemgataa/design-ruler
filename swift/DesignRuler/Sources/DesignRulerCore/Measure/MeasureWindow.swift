@@ -110,30 +110,31 @@ package final class MeasureWindow: OverlayWindow {
             selectionManager.updateHover(at: windowPoint)
         }
 
-        crosshairView.update(cursor: windowPoint, edges: edges)
+        crosshairView.update(cursor: windowPoint, edges: edges, zoomScale: zoomState.level.rawValue)
     }
 
     override package func handleKeyDown(with event: NSEvent) {
         let shift = event.modifierFlags.contains(.shift)
         let hintVisible = hintBarView.superview != nil
+        let zs = zoomState.level.rawValue
 
         switch Int(event.keyCode) {
         case 123: // Left arrow
             if !event.isARepeat && hintVisible { hintBarView.pressKey(.left) }
             let edges = shift ? edgeDetector.decrementSkip(.right) : edgeDetector.incrementSkip(.left)
-            if let edges { crosshairView.update(cursor: crosshairView.cursorPosition, edges: edges) }
+            if let edges { crosshairView.update(cursor: crosshairView.cursorPosition, edges: edges, zoomScale: zs) }
         case 124: // Right arrow
             if !event.isARepeat && hintVisible { hintBarView.pressKey(.right) }
             let edges = shift ? edgeDetector.decrementSkip(.left) : edgeDetector.incrementSkip(.right)
-            if let edges { crosshairView.update(cursor: crosshairView.cursorPosition, edges: edges) }
+            if let edges { crosshairView.update(cursor: crosshairView.cursorPosition, edges: edges, zoomScale: zs) }
         case 125: // Down arrow
             if !event.isARepeat && hintVisible { hintBarView.pressKey(.down) }
             let edges = shift ? edgeDetector.decrementSkip(.top) : edgeDetector.incrementSkip(.bottom)
-            if let edges { crosshairView.update(cursor: crosshairView.cursorPosition, edges: edges) }
+            if let edges { crosshairView.update(cursor: crosshairView.cursorPosition, edges: edges, zoomScale: zs) }
         case 126: // Up arrow
             if !event.isARepeat && hintVisible { hintBarView.pressKey(.up) }
             let edges = shift ? edgeDetector.decrementSkip(.bottom) : edgeDetector.incrementSkip(.top)
-            if let edges { crosshairView.update(cursor: crosshairView.cursorPosition, edges: edges) }
+            if let edges { crosshairView.update(cursor: crosshairView.cursorPosition, edges: edges, zoomScale: zs) }
         default:
             break
         }
@@ -165,7 +166,7 @@ package final class MeasureWindow: OverlayWindow {
         let wp = NSPoint(x: mouse.x - screenBounds.origin.x, y: mouse.y - screenBounds.origin.y)
         let sp = NSPoint(x: screenBounds.origin.x + wp.x, y: screenBounds.origin.y + wp.y)
         if let edges = edgeDetector.onMouseMoved(at: sp) {
-            crosshairView.update(cursor: wp, edges: edges)
+            crosshairView.update(cursor: wp, edges: edges, zoomScale: zoomState.level.rawValue)
         }
         if hintBarView.superview != nil {
             hintBarView.updatePosition(cursorY: wp.y, screenHeight: screenBounds.height)
@@ -213,7 +214,7 @@ package final class MeasureWindow: OverlayWindow {
                 y: screenBounds.origin.y + windowPoint.y
             )
             if let edges = edgeDetector.onMouseMoved(at: appKitScreenPoint) {
-                crosshairView.update(cursor: windowPoint, edges: edges)
+                crosshairView.update(cursor: windowPoint, edges: edges, zoomScale: zoomState.level.rawValue)
             }
             return
         }
@@ -251,7 +252,7 @@ package final class MeasureWindow: OverlayWindow {
             y: screenBounds.origin.y + windowPoint.y
         )
         if let edges = edgeDetector.onMouseMoved(at: appKitScreenPoint) {
-            crosshairView.update(cursor: windowPoint, edges: edges)
+            crosshairView.update(cursor: windowPoint, edges: edges, zoomScale: zoomState.level.rawValue)
         }
 
         // Hide system cursor again (custom crosshair takes over)
