@@ -100,7 +100,10 @@ Plans:
   3. Arrow key edge skipping advances to the next edge correctly while zoomed
   4. User can drag-to-select a region while zoomed and the selection snaps to edges with correct screen coordinates
   5. Dimension pill text remains readable and correctly positioned (not scaled up with the zoom)
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 25-01-PLAN.md -- Core coordinate conversion + zoom-aware selection
+- [ ] 25-02-PLAN.md -- Arrow key peek pan animation
 
 ### Phase 26: Guides Zoom Integration
 **Goal**: Preview line, click placement, hover-to-remove, and existing guide line rendering all work correctly at any zoom level
