@@ -154,6 +154,101 @@ package final class AlignmentGuidesWindow: OverlayWindow {
         guideLineManager.updateForZoom(zoomState)
     }
 
+    // MARK: - Zoom Fallback Pill
+
+    private var zoomPillBg: CAShapeLayer?
+    private var zoomPillText: CATextLayer?
+    private var zoomPillWorkItem: DispatchWorkItem?
+
+    override package func showZoomFallbackPill(level: ZoomLevel) {
+        zoomPillWorkItem?.cancel()
+        removeZoomPill()
+
+        let text: String
+        switch level {
+        case .one:  text = "x1"
+        case .two:  text = "x2"
+        case .four: text = "x4"
+        }
+
+        guard let container = contentView, let parentLayer = container.layer else { return }
+        let scale = backingScaleFactor
+
+        let textAttr = NSAttributedString(string: text, attributes: [
+            .font: PillRenderer.makeDesignFont(size: 12),
+            .foregroundColor: NSColor.white,
+            .kern: DesignTokens.Pill.kerning,
+        ])
+        let textSize = textAttr.size()
+        let padding: CGFloat = 16
+        let pillW = ceil(textSize.width) + padding
+        let pillH = DesignTokens.Pill.height
+
+        // Position below cursor
+        let cursor = lastCursorPosition
+        let px = round(cursor.x - pillW / 2)
+        let py = round(cursor.y - 30 - pillH)
+
+        let bg = CAShapeLayer()
+        bg.fillColor = DesignTokens.Pill.backgroundColor
+        bg.strokeColor = nil
+        bg.frame = CGRect(x: px, y: py, width: pillW, height: pillH)
+        bg.path = PillRenderer.squirclePath(
+            rect: CGRect(origin: .zero, size: CGSize(width: pillW, height: pillH)),
+            radius: DesignTokens.Pill.cornerRadius
+        )
+        bg.shadowColor = DesignTokens.Shadow.color
+        bg.shadowOffset = DesignTokens.Shadow.offset
+        bg.shadowRadius = DesignTokens.Shadow.radius
+        bg.shadowOpacity = DesignTokens.Shadow.opacity
+        bg.contentsScale = scale
+        bg.opacity = 0
+        parentLayer.addSublayer(bg)
+
+        let tl = CATextLayer()
+        tl.contentsScale = scale
+        tl.truncationMode = .none
+        tl.isWrapped = false
+        tl.alignmentMode = .center
+        tl.string = textAttr
+        let textY = round(py + (pillH - ceil(textSize.height)) / 2)
+        tl.frame = CGRect(x: px, y: textY, width: pillW, height: ceil(textSize.height))
+        tl.opacity = 0
+        parentLayer.addSublayer(tl)
+
+        self.zoomPillBg = bg
+        self.zoomPillText = tl
+
+        CATransaction.animated(duration: DesignTokens.Animation.fast) {
+            bg.opacity = 1
+            tl.opacity = 1
+        }
+
+        let removeItem = DispatchWorkItem { [weak self] in
+            self?.fadeAndRemoveZoomPill()
+        }
+        zoomPillWorkItem = removeItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: removeItem)
+    }
+
+    private func fadeAndRemoveZoomPill() {
+        guard let bg = zoomPillBg, let tl = zoomPillText else { return }
+        CATransaction.animated(duration: DesignTokens.Animation.fast) {
+            bg.opacity = 0
+            tl.opacity = 0
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + DesignTokens.Animation.fast) { [weak self] in
+            self?.removeZoomPill()
+        }
+    }
+
+    private func removeZoomPill() {
+        zoomPillBg?.removeFromSuperlayer()
+        zoomPillText?.removeFromSuperlayer()
+        zoomPillBg = nil
+        zoomPillText = nil
+    }
+
     override package func deactivate() {
         guideLineManager.hidePreview()
         if guideLineManager.hasHoveredLine {

@@ -228,6 +228,10 @@ package final class MeasureWindow: OverlayWindow {
         selectionManager.updateZoom(zoomState)
     }
 
+    override package func showZoomFallbackPill(level: ZoomLevel) {
+        crosshairView.showZoomFlash(level: level, at: lastCursorPosition)
+    }
+
     override package func showInitialState() {
         CursorManager.shared.hide()
         let mouseLocation = NSEvent.mouseLocation

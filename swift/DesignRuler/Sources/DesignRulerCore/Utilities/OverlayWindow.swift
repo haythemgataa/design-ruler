@@ -244,7 +244,16 @@ package class OverlayWindow: NSWindow, OverlayWindowProtocol {
             return
         }
         if Int(event.keyCode) == 6 { // Z key — zoom toggle (shared infrastructure)
+            if hintBarView.superview != nil { hintBarView.pressKey(.zoom) }
             handleZoomToggle()
+            if hintBarView.superview != nil {
+                hintBarView.flashZoomLevel(zoomState.level)
+            } else {
+                showZoomFallbackPill(level: zoomState.level)
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                self?.hintBarView.releaseKey(.zoom)
+            }
             return
         }
         handleKeyDown(with: event)
@@ -300,5 +309,11 @@ package class OverlayWindow: NSWindow, OverlayWindowProtocol {
     /// Subclasses override to react to zoom changes (e.g., reposition selections).
     package func zoomDidChange() {
         // Subclasses override for zoom-change reactions
+    }
+
+    /// Show a brief fallback zoom pill near the cursor when hint bar is hidden.
+    /// Subclasses override to provide command-specific positioning.
+    package func showZoomFallbackPill(level: ZoomLevel) {
+        // Subclasses override for command-specific fallback pill
     }
 }

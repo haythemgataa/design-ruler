@@ -283,6 +283,121 @@ package final class CrosshairView: NSView {
         }
     }
 
+    // MARK: - Zoom fallback pill
+
+    private var zoomPillBg: CAShapeLayer?
+    private var zoomPillText: CATextLayer?
+    private var zoomPillWorkItem: DispatchWorkItem?
+
+    /// Show a brief zoom level pill near the dimension pill when hint bar is hidden.
+    package func showZoomFlash(level: ZoomLevel, at cursor: NSPoint) {
+        zoomPillWorkItem?.cancel()
+        removeZoomPill()
+
+        let text: String
+        switch level {
+        case .one:  text = "x1"
+        case .two:  text = "x2"
+        case .four: text = "x4"
+        }
+
+        guard let root = layer else { return }
+        let scale = window?.backingScaleFactor ?? 2.0
+
+        // Create text layer
+        let textAttr = NSAttributedString(string: text, attributes: [
+            .font: PillRenderer.makeDesignFont(size: 12),
+            .foregroundColor: NSColor.white,
+            .kern: DesignTokens.Pill.kerning,
+        ])
+        let textSize = textAttr.size()
+        let padding: CGFloat = 16
+        let pillW = ceil(textSize.width) + padding
+        let pillH = DesignTokens.Pill.height
+
+        // Position: offset from dimension pill location
+        let gap: CGFloat = 6
+        var px: CGFloat
+        let py = round(cursor.y - 12 - pillH)  // same vertical as dimension pill
+
+        if pillIsOnLeft {
+            // Dimension pill is to the left; place zoom pill further left
+            px = round(cursor.x - 12 - pillW - gap)
+        } else {
+            // Dimension pill is to the right; place zoom pill further right
+            // Estimate dimension pill width (~120pt typical)
+            px = round(cursor.x + 12 + 120 + gap)
+        }
+
+        // Clamp to screen
+        let vw = bounds.width
+        if px + pillW > vw - 6 { px = round(cursor.x - 12 - pillW - gap) }
+        if px < 6 { px = round(cursor.x + 12 + gap) }
+
+        // Background layer
+        let bg = CAShapeLayer()
+        bg.fillColor = DesignTokens.Pill.backgroundColor
+        bg.strokeColor = nil
+        bg.frame = CGRect(x: px, y: py, width: pillW, height: pillH)
+        bg.path = PillRenderer.squirclePath(
+            rect: CGRect(origin: .zero, size: CGSize(width: pillW, height: pillH)),
+            radius: DesignTokens.Pill.cornerRadius
+        )
+        bg.shadowColor = DesignTokens.Shadow.color
+        bg.shadowOffset = DesignTokens.Shadow.offset
+        bg.shadowRadius = DesignTokens.Shadow.radius
+        bg.shadowOpacity = DesignTokens.Shadow.opacity
+        bg.contentsScale = scale
+        bg.opacity = 0
+        root.addSublayer(bg)
+
+        // Text layer
+        let tl = CATextLayer()
+        tl.contentsScale = scale
+        tl.truncationMode = .none
+        tl.isWrapped = false
+        tl.alignmentMode = .center
+        tl.string = textAttr
+        let textY = round(py + (pillH - ceil(textSize.height)) / 2)
+        tl.frame = CGRect(x: px, y: textY, width: pillW, height: ceil(textSize.height))
+        tl.opacity = 0
+        root.addSublayer(tl)
+
+        self.zoomPillBg = bg
+        self.zoomPillText = tl
+
+        // Fade in
+        CATransaction.animated(duration: DesignTokens.Animation.fast) {
+            bg.opacity = 1
+            tl.opacity = 1
+        }
+
+        // Schedule removal after 0.5s
+        let removeItem = DispatchWorkItem { [weak self] in
+            self?.fadeAndRemoveZoomPill()
+        }
+        zoomPillWorkItem = removeItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: removeItem)
+    }
+
+    private func fadeAndRemoveZoomPill() {
+        guard let bg = zoomPillBg, let tl = zoomPillText else { return }
+        CATransaction.animated(duration: DesignTokens.Animation.fast) {
+            bg.opacity = 0
+            tl.opacity = 0
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + DesignTokens.Animation.fast) { [weak self] in
+            self?.removeZoomPill()
+        }
+    }
+
+    private func removeZoomPill() {
+        zoomPillBg?.removeFromSuperlayer()
+        zoomPillText?.removeFromSuperlayer()
+        zoomPillBg = nil
+        zoomPillText = nil
+    }
+
     // MARK: - Foot helper
 
     private func updateFoot(_ foot: CAShapeLayer, edge: EdgeHit?, absorbed: Bool, p1: CGPoint, p2: CGPoint) {
