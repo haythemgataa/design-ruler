@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-03-05)
 
 ## Current Position
 
-Phase: 25 of 27 (Measure Zoom Integration)
-Plan: 1 of 2 in current phase
-Status: Executing
-Last activity: 2026-03-06 — Completed 25-01 (Zoom coordinate conversion + zoom-aware selections)
+Phase: 25 of 27 (Measure Zoom Integration) -- COMPLETE
+Plan: 2 of 2 in current phase
+Status: Phase Complete
+Last activity: 2026-03-06 — Completed 25-02 (Peek pan for arrow key edge skipping)
 
-Progress: [██████░░░░] 30% (v2.1)
+Progress: [███████░░░] 35% (v2.1)
 
 ## Performance Metrics
 
@@ -49,6 +49,9 @@ All decisions logged in PROJECT.md Key Decisions table.
 - [25-01] SelectionOverlay dual-rect pattern: captureRect (canonical) + rect (derived for rendering)
 - [25-01] zoomDidChange() hook in OverlayWindow base for subclass zoom reactions
 - [25-01] Selection layers stay in screen-space with manual coordinate conversion (consistent stroke width)
+- [25-02] Three-phase DispatchWorkItem chain for peek pan (pan-out 0.2s + hold 0.6s + return 0.2s)
+- [25-02] animatePanOffset helper on OverlayWindow for reusable smooth pan transitions
+- [25-02] Shift+arrow peeks in the actual edge direction being un-skipped, not the arrow direction
 
 ### Pending Todos
 
@@ -61,5 +64,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-06
-Stopped at: Completed 25-01-PLAN.md (Zoom coordinate conversion + zoom-aware selections)
-Resume: Execute 25-02-PLAN.md (Arrow key peek pan)
+Stopped at: Completed 25-02-PLAN.md (Peek pan for arrow key edge skipping) -- Phase 25 complete
+Resume: Execute phase 26

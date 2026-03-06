@@ -19,7 +19,7 @@ Requirements for zoom feature. Each maps to roadmap phases.
 
 - [x] **MEAS-01**: Edge detection works correctly on zoomed pixel data
 - [x] **MEAS-02**: W×H dimensions show accurate point values at any zoom level
-- [ ] **MEAS-03**: Arrow key edge skipping works while zoomed
+- [x] **MEAS-03**: Arrow key edge skipping works while zoomed
 - [x] **MEAS-04**: Drag-to-select and snap-to-edges work at zoom level
 - [x] **MEAS-05**: Dimension pill renders correctly and stays readable while zoomed
 
@@ -67,7 +67,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ZOOM-05 | Phase 27 | Pending |
 | MEAS-01 | Phase 25 | Complete |
 | MEAS-02 | Phase 25 | Complete |
-| MEAS-03 | Phase 25 | Pending |
+| MEAS-03 | Phase 25 | Complete |
 | MEAS-04 | Phase 25 | Complete |
 | MEAS-05 | Phase 25 | Complete |
 | GUID-01 | Phase 26 | Pending |
