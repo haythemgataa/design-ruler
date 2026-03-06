@@ -65,12 +65,20 @@ package final class AlignmentGuidesWindow: OverlayWindow {
         setupHintBar(mode: .alignmentGuides, screenSize: size, screenshot: screenshot, hideHintBar: hideHintBar, container: containerView)
     }
 
+    // MARK: - Zoom Coordinate Helpers
+
+    /// Convert window-space cursor to capture-space point (window-local).
+    /// At 1x zoom, this is identity.
+    private func capturePoint(from windowPoint: NSPoint) -> NSPoint {
+        windowPointToCapturePoint(windowPoint, zoomState: zoomState, screenSize: screenBounds.size)
+    }
+
     // MARK: - Coordinator-dispatched actions
 
     /// Cycle color style (called by coordinator on the active window).
     package func performCycleStyle() {
         if hintBarView.superview != nil { hintBarView.pressKey(.space) }
-        guideLineManager.cycleStyle(cursorPosition: lastCursorPosition)
+        guideLineManager.cycleStyle(windowPoint: lastCursorPosition)
     }
 
     package func releaseSpaceKey() {
@@ -80,7 +88,7 @@ package final class AlignmentGuidesWindow: OverlayWindow {
     /// Toggle line direction (called by coordinator on the active window).
     package func performToggleDirection() {
         if hintBarView.superview != nil { hintBarView.pressKey(.tab) }
-        guideLineManager.toggleDirection()
+        guideLineManager.toggleDirection(windowPoint: lastCursorPosition)
         cursorDirection = guideLineManager.direction
         let newCursor: NSCursor = cursorDirection == .vertical ? .resizeLeftRight : .resizeUpDown
         CursorManager.shared.updateResize(newCursor)
@@ -106,8 +114,10 @@ package final class AlignmentGuidesWindow: OverlayWindow {
 
     override package func showInitialState() {
         initCursorPosition()
+        guideLineManager.updateForZoom(zoomState)
         guideLineManager.showPreview()
-        guideLineManager.updatePreview(at: lastCursorPosition)
+        let cp = capturePoint(from: lastCursorPosition)
+        guideLineManager.updatePreview(capturePoint: cp, windowPoint: lastCursorPosition)
         let resizeCursor: NSCursor = cursorDirection == .vertical ? .resizeLeftRight : .resizeUpDown
         CursorManager.shared.showResize(resizeCursor)
         hintBarEntrance()
@@ -115,10 +125,11 @@ package final class AlignmentGuidesWindow: OverlayWindow {
 
     override package func handleMouseMoved(to windowPoint: NSPoint) {
         let wasHovering = guideLineManager.hasHoveredLine
+        let cp = capturePoint(from: windowPoint)
 
         // Check hover first so preview knows whether to show "Remove" or coordinates
-        guideLineManager.updateHover(at: windowPoint)
-        guideLineManager.updatePreview(at: windowPoint)
+        guideLineManager.updateHover(at: cp)
+        guideLineManager.updatePreview(capturePoint: cp, windowPoint: windowPoint)
 
         // Cursor transitions via CursorManager (only on state change)
         let isHovering = guideLineManager.hasHoveredLine
@@ -139,6 +150,10 @@ package final class AlignmentGuidesWindow: OverlayWindow {
         }
     }
 
+    override package func zoomDidChange() {
+        guideLineManager.updateForZoom(zoomState)
+    }
+
     override package func deactivate() {
         guideLineManager.hidePreview()
         if guideLineManager.hasHoveredLine {
@@ -153,11 +168,13 @@ package final class AlignmentGuidesWindow: OverlayWindow {
         initCursorPosition()
         guideLineManager.setPreviewStyle(currentStyle)
         guideLineManager.setDirection(currentDirection)
+        guideLineManager.updateForZoom(zoomState)
         cursorDirection = currentDirection
         let resizeCursor: NSCursor = cursorDirection == .vertical ? .resizeLeftRight : .resizeUpDown
         CursorManager.shared.updateResize(resizeCursor)
         guideLineManager.showPreview()
-        guideLineManager.updatePreview(at: lastCursorPosition)
+        let cp = capturePoint(from: lastCursorPosition)
+        guideLineManager.updatePreview(capturePoint: cp, windowPoint: lastCursorPosition)
         if hintBarView.superview != nil {
             hintBarView.updatePosition(cursorY: lastCursorPosition.y, screenHeight: screenBounds.height)
         }
@@ -178,9 +195,10 @@ package final class AlignmentGuidesWindow: OverlayWindow {
 
         // Hover-first conflict resolution: if hovering a line, remove it instead of placing
         if guideLineManager.hasHoveredLine {
-            guideLineManager.removeLine(guideLineManager.hoveredLine!, clickPoint: windowPoint)
+            guideLineManager.removeLine(guideLineManager.hoveredLine!)
             guideLineManager.resetRemoveMode()
-            guideLineManager.updatePreview(at: windowPoint)
+            let cp = capturePoint(from: windowPoint)
+            guideLineManager.updatePreview(capturePoint: cp, windowPoint: windowPoint)
             CursorManager.shared.transitionBack()
             return
         }
