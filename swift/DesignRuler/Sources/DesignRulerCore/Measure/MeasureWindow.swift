@@ -58,6 +58,8 @@ package final class MeasureWindow: OverlayWindow {
         )
 
         contentView = containerView
+        containerView.wantsLayer = true
+        containerView.layer?.masksToBounds = false
 
         // Use base's shared hint bar setup (mode defaults to .inspect)
         setupHintBar(mode: .inspect, screenSize: size, screenshot: screenshot, hideHintBar: hideHintBar, container: containerView)
@@ -166,27 +168,33 @@ package final class MeasureWindow: OverlayWindow {
         // Clamp the peek offset to valid bounds
         peekOffset = clampPanOffset(peekOffset, zoomLevel: zoomState.level, screenSize: screenBounds.size)
 
+        // Calculate cursor-centered pan (the "home" position to return to)
+        let cursorPos = lastCursorPosition
+        let homePan = clampPanOffset(
+            CGPoint(x: (cursorPos.x / s) - cursorPos.x, y: (cursorPos.y / s) - cursorPos.y),
+            zoomLevel: zoomState.level, screenSize: screenBounds.size
+        )
+
         // Cancel any in-flight peek
         peekWorkItem?.cancel()
 
-        // Phase 1: Pan out to edge
+        // Phase 1: Pan out to edge, crosshair follows content
         isPeekAnimating = true
-        animatePanOffset(to: peekOffset, duration: DesignTokens.Animation.peekPan)
+        zoomState.panOffset = peekOffset
+        let peekDelta = CGPoint(x: (peekOffset.x - homePan.x) * s, y: (peekOffset.y - homePan.y) * s)
+        CATransaction.animated(duration: DesignTokens.Animation.peekPan) {
+            self.contentLayer?.transform = self.zoomState.contentTransform
+            self.crosshairView.layer?.transform = CATransform3DMakeTranslation(peekDelta.x, peekDelta.y, 0)
+        }
 
-        // Phase 2: Hold, then Phase 3: Return
-        let cursorPos = lastCursorPosition
+        // Phase 2: Hold, then Phase 3: Return (crosshair returns to screen-space)
         let returnItem = DispatchWorkItem { [weak self] in
             guard let self, self.isPeekAnimating else { return }
-            // Pan back to cursor-centered position
-            let returnOffset = clampPanOffset(
-                CGPoint(
-                    x: (cursorPos.x / s) - cursorPos.x,
-                    y: (cursorPos.y / s) - cursorPos.y
-                ),
-                zoomLevel: self.zoomState.level,
-                screenSize: self.screenBounds.size
-            )
-            self.animatePanOffset(to: returnOffset, duration: DesignTokens.Animation.peekReturn)
+            self.zoomState.panOffset = homePan
+            CATransaction.animated(duration: DesignTokens.Animation.peekReturn) {
+                self.contentLayer?.transform = self.zoomState.contentTransform
+                self.crosshairView.layer?.transform = CATransform3DIdentity
+            }
 
             // Clear flag after return animation completes
             DispatchQueue.main.asyncAfter(deadline: .now() + DesignTokens.Animation.peekReturn) { [weak self] in
@@ -205,6 +213,9 @@ package final class MeasureWindow: OverlayWindow {
         peekWorkItem?.cancel()
         isPeekAnimating = false
         peekWorkItem = nil
+        CATransaction.instant {
+            crosshairView.layer?.transform = CATransform3DIdentity
+        }
     }
 
     // MARK: - Overridable Hooks

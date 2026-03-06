@@ -73,6 +73,9 @@ package final class SelectionOverlay {
     package func updateForZoom(zoomState: ZoomState) {
         let newRect = Self.windowRect(from: captureRect, zoomState: zoomState)
         updateRect(newRect, animated: false)
+        CATransaction.instant {
+            layoutPill()
+        }
     }
 
     private func setupLayers(parentLayer: CALayer, scale: CGFloat) {

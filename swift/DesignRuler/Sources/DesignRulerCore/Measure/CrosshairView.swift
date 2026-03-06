@@ -93,6 +93,7 @@ package final class CrosshairView: NSView {
 
     private func setupLayers() {
         guard let root = layer else { return }
+        root.masksToBounds = false
         let scale = NSScreen.main?.backingScaleFactor ?? 2.0
 
         // Crosshair lines — white + difference blend → black on light, white on dark
@@ -134,11 +135,14 @@ package final class CrosshairView: NSView {
         let topDist = edges.top?.distance ?? (vh - cy)
         let bottomDist = edges.bottom?.distance ?? cy
 
-        // Window-space edge positions (scaled by zoom, clamped to window bounds)
-        let leftX = max(0, edges.left.map { cx - $0.distance * zoomScale } ?? 0)
-        let rightX = min(vw, edges.right.map { cx + $0.distance * zoomScale } ?? vw)
-        let topY = min(vh, edges.top.map { cy + $0.distance * zoomScale } ?? vh)
-        let bottomY = max(0, edges.bottom.map { cy - $0.distance * zoomScale } ?? 0)
+        // Window-space edge positions (scaled by zoom).
+        // No clamping — lines extend to real edge positions beyond the viewport.
+        // At 1x edges are within viewport. At zoom, off-viewport parts are clipped
+        // by the window but revealed during peek pan animations.
+        let leftX = edges.left.map { cx - $0.distance * zoomScale } ?? 0
+        let rightX = edges.right.map { cx + $0.distance * zoomScale } ?? vw
+        let topY = edges.top.map { cy + $0.distance * zoomScale } ?? vh
+        let bottomY = edges.bottom.map { cy - $0.distance * zoomScale } ?? 0
 
         CATransaction.instant {
             // --- Lines path ---
