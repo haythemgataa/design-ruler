@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-03-05)
 
 **Core value:** Instant, accurate pixel inspection of anything on screen — zero friction from invoke to dimension readout, whether launched from Raycast or a global hotkey.
-**Current focus:** Phase 24 — Zoom Transform Infrastructure (v2.1)
+**Current focus:** Phase 25 — Measure Zoom Integration (v2.1)
 
 ## Current Position
 
-Phase: 24 of 27 (Zoom Transform Infrastructure) -- COMPLETE
-Plan: 2 of 2 in current phase
-Status: Phase complete
-Last activity: 2026-03-05 — Completed 24-02 (OverlayWindow zoom integration + coordinator reset)
+Phase: 25 of 27 (Measure Zoom Integration)
+Plan: 1 of 2 in current phase
+Status: Executing
+Last activity: 2026-03-06 — Completed 25-01 (Zoom coordinate conversion + zoom-aware selections)
 
-Progress: [██████░░░░] 25% (v2.1)
+Progress: [██████░░░░] 30% (v2.1)
 
 ## Performance Metrics
 
@@ -45,6 +45,10 @@ All decisions logged in PROJECT.md Key Decisions table.
 - [24-02] Z key handled at OverlayWindow base level because zoom is shared infrastructure
 - [24-02] Content layer hosted inside dedicated bgView for clean NSView-to-CALayer ownership
 - [24-02] Zoom reset uses direct OverlayWindow cast rather than protocol extension (simpler)
+- [25-01] captureScreenPoint/capturePoint helpers in MeasureWindow for DRY coordinate conversion
+- [25-01] SelectionOverlay dual-rect pattern: captureRect (canonical) + rect (derived for rendering)
+- [25-01] zoomDidChange() hook in OverlayWindow base for subclass zoom reactions
+- [25-01] Selection layers stay in screen-space with manual coordinate conversion (consistent stroke width)
 
 ### Pending Todos
 
@@ -56,6 +60,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-05
-Stopped at: Completed 24-02-PLAN.md (OverlayWindow zoom integration + coordinator zoom reset)
-Resume: Execute Phase 25 planning (Measure Zoom Integration)
+Last session: 2026-03-06
+Stopped at: Completed 25-01-PLAN.md (Zoom coordinate conversion + zoom-aware selections)
+Resume: Execute 25-02-PLAN.md (Arrow key peek pan)
