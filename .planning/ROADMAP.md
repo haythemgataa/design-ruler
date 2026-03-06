@@ -125,7 +125,9 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. A zoom level indicator (showing "2x" or "4x") is visible on screen when zoomed, and hidden at 1x
   2. Hint bar includes the Z key with "Zoom" label in both Measure and Alignment Guides modes
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 27-01-PLAN.md -- Z keycap flash animation + standalone fallback pill
 
 ## Progress
 
@@ -161,4 +163,4 @@ Phases execute in numeric order: 24 -> 25 -> 26 -> 27
 | 24. Zoom Transform | v2.1 | Complete    | 2026-03-05 | 2026-03-05 |
 | 25. Measure Zoom | 2/2 | Complete    | 2026-03-06 | - |
 | 26. Guides Zoom | v2.1 | 0/1 | Not started | - |
-| 27. Zoom UX Polish | v2.1 | 0/? | Not started | - |
+| 27. Zoom UX Polish | v2.1 | 0/1 | Not started | - |
