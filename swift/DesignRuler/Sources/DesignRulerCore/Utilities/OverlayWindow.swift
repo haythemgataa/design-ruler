@@ -22,6 +22,7 @@ package class OverlayWindow: NSWindow, OverlayWindowProtocol {
     package var zoomState = ZoomState()
     package var contentLayer: CALayer?
     private var isAnimatingZoom = false
+    package var isPeekAnimating = false
 
     // Callbacks for multi-monitor coordination
     package var onRequestExit: (() -> Void)?
@@ -164,7 +165,7 @@ package class OverlayWindow: NSWindow, OverlayWindowProtocol {
     /// Update pan offset so the cursor tracks 1:1 while zoomed (ZOOM-04).
     /// Called on mouse move after handleMouseMoved. Suppressed during zoom animation.
     package func updateZoomPan(for windowPoint: NSPoint) {
-        guard zoomState.isZoomed, !isAnimatingZoom else { return }
+        guard zoomState.isZoomed, !isAnimatingZoom, !isPeekAnimating else { return }
         // 1:1 cursor tracking: the cursor at windowPoint should map to the same
         // capture-space point as it would at 1x (i.e., windowPoint itself).
         let capturePoint = windowPoint  // At 1x, window coords = capture coords
@@ -181,6 +182,15 @@ package class OverlayWindow: NSWindow, OverlayWindowProtocol {
         }
 
         zoomDidChange()
+    }
+
+    /// Animate pan offset to a specific value. Used by peek pan (MeasureWindow) for
+    /// smooth pan-out and pan-back phases.
+    package func animatePanOffset(to newOffset: CGPoint, duration: CFTimeInterval) {
+        zoomState.panOffset = newOffset
+        CATransaction.animated(duration: duration) {
+            contentLayer?.transform = zoomState.contentTransform
+        }
     }
 
     /// Reset zoom to 1x immediately. Called on ESC exit and monitor transitions.

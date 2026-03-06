@@ -10,6 +10,7 @@ package final class MeasureWindow: OverlayWindow {
     private var selectionManager: SelectionManager!
     private var isDragging = false
     private var isHoveringSelection = false
+    private var peekWorkItem: DispatchWorkItem?
 
     // Typed callback for multi-monitor activation
     package var onActivate: ((MeasureWindow) -> Void)?
@@ -84,6 +85,128 @@ package final class MeasureWindow: OverlayWindow {
         windowPointToCapturePoint(windowPoint, zoomState: zoomState, screenSize: screenBounds.size)
     }
 
+    // MARK: - Peek Pan (Arrow Key Edge Skip While Zoomed)
+
+    /// When an arrow key skip moves an edge outside the visible zoomed viewport,
+    /// auto-pan to reveal the edge, hold briefly, then pan back to cursor.
+    /// No-op at 1x zoom.
+    private func peekToEdge(_ edges: DirectionalEdges, direction: EdgeDetector.Direction) {
+        guard zoomState.isZoomed else { return }
+
+        // Determine which edge to check based on skip direction
+        let edge: EdgeHit?
+        switch direction {
+        case .left:   edge = edges.left
+        case .right:  edge = edges.right
+        case .top:    edge = edges.top
+        case .bottom: edge = edges.bottom
+        }
+        guard let edgeHit = edge else { return }
+
+        // Edge position is in capture-space (distance from cursor).
+        // Get the cursor in capture-space, then compute the edge's capture-space position.
+        let cursorCapture = capturePoint(from: crosshairView.cursorPosition)
+        let edgeCapturePos: CGFloat
+        let isHorizontalAxis: Bool
+
+        switch direction {
+        case .left:
+            edgeCapturePos = cursorCapture.x - edgeHit.distance
+            isHorizontalAxis = true
+        case .right:
+            edgeCapturePos = cursorCapture.x + edgeHit.distance
+            isHorizontalAxis = true
+        case .top:
+            edgeCapturePos = cursorCapture.y + edgeHit.distance  // AppKit: top = +y
+            isHorizontalAxis = false
+        case .bottom:
+            edgeCapturePos = cursorCapture.y - edgeHit.distance  // AppKit: bottom = -y
+            isHorizontalAxis = false
+        }
+
+        // Convert edge capture position to window-space to check visibility
+        let edgeWindowPos: CGFloat
+        let viewportSize: CGFloat
+        let s = zoomState.level.rawValue
+
+        if isHorizontalAxis {
+            edgeWindowPos = (edgeCapturePos + zoomState.panOffset.x) * s
+            viewportSize = screenBounds.width
+        } else {
+            edgeWindowPos = (edgeCapturePos + zoomState.panOffset.y) * s
+            viewportSize = screenBounds.height
+        }
+
+        // Check if edge is within visible viewport (with small margin)
+        let margin: CGFloat = 20
+        guard edgeWindowPos < margin || edgeWindowPos > viewportSize - margin else { return }
+
+        // Calculate pan offset that brings edge into view with margin
+        let savedPanOffset = zoomState.panOffset
+        var peekOffset = savedPanOffset
+
+        if isHorizontalAxis {
+            if edgeWindowPos < margin {
+                // Edge is off-screen left: pan right so edge is at margin
+                peekOffset.x = (margin / s) - edgeCapturePos
+            } else {
+                // Edge is off-screen right: pan left so edge is at viewportSize - margin
+                peekOffset.x = ((viewportSize - margin) / s) - edgeCapturePos
+            }
+        } else {
+            if edgeWindowPos < margin {
+                // Edge is off-screen bottom
+                peekOffset.y = (margin / s) - edgeCapturePos
+            } else {
+                // Edge is off-screen top
+                peekOffset.y = ((viewportSize - margin) / s) - edgeCapturePos
+            }
+        }
+
+        // Clamp the peek offset to valid bounds
+        peekOffset = clampPanOffset(peekOffset, zoomLevel: zoomState.level, screenSize: screenBounds.size)
+
+        // Cancel any in-flight peek
+        peekWorkItem?.cancel()
+
+        // Phase 1: Pan out to edge
+        isPeekAnimating = true
+        animatePanOffset(to: peekOffset, duration: DesignTokens.Animation.peekPan)
+
+        // Phase 2: Hold, then Phase 3: Return
+        let cursorPos = lastCursorPosition
+        let returnItem = DispatchWorkItem { [weak self] in
+            guard let self, self.isPeekAnimating else { return }
+            // Pan back to cursor-centered position
+            let returnOffset = clampPanOffset(
+                CGPoint(
+                    x: (cursorPos.x / s) - cursorPos.x,
+                    y: (cursorPos.y / s) - cursorPos.y
+                ),
+                zoomLevel: self.zoomState.level,
+                screenSize: self.screenBounds.size
+            )
+            self.animatePanOffset(to: returnOffset, duration: DesignTokens.Animation.peekReturn)
+
+            // Clear flag after return animation completes
+            DispatchQueue.main.asyncAfter(deadline: .now() + DesignTokens.Animation.peekReturn) { [weak self] in
+                self?.isPeekAnimating = false
+                self?.peekWorkItem = nil
+            }
+        }
+        peekWorkItem = returnItem
+
+        let holdDelay = DesignTokens.Animation.peekPan + DesignTokens.Animation.peekHold
+        DispatchQueue.main.asyncAfter(deadline: .now() + holdDelay, execute: returnItem)
+    }
+
+    /// Cancel any in-flight peek animation and reset state.
+    private func cancelPeek() {
+        peekWorkItem?.cancel()
+        isPeekAnimating = false
+        peekWorkItem = nil
+    }
+
     // MARK: - Overridable Hooks
 
     override package func handleActivation() {
@@ -106,6 +229,11 @@ package final class MeasureWindow: OverlayWindow {
     }
 
     override package func handleMouseMoved(to windowPoint: NSPoint) {
+        // Cancel any in-flight peek animation — user is taking over
+        if isPeekAnimating {
+            cancelPeek()
+        }
+
         // Convert window-space to capture-space for edge detection (MEAS-01)
         let appKitScreenPoint = captureScreenPoint(from: windowPoint)
 
@@ -143,25 +271,38 @@ package final class MeasureWindow: OverlayWindow {
         case 123: // Left arrow
             if !event.isARepeat && hintVisible { hintBarView.pressKey(.left) }
             let edges = shift ? edgeDetector.decrementSkip(.right) : edgeDetector.incrementSkip(.left)
-            if let edges { crosshairView.update(cursor: crosshairView.cursorPosition, edges: edges, zoomScale: zs) }
+            if let edges {
+                crosshairView.update(cursor: crosshairView.cursorPosition, edges: edges, zoomScale: zs)
+                peekToEdge(edges, direction: shift ? .right : .left)
+            }
         case 124: // Right arrow
             if !event.isARepeat && hintVisible { hintBarView.pressKey(.right) }
             let edges = shift ? edgeDetector.decrementSkip(.left) : edgeDetector.incrementSkip(.right)
-            if let edges { crosshairView.update(cursor: crosshairView.cursorPosition, edges: edges, zoomScale: zs) }
+            if let edges {
+                crosshairView.update(cursor: crosshairView.cursorPosition, edges: edges, zoomScale: zs)
+                peekToEdge(edges, direction: shift ? .left : .right)
+            }
         case 125: // Down arrow
             if !event.isARepeat && hintVisible { hintBarView.pressKey(.down) }
             let edges = shift ? edgeDetector.decrementSkip(.top) : edgeDetector.incrementSkip(.bottom)
-            if let edges { crosshairView.update(cursor: crosshairView.cursorPosition, edges: edges, zoomScale: zs) }
+            if let edges {
+                crosshairView.update(cursor: crosshairView.cursorPosition, edges: edges, zoomScale: zs)
+                peekToEdge(edges, direction: shift ? .top : .bottom)
+            }
         case 126: // Up arrow
             if !event.isARepeat && hintVisible { hintBarView.pressKey(.up) }
             let edges = shift ? edgeDetector.decrementSkip(.bottom) : edgeDetector.incrementSkip(.top)
-            if let edges { crosshairView.update(cursor: crosshairView.cursorPosition, edges: edges, zoomScale: zs) }
+            if let edges {
+                crosshairView.update(cursor: crosshairView.cursorPosition, edges: edges, zoomScale: zs)
+                peekToEdge(edges, direction: shift ? .bottom : .top)
+            }
         default:
             break
         }
     }
 
     override package func deactivate() {
+        cancelPeek()
         crosshairView.hideForDrag()
         if isHoveringSelection {
             isHoveringSelection = false
