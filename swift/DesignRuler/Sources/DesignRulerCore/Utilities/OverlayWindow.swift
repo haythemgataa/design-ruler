@@ -157,6 +157,8 @@ package class OverlayWindow: NSWindow, OverlayWindowProtocol {
         DispatchQueue.main.asyncAfter(deadline: .now() + DesignTokens.Animation.zoom) { [weak self] in
             self?.isAnimatingZoom = false
         }
+
+        zoomDidChange()
     }
 
     /// Update pan offset so the cursor tracks 1:1 while zoomed (ZOOM-04).
@@ -177,6 +179,8 @@ package class OverlayWindow: NSWindow, OverlayWindowProtocol {
         CATransaction.instant {
             contentLayer?.transform = zoomState.contentTransform
         }
+
+        zoomDidChange()
     }
 
     /// Reset zoom to 1x immediately. Called on ESC exit and monitor transitions.
@@ -280,5 +284,11 @@ package class OverlayWindow: NSWindow, OverlayWindowProtocol {
     /// Deactivate this window when cursor leaves for another screen.
     package func deactivate() {
         // Subclasses override for command-specific deactivation
+    }
+
+    /// Called after zoom level or pan offset changes (from handleZoomToggle and updateZoomPan).
+    /// Subclasses override to react to zoom changes (e.g., reposition selections).
+    package func zoomDidChange() {
+        // Subclasses override for zoom-change reactions
     }
 }

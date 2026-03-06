@@ -3,10 +3,21 @@ import QuartzCore
 
 /// A single selection overlay: rectangle outline + dimension pill.
 /// Composed of CALayers (not an NSView) for lightweight stacking.
+///
+/// Stores the selection rect in capture-space (`captureRect`) and derives the
+/// window-space rendering rect (`rect`) from it using the current zoom state.
+/// At 1x zoom, captureRect == rect (identity conversion).
 package final class SelectionOverlay {
     package enum State { case normal, hovered }
 
-    package private(set) var rect: CGRect  // AppKit window-local coords
+    /// The selection rect in capture-space (unzoomed window-local coords).
+    /// This is the canonical position — persists across zoom changes.
+    /// Package-level setter for SelectionManager to update during drag.
+    package var captureRect: CGRect
+
+    /// The selection rect in window-space (for rendering). Derived from captureRect + zoomState.
+    package private(set) var rect: CGRect
+
     package private(set) var state: State = .normal
     private var dimensionW: Int = 0
     private var dimensionH: Int = 0
@@ -36,11 +47,32 @@ package final class SelectionOverlay {
     // Font — SF Pro 11px Semibold with same OpenType features as inspector pill
     private static let font = PillRenderer.makeDesignFont(size: 11)
 
-    package init(rect: CGRect, parentLayer: CALayer, scale: CGFloat) {
-        self.rect = rect
+    /// Create a selection overlay. `captureRect` is in capture-space (unzoomed).
+    /// `zoomState` is used to compute the initial window-space rendering rect.
+    package init(captureRect: CGRect, zoomState: ZoomState, parentLayer: CALayer, scale: CGFloat) {
+        self.captureRect = captureRect
+        self.rect = Self.windowRect(from: captureRect, zoomState: zoomState)
         self.screenSize = parentLayer.bounds.size
         setupLayers(parentLayer: parentLayer, scale: scale)
         updateRect(rect, animated: false)
+    }
+
+    /// Convert capture-space rect to window-space using current zoom state.
+    private static func windowRect(from captureRect: CGRect, zoomState: ZoomState) -> CGRect {
+        let s = zoomState.level.rawValue
+        return CGRect(
+            x: (captureRect.origin.x + zoomState.panOffset.x) * s,
+            y: (captureRect.origin.y + zoomState.panOffset.y) * s,
+            width: captureRect.width * s,
+            height: captureRect.height * s
+        )
+    }
+
+    /// Recalculate window-space rect from captureRect when zoom changes.
+    /// Keeps the selection aligned to its content region at any zoom level.
+    package func updateForZoom(zoomState: ZoomState) {
+        let newRect = Self.windowRect(from: captureRect, zoomState: zoomState)
+        updateRect(newRect, animated: false)
     }
 
     private func setupLayers(parentLayer: CALayer, scale: CGFloat) {
@@ -81,18 +113,22 @@ package final class SelectionOverlay {
     }
 
     /// Animate snap to detected edges, then show dimensions pill with slide-down + fade.
-    package func animateSnap(to newRect: CGRect, w: Int, h: Int) {
+    /// `newCaptureRect` is in capture-space. `zoomState` converts it for rendering.
+    package func animateSnap(to newCaptureRect: CGRect, w: Int, h: Int, zoomState: ZoomState) {
+        captureRect = newCaptureRect
         dimensionW = w
         dimensionH = h
+
+        let windowRect = Self.windowRect(from: newCaptureRect, zoomState: zoomState)
 
         // Remove dash pattern for finalized selection
         rectLayer.lineDashPattern = nil
 
         CATransaction.animated(duration: DesignTokens.Animation.standard) {
-            rect = newRect
+            rect = windowRect
             let strokeInset = -rectLayer.lineWidth / 2
-            rectLayer.path = CGPath(rect: newRect.insetBy(dx: strokeInset, dy: strokeInset), transform: nil)
-            fillLayer.path = CGPath(rect: newRect, transform: nil)
+            rectLayer.path = CGPath(rect: windowRect.insetBy(dx: strokeInset, dy: strokeInset), transform: nil)
+            fillLayer.path = CGPath(rect: windowRect, transform: nil)
         }
 
         // Place pill at final position, invisible (no implicit animations)
@@ -193,10 +229,10 @@ package final class SelectionOverlay {
         }
     }
 
-    /// Hit-test with slight padding for easier clicking.
+    /// Hit-test in capture-space with slight padding for easier clicking.
     package func contains(_ point: CGPoint) -> Bool {
         let padding: CGFloat = 4
-        return rect.insetBy(dx: -padding, dy: -padding).contains(point)
+        return captureRect.insetBy(dx: -padding, dy: -padding).contains(point)
     }
 
     // MARK: - Text helpers

@@ -90,6 +90,10 @@ package final class MeasureWindow: OverlayWindow {
         onActivate?(self)
     }
 
+    override package func zoomDidChange() {
+        selectionManager.updateZoom(zoomState)
+    }
+
     override package func showInitialState() {
         CursorManager.shared.hide()
         let mouseLocation = NSEvent.mouseLocation
