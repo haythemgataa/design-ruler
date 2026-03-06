@@ -157,6 +157,6 @@ Phases execute in numeric order: 24 -> 25 -> 26 -> 27
 | 22. Global Hotkeys | v2.0 | 3/3 | Complete | 2026-02-19 |
 | 23. Distribution | v2.0 | 3/3 | Complete | 2026-02-20 |
 | 24. Zoom Transform | v2.1 | Complete    | 2026-03-05 | 2026-03-05 |
-| 25. Measure Zoom | 2/2 | Complete   | 2026-03-06 | - |
+| 25. Measure Zoom | 2/2 | Complete    | 2026-03-06 | - |
 | 26. Guides Zoom | v2.1 | 0/? | Not started | - |
 | 27. Zoom UX Polish | v2.1 | 0/? | Not started | - |
