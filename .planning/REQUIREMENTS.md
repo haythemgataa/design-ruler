@@ -25,10 +25,10 @@ Requirements for zoom feature. Each maps to roadmap phases.
 
 ### Guides Integration
 
-- [ ] **GUID-01**: Preview line follows cursor correctly in zoomed view
-- [ ] **GUID-02**: Click places guide at correct screen coordinate while zoomed
-- [ ] **GUID-03**: Hover-to-remove hit testing works at zoom level
-- [ ] **GUID-04**: Existing guide lines render at correct positions when zoom changes
+- [x] **GUID-01**: Preview line follows cursor correctly in zoomed view
+- [x] **GUID-02**: Click places guide at correct screen coordinate while zoomed
+- [x] **GUID-03**: Hover-to-remove hit testing works at zoom level
+- [x] **GUID-04**: Existing guide lines render at correct positions when zoom changes
 
 ### Shared UX
 
@@ -70,10 +70,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | MEAS-03 | Phase 25 | Complete |
 | MEAS-04 | Phase 25 | Complete |
 | MEAS-05 | Phase 25 | Complete |
-| GUID-01 | Phase 26 | Pending |
-| GUID-02 | Phase 26 | Pending |
-| GUID-03 | Phase 26 | Pending |
-| GUID-04 | Phase 26 | Pending |
+| GUID-01 | Phase 26 | Complete (26-01) |
+| GUID-02 | Phase 26 | Complete (26-01) |
+| GUID-03 | Phase 26 | Complete (26-01) |
+| GUID-04 | Phase 26 | Complete (26-01) |
 | SHUX-01 | Phase 27 | Complete |
 | SHUX-02 | Phase 24 | Complete (24-01) |
 | SHUX-03 | Phase 24 | Complete (24-02) |
@@ -85,4 +85,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-03-05*
-*Last updated: 2026-03-05 after roadmap creation*
+*Last updated: 2026-03-07 after gap closure (GUID-01–04 verified complete)*

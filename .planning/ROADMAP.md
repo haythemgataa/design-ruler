@@ -70,7 +70,7 @@
 
 - [x] **Phase 24: Zoom Transform Infrastructure** - Z key zoom cycle with animated transform and cursor-following pan in OverlayWindow base
 - [x] **Phase 25: Measure Zoom Integration** - Edge detection, crosshair, dimensions, arrow keys, and drag-to-select all working correctly at 2x and 4x (completed 2026-03-06)
-- [ ] **Phase 26: Guides Zoom Integration** - Preview line, placement, hover-remove, and existing guide rendering all working correctly while zoomed
+- [x] **Phase 26: Guides Zoom Integration** - Preview line, placement, hover-remove, and existing guide rendering all working correctly while zoomed (completed 2026-03-06)
 - [x] **Phase 27: Zoom UX Polish** - Zoom level indicator, hint bar Z key shortcut, and session reset (completed 2026-03-06)
 
 ## Phase Details
@@ -116,7 +116,7 @@ Plans:
   4. When zoom level changes, all existing placed guide lines render at their correct positions without shifting
 **Plans**: 1 plan
 Plans:
-- [ ] 26-01-PLAN.md -- Zoom-aware guide line storage, rendering, and hit testing
+- [x] 26-01-PLAN.md -- Zoom-aware guide line storage, rendering, and hit testing
 
 ### Phase 27: Zoom UX Polish
 **Goal**: User has clear visual feedback about the current zoom level and hint bar teaches the Z key shortcut
@@ -127,7 +127,7 @@ Plans:
   2. Hint bar includes the Z key with "Zoom" label in both Measure and Alignment Guides modes
 **Plans**: 1 plan
 Plans:
-- [ ] 27-01-PLAN.md -- Z keycap flash animation + standalone fallback pill
+- [x] 27-01-PLAN.md -- Z keycap flash animation + standalone fallback pill
 
 ## Progress
 
@@ -162,5 +162,5 @@ Phases execute in numeric order: 24 -> 25 -> 26 -> 27
 | 23. Distribution | v2.0 | 3/3 | Complete | 2026-02-20 |
 | 24. Zoom Transform | v2.1 | Complete    | 2026-03-05 | 2026-03-05 |
 | 25. Measure Zoom | 2/2 | Complete    | 2026-03-06 | - |
-| 26. Guides Zoom | v2.1 | 0/1 | Not started | - |
+| 26. Guides Zoom | v2.1 | 1/1 | Complete | 2026-03-06 |
 | 27. Zoom UX Polish | 1/1 | Complete    | 2026-03-06 | - |
