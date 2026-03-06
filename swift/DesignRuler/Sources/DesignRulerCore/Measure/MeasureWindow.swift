@@ -69,6 +69,21 @@ package final class MeasureWindow: OverlayWindow {
 
     package var hasSelections: Bool { selectionManager.hasSelections }
 
+    // MARK: - Zoom Coordinate Helpers
+
+    /// Convert window-space cursor to capture-space AppKit screen point for EdgeDetector.
+    /// At 1x zoom, this is identity (capturePoint == windowPoint).
+    private func captureScreenPoint(from windowPoint: NSPoint) -> NSPoint {
+        let cp = windowPointToCapturePoint(windowPoint, zoomState: zoomState, screenSize: screenBounds.size)
+        return NSPoint(x: screenBounds.origin.x + cp.x, y: screenBounds.origin.y + cp.y)
+    }
+
+    /// Convert window-space cursor to capture-space point (window-local).
+    /// At 1x zoom, this is identity.
+    private func capturePoint(from windowPoint: NSPoint) -> NSPoint {
+        windowPointToCapturePoint(windowPoint, zoomState: zoomState, screenSize: screenBounds.size)
+    }
+
     // MARK: - Overridable Hooks
 
     override package func handleActivation() {
@@ -87,29 +102,31 @@ package final class MeasureWindow: OverlayWindow {
     }
 
     override package func handleMouseMoved(to windowPoint: NSPoint) {
-        let appKitScreenPoint = NSPoint(
-            x: screenBounds.origin.x + windowPoint.x,
-            y: screenBounds.origin.y + windowPoint.y
-        )
+        // Convert window-space to capture-space for edge detection (MEAS-01)
+        let appKitScreenPoint = captureScreenPoint(from: windowPoint)
 
         guard let edges = edgeDetector.onMouseMoved(at: appKitScreenPoint) else { return }
 
-        // Selection hover state
-        if selectionManager.hasSelections, let _ = selectionManager.hitTest(windowPoint) {
+        // Selection hover state — hit-test in capture-space (selections store captureRect)
+        let cp = capturePoint(from: windowPoint)
+        if selectionManager.hasSelections, let _ = selectionManager.hitTest(cp) {
             if !isHoveringSelection {
                 isHoveringSelection = true
                 crosshairView.hideForDrag()
                 CursorManager.shared.transitionToPointingHand()
             }
-            selectionManager.updateHover(at: windowPoint)
+            selectionManager.updateHover(at: cp)
             return
         } else if isHoveringSelection {
             isHoveringSelection = false
             crosshairView.showAfterDrag()
             CursorManager.shared.transitionBack()
-            selectionManager.updateHover(at: windowPoint)
+            selectionManager.updateHover(at: cp)
         }
 
+        // cursor: windowPoint (screen-space for rendering position)
+        // edges: capture-space distances
+        // zoomScale: multiplier for visual edge positions
         crosshairView.update(cursor: windowPoint, edges: edges, zoomScale: zoomState.level.rawValue)
     }
 
@@ -164,7 +181,8 @@ package final class MeasureWindow: OverlayWindow {
 
         let mouse = NSEvent.mouseLocation
         let wp = NSPoint(x: mouse.x - screenBounds.origin.x, y: mouse.y - screenBounds.origin.y)
-        let sp = NSPoint(x: screenBounds.origin.x + wp.x, y: screenBounds.origin.y + wp.y)
+        // Convert to capture-space for edge detection (MEAS-01)
+        let sp = captureScreenPoint(from: wp)
         if let edges = edgeDetector.onMouseMoved(at: sp) {
             crosshairView.update(cursor: wp, edges: edges, zoomScale: zoomState.level.rawValue)
         }
@@ -191,6 +209,7 @@ package final class MeasureWindow: OverlayWindow {
     override package func mouseDown(with event: NSEvent) {
         onActivity?()
         let windowPoint = event.locationInWindow
+        let cp = capturePoint(from: windowPoint)
 
         // Reset stale drag state — if mouseUp was never delivered (e.g., system stole the event),
         // isDragging could be stuck true, preventing new drags from starting correctly
@@ -200,33 +219,30 @@ package final class MeasureWindow: OverlayWindow {
             CursorManager.shared.transitionBack()
         }
 
-        // Click on a hovered selection -> remove it and restore crosshair
-        if let hovered = selectionManager.hitTest(windowPoint), hovered.state == .hovered {
+        // Click on a hovered selection -> remove it and restore crosshair (hit-test in capture-space)
+        if let hovered = selectionManager.hitTest(cp), hovered.state == .hovered {
             selectionManager.removeSelection(hovered)
             if isHoveringSelection {
                 isHoveringSelection = false
                 CursorManager.shared.transitionBack()
             }
-            // Restore crosshair at current position
+            // Restore crosshair at current position (edge detection in capture-space)
             crosshairView.showAfterDrag()
-            let appKitScreenPoint = NSPoint(
-                x: screenBounds.origin.x + windowPoint.x,
-                y: screenBounds.origin.y + windowPoint.y
-            )
+            let appKitScreenPoint = captureScreenPoint(from: windowPoint)
             if let edges = edgeDetector.onMouseMoved(at: appKitScreenPoint) {
                 crosshairView.update(cursor: windowPoint, edges: edges, zoomScale: zoomState.level.rawValue)
             }
             return
         }
 
-        // Start drag
+        // Start drag (in capture-space)
         isDragging = true
         if isHoveringSelection {
             isHoveringSelection = false
             CursorManager.shared.transitionBack()
         }
         crosshairView.hideForDrag()
-        selectionManager.startDrag(at: windowPoint)
+        selectionManager.startDrag(at: cp)
         CursorManager.shared.transitionToCrosshairDrag()
     }
 
@@ -234,7 +250,7 @@ package final class MeasureWindow: OverlayWindow {
         onActivity?()
         if !isDragging { return }
         let windowPoint = event.locationInWindow
-        selectionManager.updateDrag(to: windowPoint)
+        selectionManager.updateDrag(to: capturePoint(from: windowPoint))
     }
 
     override package func mouseUp(with event: NSEvent) {
@@ -243,14 +259,11 @@ package final class MeasureWindow: OverlayWindow {
         isDragging = false
 
         let windowPoint = event.locationInWindow
-        _ = selectionManager.endDrag(at: windowPoint, screenBounds: screenBounds)
+        _ = selectionManager.endDrag(at: capturePoint(from: windowPoint), screenBounds: screenBounds)
 
-        // Restore crosshair at current cursor position
+        // Restore crosshair at current cursor position (edge detection in capture-space)
         crosshairView.showAfterDrag()
-        let appKitScreenPoint = NSPoint(
-            x: screenBounds.origin.x + windowPoint.x,
-            y: screenBounds.origin.y + windowPoint.y
-        )
+        let appKitScreenPoint = captureScreenPoint(from: windowPoint)
         if let edges = edgeDetector.onMouseMoved(at: appKitScreenPoint) {
             crosshairView.update(cursor: windowPoint, edges: edges, zoomScale: zoomState.level.rawValue)
         }
