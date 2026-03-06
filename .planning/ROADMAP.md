@@ -64,7 +64,7 @@
 
 </details>
 
-### 🚧 v2.1 Zoom (In Progress)
+### v2.1 Zoom (In Progress)
 
 **Milestone Goal:** Add full-screen zoom to both Measure and Alignment Guides, cycling through 2x, 4x, 1x on Z key press, with fully functional crosshair, edge detection, and guide interaction at every zoom level.
 
@@ -102,8 +102,8 @@ Plans:
   5. Dimension pill text remains readable and correctly positioned (not scaled up with the zoom)
 **Plans**: 2 plans
 Plans:
-- [ ] 25-01-PLAN.md -- Core coordinate conversion + zoom-aware selection
-- [ ] 25-02-PLAN.md -- Arrow key peek pan animation
+- [x] 25-01-PLAN.md -- Core coordinate conversion + zoom-aware selection
+- [x] 25-02-PLAN.md -- Arrow key peek pan animation
 
 ### Phase 26: Guides Zoom Integration
 **Goal**: Preview line, click placement, hover-to-remove, and existing guide line rendering all work correctly at any zoom level
@@ -114,7 +114,9 @@ Plans:
   2. Clicking while zoomed places a guide line at the correct screen position (same coordinate as if placed at 1x)
   3. Hover-to-remove hit testing works at the correct screen coordinates while zoomed (5px threshold in screen space, not zoomed space)
   4. When zoom level changes, all existing placed guide lines render at their correct positions without shifting
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 26-01-PLAN.md -- Zoom-aware guide line storage, rendering, and hit testing
 
 ### Phase 27: Zoom UX Polish
 **Goal**: User has clear visual feedback about the current zoom level and hint bar teaches the Z key shortcut
@@ -158,5 +160,5 @@ Phases execute in numeric order: 24 -> 25 -> 26 -> 27
 | 23. Distribution | v2.0 | 3/3 | Complete | 2026-02-20 |
 | 24. Zoom Transform | v2.1 | Complete    | 2026-03-05 | 2026-03-05 |
 | 25. Measure Zoom | 2/2 | Complete    | 2026-03-06 | - |
-| 26. Guides Zoom | v2.1 | 0/? | Not started | - |
+| 26. Guides Zoom | v2.1 | 0/1 | Not started | - |
 | 27. Zoom UX Polish | v2.1 | 0/? | Not started | - |
