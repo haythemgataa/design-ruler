@@ -140,6 +140,8 @@ package final class AlignmentGuidesWindow: OverlayWindow {
                 CursorManager.shared.transitionBack()
             }
         }
+
+        updateGuidesZoomPillPosition()
     }
 
     override package func handleKeyDown(with event: NSEvent) {
@@ -159,6 +161,7 @@ package final class AlignmentGuidesWindow: OverlayWindow {
     private var zoomPillBg: CAShapeLayer?
     private var zoomPillText: CATextLayer?
     private var zoomPillWorkItem: DispatchWorkItem?
+    private var zoomPillSize: CGSize = .zero
 
     override package func showZoomFallbackPill(level: ZoomLevel) {
         zoomPillWorkItem?.cancel()
@@ -183,16 +186,16 @@ package final class AlignmentGuidesWindow: OverlayWindow {
         let padding: CGFloat = 16
         let pillW = ceil(textSize.width) + padding
         let pillH = DesignTokens.Pill.height
+        zoomPillSize = CGSize(width: pillW, height: pillH)
 
-        // Position below cursor
+        // Position to the right of cursor
         let cursor = lastCursorPosition
-        let px = round(cursor.x - pillW / 2)
-        let py = round(cursor.y - 30 - pillH)
+        let pos = guidesZoomPillPosition(cursor: cursor, pillW: pillW, pillH: pillH)
 
         let bg = CAShapeLayer()
         bg.fillColor = DesignTokens.Pill.backgroundColor
         bg.strokeColor = nil
-        bg.frame = CGRect(x: px, y: py, width: pillW, height: pillH)
+        bg.frame = CGRect(origin: pos, size: CGSize(width: pillW, height: pillH))
         bg.path = PillRenderer.squirclePath(
             rect: CGRect(origin: .zero, size: CGSize(width: pillW, height: pillH)),
             radius: DesignTokens.Pill.cornerRadius
@@ -211,8 +214,8 @@ package final class AlignmentGuidesWindow: OverlayWindow {
         tl.isWrapped = false
         tl.alignmentMode = .center
         tl.string = textAttr
-        let textY = round(py + (pillH - ceil(textSize.height)) / 2)
-        tl.frame = CGRect(x: px, y: textY, width: pillW, height: ceil(textSize.height))
+        let textY = round(pos.y + (pillH - ceil(textSize.height)) / 2)
+        tl.frame = CGRect(x: pos.x, y: textY, width: pillW, height: ceil(textSize.height))
         tl.opacity = 0
         parentLayer.addSublayer(tl)
 
@@ -229,6 +232,48 @@ package final class AlignmentGuidesWindow: OverlayWindow {
         }
         zoomPillWorkItem = removeItem
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: removeItem)
+    }
+
+    private func guidesZoomPillPosition(cursor: NSPoint, pillW: CGFloat, pillH: CGFloat) -> CGPoint {
+        let gap: CGFloat = 6
+        let vw = frame.width
+
+        if cursorDirection == .vertical {
+            // Vertical line: guide pill is to the right of line at cursor.x + 8, 60pt wide
+            let guidePillEnd = cursor.x + 8 + 60
+            let guidePillStart = cursor.x - 8 - 60
+            let py = round(cursor.y - 12 - pillH)
+
+            var px = round(guidePillEnd + gap)
+            if px + pillW > vw - 6 {
+                px = round(guidePillStart - gap - pillW)
+            }
+            if px < 6 { px = round(guidePillEnd + gap) }
+            return CGPoint(x: px, y: py)
+        } else {
+            // Horizontal line: guide pill is above the line at cursor.x + 12, 60pt wide
+            let guidePillEnd = cursor.x + 12 + 60
+            let py = round(cursor.y - 12 - pillH)
+
+            var px = round(guidePillEnd + gap)
+            if px + pillW > vw - 6 {
+                px = round(cursor.x - 12 - 60 - gap - pillW)
+            }
+            if px < 6 { px = round(guidePillEnd + gap) }
+            return CGPoint(x: px, y: py)
+        }
+    }
+
+    private func updateGuidesZoomPillPosition() {
+        guard let bg = zoomPillBg, let tl = zoomPillText else { return }
+        let pillW = zoomPillSize.width
+        let pillH = zoomPillSize.height
+        let pos = guidesZoomPillPosition(cursor: lastCursorPosition, pillW: pillW, pillH: pillH)
+        CATransaction.instant {
+            bg.frame = CGRect(origin: pos, size: CGSize(width: pillW, height: pillH))
+            let textH = tl.frame.height
+            tl.frame = CGRect(x: pos.x, y: round(pos.y + (pillH - textH) / 2), width: pillW, height: textH)
+        }
     }
 
     private func fadeAndRemoveZoomPill() {

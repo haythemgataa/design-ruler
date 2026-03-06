@@ -186,6 +186,7 @@ package final class CrosshairView: NSView {
         let h = Int(topDist + bottomDist)
 
         layoutPill(cx: cx, cy: cy, vw: vw, w: w, h: h)
+        updateZoomPillPosition(cursor: cursor)
     }
 
     // MARK: - Initial pill
@@ -288,6 +289,7 @@ package final class CrosshairView: NSView {
     private var zoomPillBg: CAShapeLayer?
     private var zoomPillText: CATextLayer?
     private var zoomPillWorkItem: DispatchWorkItem?
+    private var zoomPillSize: CGSize = .zero
 
     /// Show a brief zoom level pill near the dimension pill when hint bar is hidden.
     package func showZoomFlash(level: ZoomLevel, at cursor: NSPoint) {
@@ -314,31 +316,16 @@ package final class CrosshairView: NSView {
         let padding: CGFloat = 16
         let pillW = ceil(textSize.width) + padding
         let pillH = DesignTokens.Pill.height
+        zoomPillSize = CGSize(width: pillW, height: pillH)
 
-        // Position: offset from dimension pill location
-        let gap: CGFloat = 6
-        var px: CGFloat
-        let py = round(cursor.y - 12 - pillH)  // same vertical as dimension pill
-
-        if pillIsOnLeft {
-            // Dimension pill is to the left; place zoom pill further left
-            px = round(cursor.x - 12 - pillW - gap)
-        } else {
-            // Dimension pill is to the right; place zoom pill further right
-            // Estimate dimension pill width (~120pt typical)
-            px = round(cursor.x + 12 + 120 + gap)
-        }
-
-        // Clamp to screen
-        let vw = bounds.width
-        if px + pillW > vw - 6 { px = round(cursor.x - 12 - pillW - gap) }
-        if px < 6 { px = round(cursor.x + 12 + gap) }
+        // Position relative to dimension pill
+        let pos = zoomPillPosition(cursor: cursor, pillW: pillW, pillH: pillH)
 
         // Background layer
         let bg = CAShapeLayer()
         bg.fillColor = DesignTokens.Pill.backgroundColor
         bg.strokeColor = nil
-        bg.frame = CGRect(x: px, y: py, width: pillW, height: pillH)
+        bg.frame = CGRect(origin: pos, size: CGSize(width: pillW, height: pillH))
         bg.path = PillRenderer.squirclePath(
             rect: CGRect(origin: .zero, size: CGSize(width: pillW, height: pillH)),
             radius: DesignTokens.Pill.cornerRadius
@@ -358,8 +345,8 @@ package final class CrosshairView: NSView {
         tl.isWrapped = false
         tl.alignmentMode = .center
         tl.string = textAttr
-        let textY = round(py + (pillH - ceil(textSize.height)) / 2)
-        tl.frame = CGRect(x: px, y: textY, width: pillW, height: ceil(textSize.height))
+        let textY = round(pos.y + (pillH - ceil(textSize.height)) / 2)
+        tl.frame = CGRect(x: pos.x, y: textY, width: pillW, height: ceil(textSize.height))
         tl.opacity = 0
         root.addSublayer(tl)
 
@@ -378,6 +365,40 @@ package final class CrosshairView: NSView {
         }
         zoomPillWorkItem = removeItem
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: removeItem)
+    }
+
+    /// Update zoom pill position to follow cursor.
+    package func updateZoomPillPosition(cursor: NSPoint) {
+        guard let bg = zoomPillBg, let tl = zoomPillText else { return }
+        let pillW = zoomPillSize.width
+        let pillH = zoomPillSize.height
+        let pos = zoomPillPosition(cursor: cursor, pillW: pillW, pillH: pillH)
+        CATransaction.instant {
+            bg.frame = CGRect(origin: pos, size: CGSize(width: pillW, height: pillH))
+            let textH = tl.frame.height
+            tl.frame = CGRect(x: pos.x, y: round(pos.y + (pillH - textH) / 2), width: pillW, height: textH)
+        }
+    }
+
+    private func zoomPillPosition(cursor: NSPoint, pillW: CGFloat, pillH: CGFloat) -> CGPoint {
+        let gap: CGFloat = 6
+        let dimPillRight = pill.hBgLayer.frame.maxX
+        let dimPillLeft = pill.wBgLayer.frame.minX
+        var px: CGFloat
+        let py = round(cursor.y - 12 - pillH)
+
+        if pillIsOnLeft {
+            px = round(dimPillLeft - gap - pillW)
+        } else {
+            px = round(dimPillRight + gap)
+        }
+
+        // Clamp to screen
+        let vw = bounds.width
+        if px + pillW > vw - 6 { px = round(dimPillLeft - gap - pillW) }
+        if px < 6 { px = round(dimPillRight + gap) }
+
+        return CGPoint(x: px, y: py)
     }
 
     private func fadeAndRemoveZoomPill() {
