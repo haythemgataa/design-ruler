@@ -13,7 +13,15 @@ package final class GuideLineManager {
     private let scale: CGFloat
     private let screenSize: CGSize
 
-    // Current preview state (for placing)
+    // Zoom state (set via updateForZoom only)
+    private var zoomState = ZoomState()
+
+    /// Extract the window-space coordinate along the guide axis (perpendicular to the line).
+    private func alongAxis(_ point: NSPoint) -> CGFloat {
+        currentDirection == .vertical ? point.y : point.x
+    }
+
+    // Current preview state (for placing) — capture-space
     private var currentPosition: CGFloat = 0
     private var currentCursorAlongAxis: CGFloat = 0
 
@@ -40,31 +48,33 @@ package final class GuideLineManager {
     }
 
     /// Update preview line position to follow cursor.
-    package func updatePreview(at point: NSPoint) {
+    /// `capturePoint` is in capture-space (caller converts). `windowPoint` is in window-space for color indicator.
+    package func updatePreview(capturePoint: NSPoint, windowPoint: NSPoint) {
         let position: CGFloat
         let cursorAlongAxis: CGFloat
 
         if currentDirection == .vertical {
-            position = point.x
-            cursorAlongAxis = point.y
+            position = capturePoint.x
+            cursorAlongAxis = capturePoint.y
         } else {
-            position = point.y
-            cursorAlongAxis = point.x
+            position = capturePoint.y
+            cursorAlongAxis = capturePoint.x
         }
 
         currentPosition = position
         currentCursorAlongAxis = cursorAlongAxis
 
         previewLine.update(
-            position: position,
-            cursorAlongAxis: cursorAlongAxis,
+            capturePosition: position,
+            cursorAlongAxis: alongAxis(windowPoint),
             screenSize: screenSize,
             direction: currentDirection,
-            style: currentStyle
+            style: currentStyle,
+            zoomState: zoomState
         )
 
-        // Follow cursor with color indicator
-        colorIndicator?.updatePosition(at: point, screenSize: screenSize)
+        // Follow cursor with color indicator (window-space)
+        colorIndicator?.updatePosition(at: windowPoint, screenSize: screenSize)
 
         // Hide pill when color indicator is showing
         if colorIndicator?.isVisible == true && !previewLine.isInRemoveMode {
@@ -85,11 +95,12 @@ package final class GuideLineManager {
 
         // Update position immediately
         newLine.update(
-            position: currentPosition,
+            capturePosition: currentPosition,
             cursorAlongAxis: currentCursorAlongAxis,
             screenSize: screenSize,
             direction: currentDirection,
-            style: currentStyle
+            style: currentStyle,
+            zoomState: zoomState
         )
 
         // Fade in
@@ -100,40 +111,44 @@ package final class GuideLineManager {
     }
 
     /// Toggle preview direction between vertical and horizontal.
-    package func toggleDirection() {
+    /// `windowPoint` is needed to compute the window-space cursor-along-axis for pill positioning.
+    package func toggleDirection(windowPoint: NSPoint) {
         currentDirection = currentDirection.toggled()
 
         // Swap axes: vertical position=x, along=y; horizontal position=y, along=x
         swap(&currentPosition, &currentCursorAlongAxis)
 
         previewLine.update(
-            position: currentPosition,
-            cursorAlongAxis: currentCursorAlongAxis,
+            capturePosition: currentPosition,
+            cursorAlongAxis: alongAxis(windowPoint),
             screenSize: screenSize,
             direction: currentDirection,
-            style: currentStyle
+            style: currentStyle,
+            zoomState: zoomState
         )
     }
 
     /// Cycle to next style preset with color indicator.
-    package func cycleStyle(cursorPosition: NSPoint) {
+    /// `windowPoint` is in window-space for color indicator positioning.
+    package func cycleStyle(windowPoint: NSPoint) {
         currentStyle = currentStyle.next()
         let styleIndex = GuideLineStyle.allCases.firstIndex(of: currentStyle)!
 
         // Update preview line to new color
         previewLine.update(
-            position: currentPosition,
-            cursorAlongAxis: currentCursorAlongAxis,
+            capturePosition: currentPosition,
+            cursorAlongAxis: alongAxis(windowPoint),
             screenSize: screenSize,
             direction: currentDirection,
-            style: currentStyle
+            style: currentStyle,
+            zoomState: zoomState
         )
 
-        // Show/update color indicator
+        // Show/update color indicator (window-space)
         if colorIndicator == nil {
             colorIndicator = ColorCircleIndicator(parentLayer: parentLayer, scale: scale, screenSize: screenSize)
         }
-        colorIndicator!.show(at: cursorPosition, activeIndex: styleIndex, screenSize: screenSize)
+        colorIndicator!.show(at: windowPoint, activeIndex: styleIndex, screenSize: screenSize)
         previewLine.hidePill()
     }
 
@@ -167,9 +182,11 @@ package final class GuideLineManager {
         hoveredLine != nil
     }
 
-    /// Update hover state based on cursor position.
+    /// Update hover state based on cursor position (capture-space).
     package func updateHover(at point: NSPoint) {
-        let newHovered = findNearestLine(to: point, within: 5.0)
+        // 5px threshold in screen-space → divide by zoom scale for capture-space comparison
+        let threshold = 5.0 / zoomState.level.rawValue
+        let newHovered = findNearestLine(to: point, within: threshold)
 
         if newHovered !== hoveredLine {
             // Unhover old line
@@ -186,7 +203,7 @@ package final class GuideLineManager {
         }
     }
 
-    /// Find nearest placed line to point within threshold.
+    /// Find nearest placed line to point within threshold (both in capture-space).
     private func findNearestLine(to point: NSPoint, within threshold: CGFloat) -> GuideLine? {
         var nearest: GuideLine? = nil
         var minDistance = threshold
@@ -194,9 +211,9 @@ package final class GuideLineManager {
         for line in placedLines {
             let distance: CGFloat
             if line.direction == .vertical {
-                distance = abs(point.x - line.position)
+                distance = abs(point.x - line.capturePosition)
             } else {
-                distance = abs(point.y - line.position)
+                distance = abs(point.y - line.capturePosition)
             }
 
             if distance < minDistance {
@@ -209,7 +226,7 @@ package final class GuideLineManager {
     }
 
     /// Remove a placed line immediately.
-    package func removeLine(_ line: GuideLine, clickPoint: NSPoint) {
+    package func removeLine(_ line: GuideLine) {
         line.remove(animated: false)
         placedLines.removeAll { $0 === line }
         hoveredLine = nil
@@ -230,5 +247,31 @@ package final class GuideLineManager {
     /// Show preview line (for multi-monitor activation).
     package func showPreview() {
         previewLine.setLineVisible(true)
+    }
+
+    /// Reposition all lines after zoom/pan change.
+    package func updateForZoom(_ newZoomState: ZoomState) {
+        zoomState = newZoomState
+
+        // Reposition preview line — derive window-space cursor-along-axis from capture-space
+        let capturePt = NSPoint(
+            x: currentDirection == .vertical ? currentPosition : currentCursorAlongAxis,
+            y: currentDirection == .vertical ? currentCursorAlongAxis : currentPosition
+        )
+        let windowPt = capturePointToWindowPoint(capturePt, zoomState: zoomState)
+
+        previewLine.update(
+            capturePosition: currentPosition,
+            cursorAlongAxis: alongAxis(windowPt),
+            screenSize: screenSize,
+            direction: currentDirection,
+            style: currentStyle,
+            zoomState: zoomState
+        )
+
+        // Reposition all placed lines
+        for line in placedLines {
+            line.updateRenderPosition(zoomState: zoomState, screenSize: screenSize)
+        }
     }
 }

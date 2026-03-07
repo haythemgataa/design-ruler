@@ -45,8 +45,34 @@ package final class HintBarState: ObservableObject {
     @Published package var isOnLightBackground: Bool = false
     @Published package var isCollapsed: Bool = false
     @Published package var mode: HintBarMode = .inspect
+    @Published package var zoomFlashText: String? = nil
+    private var flashWorkItem: DispatchWorkItem?
 
     package init() {}
+
+    /// Whether the current flash represents zooming in (x2, x4) vs out (x1).
+    package var isZoomingIn: Bool {
+        zoomFlashText == "x2" || zoomFlashText == "x4"
+    }
+
+    package func flashZoomLevel(_ level: ZoomLevel) {
+        flashWorkItem?.cancel()
+
+        let text: String
+        switch level {
+        case .one:  text = "x1"
+        case .two:  text = "x2"
+        case .four: text = "x4"
+        }
+
+        zoomFlashText = text
+
+        let revert = DispatchWorkItem { [weak self] in
+            self?.zoomFlashText = nil
+        }
+        flashWorkItem = revert
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: revert)
+    }
 }
 
 // MARK: - Root Content
@@ -66,6 +92,8 @@ package struct HintBarContent: View {
                        symbolFont: .system(size: 16, weight: .bold, design: .rounded),
                        symbolTracking: -0.2, align: .bottomLeading, state: state)
                 style.text("to reverse.")
+                ZoomKeyCap(state: state)
+                style.text("Toggle zoom")
                 KeyCap(.esc, symbol: "esc", width: 32, height: 25,
                        symbolFont: .system(size: 13, weight: .bold, design: .rounded),
                        symbolTracking: -0.2, align: .center, state: state,
@@ -85,6 +113,8 @@ package struct HintBarContent: View {
                        symbolFont: .system(size: 12, weight: .bold, design: .rounded),
                        symbolTracking: -0.2, align: .center, state: state)
                 style.text("to change color.")
+                ZoomKeyCap(state: state)
+                style.text("Toggle zoom")
                 KeyCap(.esc, symbol: "esc", width: 32, height: 25,
                        symbolFont: .system(size: 13, weight: .bold, design: .rounded),
                        symbolTracking: -0.2, align: .center, state: state,
@@ -108,6 +138,7 @@ package struct CollapsedLeftContent: View {
             KeyCap(.shift, symbol: "\u{21E7}", width: 40, height: 25,
                    symbolFont: .system(size: 16, weight: .bold, design: .rounded),
                    symbolTracking: -0.2, align: .bottomLeading, state: state)
+            ZoomKeyCap(state: state)
         }
         .padding(.horizontal, 10)
         .frame(height: 48)
@@ -125,6 +156,7 @@ package struct CollapsedAlignmentGuidesLeftContent: View {
             KeyCap(.space, symbol: "space", width: 64, height: 25,
                    symbolFont: .system(size: 12, weight: .bold, design: .rounded),
                    symbolTracking: -0.2, align: .center, state: state)
+            ZoomKeyCap(state: state)
         }
         .padding(.horizontal, 10)
         .frame(height: 48)
@@ -176,6 +208,8 @@ package struct HintBarGlassRoot: View {
                         style.text("to skip edges, plus")
                         shiftCap.opacity(0)
                         style.text("to reverse.")
+                        zoomCap.opacity(0)
+                        style.text("Toggle zoom")
                         escCap.opacity(0)
                         style.exitText("to exit.")
                     }
@@ -190,6 +224,8 @@ package struct HintBarGlassRoot: View {
                         style.text("to switch direction,")
                         spaceCap.opacity(0)
                         style.text("to change color.")
+                        zoomCap.opacity(0)
+                        style.text("Toggle zoom")
                         escCap.opacity(0)
                         style.exitText("to exit.")
                     }
@@ -204,6 +240,7 @@ package struct HintBarGlassRoot: View {
                         HStack(spacing: 6) {
                             ArrowCluster(state: state).opacity(0)
                             shiftCap.opacity(0)
+                            zoomCap.opacity(0)
                         }
                         .padding(.horizontal, 10)
                         .frame(height: 48)
@@ -213,6 +250,7 @@ package struct HintBarGlassRoot: View {
                         HStack(spacing: 6) {
                             tabCap.opacity(0)
                             spaceCap.opacity(0)
+                            zoomCap.opacity(0)
                         }
                         .padding(.horizontal, 10)
                         .frame(height: 48)
@@ -247,6 +285,10 @@ package struct HintBarGlassRoot: View {
                     if !state.isCollapsed {
                         style.text("to reverse.").opacity(0)
                     }
+                    zoomCap
+                    if !state.isCollapsed {
+                        style.text("Toggle zoom").opacity(0)
+                    }
                 }
                 .padding(.horizontal, state.isCollapsed ? 10 : 0)
             } else {
@@ -261,6 +303,10 @@ package struct HintBarGlassRoot: View {
                     spaceCap
                     if !state.isCollapsed {
                         style.text("to change color.").opacity(0)
+                    }
+                    zoomCap
+                    if !state.isCollapsed {
+                        style.text("Toggle zoom").opacity(0)
                     }
                 }
                 .padding(.horizontal, state.isCollapsed ? 10 : 0)
@@ -298,6 +344,10 @@ package struct HintBarGlassRoot: View {
                symbolTracking: -0.2, align: .center, state: state)
     }
 
+    private var zoomCap: some View {
+        ZoomKeyCap(state: state)
+    }
+
     private var escCap: some View {
         KeyCap(.esc, symbol: "esc", width: 32, height: 25,
                symbolFont: .system(size: 13, weight: .bold, design: .rounded),
@@ -331,6 +381,70 @@ private struct ArrowCluster: View {
                        symbolFont: font, symbolTracking: 0, align: .center, state: state)
             }
         }
+    }
+}
+
+// MARK: - Zoom Key Cap
+
+private struct ZoomKeyCap: View {
+    @ObservedObject var state: HintBarState
+
+    var body: some View {
+        let isDark = !state.isOnLightBackground
+        let accentColor: Color = isDark ? .white : .black
+        let normalColor: Color = isDark
+            ? Color(nsColor: NSColor(srgbRed: 0x44 / 255.0, green: 0x44 / 255.0, blue: 0x44 / 255.0, alpha: 1))
+            : Color(nsColor: NSColor(srgbRed: 0xDD / 255.0, green: 0xDD / 255.0, blue: 0xDD / 255.0, alpha: 1))
+        let pressedColor: Color = isDark
+            ? Color(nsColor: NSColor(srgbRed: 0x2C / 255.0, green: 0x2C / 255.0, blue: 0x2C / 255.0, alpha: 1))
+            : Color(nsColor: NSColor(srgbRed: 0xAA / 255.0, green: 0xAA / 255.0, blue: 0xAA / 255.0, alpha: 1))
+        let isPressed = state.pressedKeys.contains(.zoom)
+        let cornerRadius: CGFloat = 5
+        let shadowOffset: CGFloat = 2
+        let width: CGFloat = 25
+        let height: CGFloat = 25
+        let font: Font = .system(size: 13, weight: .bold, design: .rounded)
+
+        ZStack(alignment: .bottom) {
+            // Shadow rect
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(accentColor)
+                .frame(width: width, height: height)
+                .opacity(isPressed ? 0 : 1)
+
+            // Cap
+            ZStack {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(isPressed ? pressedColor : normalColor)
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(accentColor, lineWidth: 1.5)
+
+                // ZStack for flash animation: "Z" and zoom level text
+                ZStack {
+                    Text("Z")
+                        .font(font)
+                        .foregroundColor(accentColor)
+                        .scaleEffect(state.zoomFlashText == nil ? 1.0 : 0.6)
+                        .blur(radius: state.zoomFlashText == nil ? 0 : 4)
+                        .opacity(state.zoomFlashText == nil ? 1 : 0)
+
+                    if let flashText = state.zoomFlashText {
+                        Text(flashText)
+                            .font(font)
+                            .foregroundColor(accentColor)
+                            .transition(.asymmetric(
+                                insertion: .scale(scale: state.isZoomingIn ? 0.6 : 1.4).combined(with: .opacity),
+                                removal: .scale(scale: 0.8).combined(with: .opacity)
+                            ))
+                    }
+                }
+                .animation(.easeOut(duration: 0.2), value: state.zoomFlashText)
+            }
+            .frame(width: width, height: height)
+            .offset(y: isPressed ? 0 : -shadowOffset)
+        }
+        .frame(width: width, height: height + shadowOffset)
+        .animation(.easeOut(duration: 0.06), value: isPressed)
     }
 }
 

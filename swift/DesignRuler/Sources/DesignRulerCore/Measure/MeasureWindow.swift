@@ -10,6 +10,7 @@ package final class MeasureWindow: OverlayWindow {
     private var selectionManager: SelectionManager!
     private var isDragging = false
     private var isHoveringSelection = false
+    private var peekWorkItem: DispatchWorkItem?
 
     // Typed callback for multi-monitor activation
     package var onActivate: ((MeasureWindow) -> Void)?
@@ -34,6 +35,16 @@ package final class MeasureWindow: OverlayWindow {
         let size = screenFrame.size
         let containerView = NSView(frame: NSRect(origin: .zero, size: size))
 
+        // Background view hosts the content layer (receives zoom transform).
+        // UI elements (crosshairView, selection layers, hint bar) stay in containerView
+        // above bgView so they remain at normal screen-space size when zoomed.
+        setupContentLayer(screenshot: screenshot, screenSize: size)
+        let bgView = NSView(frame: NSRect(origin: .zero, size: size))
+        bgView.wantsLayer = true
+        bgView.layer!.addSublayer(contentLayer!)
+        contentLayer?.contentsScale = backingScaleFactor
+        containerView.addSubview(bgView)
+
         let cv = CrosshairView(frame: NSRect(origin: .zero, size: size))
         cv.screenFrame = screenFrame
         self.crosshairView = cv
@@ -47,22 +58,178 @@ package final class MeasureWindow: OverlayWindow {
         )
 
         contentView = containerView
+        containerView.wantsLayer = true
+        containerView.layer?.masksToBounds = false
 
         // Use base's shared hint bar setup (mode defaults to .inspect)
         setupHintBar(mode: .inspect, screenSize: size, screenshot: screenshot, hideHintBar: hideHintBar, container: containerView)
     }
 
-    /// Set frozen screenshot as background below the crosshair view.
+    /// Set frozen screenshot as content layer contents (called by coordinator after capture).
     package func setBackground(_ cgImage: CGImage) {
-        setBackground(cgImage, below: crosshairView)
+        contentLayer?.contents = cgImage
     }
 
     package var hasSelections: Bool { selectionManager.hasSelections }
+
+    // MARK: - Zoom Coordinate Helpers
+
+    /// Convert window-space cursor to capture-space AppKit screen point for EdgeDetector.
+    /// At 1x zoom, this is identity (capturePoint == windowPoint).
+    private func captureScreenPoint(from windowPoint: NSPoint) -> NSPoint {
+        let cp = windowPointToCapturePoint(windowPoint, zoomState: zoomState, screenSize: screenBounds.size)
+        return NSPoint(x: screenBounds.origin.x + cp.x, y: screenBounds.origin.y + cp.y)
+    }
+
+    /// Convert window-space cursor to capture-space point (window-local).
+    /// At 1x zoom, this is identity.
+    private func capturePoint(from windowPoint: NSPoint) -> NSPoint {
+        windowPointToCapturePoint(windowPoint, zoomState: zoomState, screenSize: screenBounds.size)
+    }
+
+    // MARK: - Peek Pan (Arrow Key Edge Skip While Zoomed)
+
+    /// When an arrow key skip moves an edge outside the visible zoomed viewport,
+    /// auto-pan to reveal the edge, hold briefly, then pan back to cursor.
+    /// No-op at 1x zoom.
+    private func peekToEdge(_ edges: DirectionalEdges, direction: EdgeDetector.Direction) {
+        guard zoomState.isZoomed else { return }
+
+        // Determine which edge to check based on skip direction
+        let edge: EdgeHit?
+        switch direction {
+        case .left:   edge = edges.left
+        case .right:  edge = edges.right
+        case .top:    edge = edges.top
+        case .bottom: edge = edges.bottom
+        }
+        guard let edgeHit = edge else { return }
+
+        // Edge position is in capture-space (distance from cursor).
+        // Get the cursor in capture-space, then compute the edge's capture-space position.
+        let cursorCapture = capturePoint(from: crosshairView.cursorPosition)
+        let edgeCapturePos: CGFloat
+        let isHorizontalAxis: Bool
+
+        switch direction {
+        case .left:
+            edgeCapturePos = cursorCapture.x - edgeHit.distance
+            isHorizontalAxis = true
+        case .right:
+            edgeCapturePos = cursorCapture.x + edgeHit.distance
+            isHorizontalAxis = true
+        case .top:
+            edgeCapturePos = cursorCapture.y + edgeHit.distance  // AppKit: top = +y
+            isHorizontalAxis = false
+        case .bottom:
+            edgeCapturePos = cursorCapture.y - edgeHit.distance  // AppKit: bottom = -y
+            isHorizontalAxis = false
+        }
+
+        // Convert edge capture position to window-space to check visibility
+        let edgeWindowPos: CGFloat
+        let viewportSize: CGFloat
+        let s = zoomState.level.rawValue
+
+        if isHorizontalAxis {
+            edgeWindowPos = (edgeCapturePos + zoomState.panOffset.x) * s
+            viewportSize = screenBounds.width
+        } else {
+            edgeWindowPos = (edgeCapturePos + zoomState.panOffset.y) * s
+            viewportSize = screenBounds.height
+        }
+
+        // Check if edge is within visible viewport (with small margin)
+        let margin: CGFloat = 20
+        guard edgeWindowPos < margin || edgeWindowPos > viewportSize - margin else { return }
+
+        // Calculate pan offset that brings edge into view with margin
+        let savedPanOffset = zoomState.panOffset
+        var peekOffset = savedPanOffset
+
+        if isHorizontalAxis {
+            if edgeWindowPos < margin {
+                // Edge is off-screen left: pan right so edge is at margin
+                peekOffset.x = (margin / s) - edgeCapturePos
+            } else {
+                // Edge is off-screen right: pan left so edge is at viewportSize - margin
+                peekOffset.x = ((viewportSize - margin) / s) - edgeCapturePos
+            }
+        } else {
+            if edgeWindowPos < margin {
+                // Edge is off-screen bottom
+                peekOffset.y = (margin / s) - edgeCapturePos
+            } else {
+                // Edge is off-screen top
+                peekOffset.y = ((viewportSize - margin) / s) - edgeCapturePos
+            }
+        }
+
+        // Clamp the peek offset to valid bounds
+        peekOffset = clampPanOffset(peekOffset, zoomLevel: zoomState.level, screenSize: screenBounds.size)
+
+        // Calculate cursor-centered pan (the "home" position to return to)
+        let cursorPos = lastCursorPosition
+        let homePan = clampPanOffset(
+            CGPoint(x: (cursorPos.x / s) - cursorPos.x, y: (cursorPos.y / s) - cursorPos.y),
+            zoomLevel: zoomState.level, screenSize: screenBounds.size
+        )
+
+        // Cancel any in-flight peek
+        peekWorkItem?.cancel()
+
+        // Phase 1: Pan out to edge, crosshair follows content
+        isPeekAnimating = true
+        zoomState.panOffset = peekOffset
+        let peekDelta = CGPoint(x: (peekOffset.x - homePan.x) * s, y: (peekOffset.y - homePan.y) * s)
+        CATransaction.animated(duration: DesignTokens.Animation.peekPan) {
+            self.contentLayer?.transform = self.zoomState.contentTransform
+            self.crosshairView.layer?.transform = CATransform3DMakeTranslation(peekDelta.x, peekDelta.y, 0)
+        }
+
+        // Phase 2: Hold, then Phase 3: Return (crosshair returns to screen-space)
+        let returnItem = DispatchWorkItem { [weak self] in
+            guard let self, self.isPeekAnimating else { return }
+            self.zoomState.panOffset = homePan
+            CATransaction.animated(duration: DesignTokens.Animation.peekReturn) {
+                self.contentLayer?.transform = self.zoomState.contentTransform
+                self.crosshairView.layer?.transform = CATransform3DIdentity
+            }
+
+            // Clear flag after return animation completes
+            DispatchQueue.main.asyncAfter(deadline: .now() + DesignTokens.Animation.peekReturn) { [weak self] in
+                self?.isPeekAnimating = false
+                self?.peekWorkItem = nil
+            }
+        }
+        peekWorkItem = returnItem
+
+        let holdDelay = DesignTokens.Animation.peekPan + DesignTokens.Animation.peekHold
+        DispatchQueue.main.asyncAfter(deadline: .now() + holdDelay, execute: returnItem)
+    }
+
+    /// Cancel any in-flight peek animation and reset state.
+    private func cancelPeek() {
+        peekWorkItem?.cancel()
+        isPeekAnimating = false
+        peekWorkItem = nil
+        CATransaction.instant {
+            crosshairView.layer?.transform = CATransform3DIdentity
+        }
+    }
 
     // MARK: - Overridable Hooks
 
     override package func handleActivation() {
         onActivate?(self)
+    }
+
+    override package func zoomDidChange() {
+        selectionManager.updateZoom(zoomState)
+    }
+
+    override package func showZoomFallbackPill(level: ZoomLevel) {
+        crosshairView.showZoomFlash(level: level, at: lastCursorPosition)
     }
 
     override package func showInitialState() {
@@ -77,59 +244,80 @@ package final class MeasureWindow: OverlayWindow {
     }
 
     override package func handleMouseMoved(to windowPoint: NSPoint) {
-        let appKitScreenPoint = NSPoint(
-            x: screenBounds.origin.x + windowPoint.x,
-            y: screenBounds.origin.y + windowPoint.y
-        )
+        // Cancel any in-flight peek animation — user is taking over
+        if isPeekAnimating {
+            cancelPeek()
+        }
+
+        // Convert window-space to capture-space for edge detection (MEAS-01)
+        let appKitScreenPoint = captureScreenPoint(from: windowPoint)
 
         guard let edges = edgeDetector.onMouseMoved(at: appKitScreenPoint) else { return }
 
-        // Selection hover state
-        if selectionManager.hasSelections, let _ = selectionManager.hitTest(windowPoint) {
+        // Selection hover state — hit-test in capture-space (selections store captureRect)
+        let cp = capturePoint(from: windowPoint)
+        if selectionManager.hasSelections, let _ = selectionManager.hitTest(cp) {
             if !isHoveringSelection {
                 isHoveringSelection = true
                 crosshairView.hideForDrag()
                 CursorManager.shared.transitionToPointingHand()
             }
-            selectionManager.updateHover(at: windowPoint)
+            selectionManager.updateHover(at: cp)
             return
         } else if isHoveringSelection {
             isHoveringSelection = false
             crosshairView.showAfterDrag()
             CursorManager.shared.transitionBack()
-            selectionManager.updateHover(at: windowPoint)
+            selectionManager.updateHover(at: cp)
         }
 
-        crosshairView.update(cursor: windowPoint, edges: edges)
+        // cursor: windowPoint (screen-space for rendering position)
+        // edges: capture-space distances
+        // zoomScale: multiplier for visual edge positions
+        crosshairView.update(cursor: windowPoint, edges: edges, zoomScale: zoomState.level.rawValue)
     }
 
     override package func handleKeyDown(with event: NSEvent) {
         let shift = event.modifierFlags.contains(.shift)
         let hintVisible = hintBarView.superview != nil
+        let zs = zoomState.level.rawValue
 
         switch Int(event.keyCode) {
         case 123: // Left arrow
             if !event.isARepeat && hintVisible { hintBarView.pressKey(.left) }
             let edges = shift ? edgeDetector.decrementSkip(.right) : edgeDetector.incrementSkip(.left)
-            if let edges { crosshairView.update(cursor: crosshairView.cursorPosition, edges: edges) }
+            if let edges {
+                crosshairView.update(cursor: crosshairView.cursorPosition, edges: edges, zoomScale: zs)
+                peekToEdge(edges, direction: shift ? .right : .left)
+            }
         case 124: // Right arrow
             if !event.isARepeat && hintVisible { hintBarView.pressKey(.right) }
             let edges = shift ? edgeDetector.decrementSkip(.left) : edgeDetector.incrementSkip(.right)
-            if let edges { crosshairView.update(cursor: crosshairView.cursorPosition, edges: edges) }
+            if let edges {
+                crosshairView.update(cursor: crosshairView.cursorPosition, edges: edges, zoomScale: zs)
+                peekToEdge(edges, direction: shift ? .left : .right)
+            }
         case 125: // Down arrow
             if !event.isARepeat && hintVisible { hintBarView.pressKey(.down) }
             let edges = shift ? edgeDetector.decrementSkip(.top) : edgeDetector.incrementSkip(.bottom)
-            if let edges { crosshairView.update(cursor: crosshairView.cursorPosition, edges: edges) }
+            if let edges {
+                crosshairView.update(cursor: crosshairView.cursorPosition, edges: edges, zoomScale: zs)
+                peekToEdge(edges, direction: shift ? .top : .bottom)
+            }
         case 126: // Up arrow
             if !event.isARepeat && hintVisible { hintBarView.pressKey(.up) }
             let edges = shift ? edgeDetector.decrementSkip(.bottom) : edgeDetector.incrementSkip(.top)
-            if let edges { crosshairView.update(cursor: crosshairView.cursorPosition, edges: edges) }
+            if let edges {
+                crosshairView.update(cursor: crosshairView.cursorPosition, edges: edges, zoomScale: zs)
+                peekToEdge(edges, direction: shift ? .bottom : .top)
+            }
         default:
             break
         }
     }
 
     override package func deactivate() {
+        cancelPeek()
         crosshairView.hideForDrag()
         if isHoveringSelection {
             isHoveringSelection = false
@@ -153,9 +341,10 @@ package final class MeasureWindow: OverlayWindow {
 
         let mouse = NSEvent.mouseLocation
         let wp = NSPoint(x: mouse.x - screenBounds.origin.x, y: mouse.y - screenBounds.origin.y)
-        let sp = NSPoint(x: screenBounds.origin.x + wp.x, y: screenBounds.origin.y + wp.y)
+        // Convert to capture-space for edge detection (MEAS-01)
+        let sp = captureScreenPoint(from: wp)
         if let edges = edgeDetector.onMouseMoved(at: sp) {
-            crosshairView.update(cursor: wp, edges: edges)
+            crosshairView.update(cursor: wp, edges: edges, zoomScale: zoomState.level.rawValue)
         }
         if hintBarView.superview != nil {
             hintBarView.updatePosition(cursorY: wp.y, screenHeight: screenBounds.height)
@@ -180,6 +369,7 @@ package final class MeasureWindow: OverlayWindow {
     override package func mouseDown(with event: NSEvent) {
         onActivity?()
         let windowPoint = event.locationInWindow
+        let cp = capturePoint(from: windowPoint)
 
         // Reset stale drag state — if mouseUp was never delivered (e.g., system stole the event),
         // isDragging could be stuck true, preventing new drags from starting correctly
@@ -189,33 +379,30 @@ package final class MeasureWindow: OverlayWindow {
             CursorManager.shared.transitionBack()
         }
 
-        // Click on a hovered selection -> remove it and restore crosshair
-        if let hovered = selectionManager.hitTest(windowPoint), hovered.state == .hovered {
+        // Click on a hovered selection -> remove it and restore crosshair (hit-test in capture-space)
+        if let hovered = selectionManager.hitTest(cp), hovered.state == .hovered {
             selectionManager.removeSelection(hovered)
             if isHoveringSelection {
                 isHoveringSelection = false
                 CursorManager.shared.transitionBack()
             }
-            // Restore crosshair at current position
+            // Restore crosshair at current position (edge detection in capture-space)
             crosshairView.showAfterDrag()
-            let appKitScreenPoint = NSPoint(
-                x: screenBounds.origin.x + windowPoint.x,
-                y: screenBounds.origin.y + windowPoint.y
-            )
+            let appKitScreenPoint = captureScreenPoint(from: windowPoint)
             if let edges = edgeDetector.onMouseMoved(at: appKitScreenPoint) {
-                crosshairView.update(cursor: windowPoint, edges: edges)
+                crosshairView.update(cursor: windowPoint, edges: edges, zoomScale: zoomState.level.rawValue)
             }
             return
         }
 
-        // Start drag
+        // Start drag (in capture-space)
         isDragging = true
         if isHoveringSelection {
             isHoveringSelection = false
             CursorManager.shared.transitionBack()
         }
         crosshairView.hideForDrag()
-        selectionManager.startDrag(at: windowPoint)
+        selectionManager.startDrag(at: cp)
         CursorManager.shared.transitionToCrosshairDrag()
     }
 
@@ -223,7 +410,7 @@ package final class MeasureWindow: OverlayWindow {
         onActivity?()
         if !isDragging { return }
         let windowPoint = event.locationInWindow
-        selectionManager.updateDrag(to: windowPoint)
+        selectionManager.updateDrag(to: capturePoint(from: windowPoint))
     }
 
     override package func mouseUp(with event: NSEvent) {
@@ -232,16 +419,13 @@ package final class MeasureWindow: OverlayWindow {
         isDragging = false
 
         let windowPoint = event.locationInWindow
-        _ = selectionManager.endDrag(at: windowPoint, screenBounds: screenBounds)
+        _ = selectionManager.endDrag(at: capturePoint(from: windowPoint), screenBounds: screenBounds)
 
-        // Restore crosshair at current cursor position
+        // Restore crosshair at current cursor position (edge detection in capture-space)
         crosshairView.showAfterDrag()
-        let appKitScreenPoint = NSPoint(
-            x: screenBounds.origin.x + windowPoint.x,
-            y: screenBounds.origin.y + windowPoint.y
-        )
+        let appKitScreenPoint = captureScreenPoint(from: windowPoint)
         if let edges = edgeDetector.onMouseMoved(at: appKitScreenPoint) {
-            crosshairView.update(cursor: windowPoint, edges: edges)
+            crosshairView.update(cursor: windowPoint, edges: edges, zoomScale: zoomState.level.rawValue)
         }
 
         // Hide system cursor again (custom crosshair takes over)

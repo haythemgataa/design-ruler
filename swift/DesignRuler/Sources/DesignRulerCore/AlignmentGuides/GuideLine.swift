@@ -14,7 +14,7 @@ package enum Direction {
 /// Used for both preview line and placed lines.
 package final class GuideLine {
     package let direction: Direction
-    package var position: CGFloat
+    package var capturePosition: CGFloat
     package let style: GuideLineStyle
     package let isPreview: Bool
 
@@ -45,7 +45,7 @@ package final class GuideLine {
 
     package init(direction: Direction, position: CGFloat, style: GuideLineStyle, isPreview: Bool, parentLayer: CALayer, scale: CGFloat) {
         self.direction = direction
-        self.position = position
+        self.capturePosition = position
         self.style = style
         self.isPreview = isPreview
         self.parentLayer = parentLayer
@@ -84,21 +84,37 @@ package final class GuideLine {
         }
     }
 
-    /// Update line path, pill position/text based on current position + cursor location.
-    package func update(position: CGFloat, cursorAlongAxis: CGFloat, screenSize: CGSize, direction: Direction, style: GuideLineStyle) {
-        self.position = position
+    /// Convert capture-space position to window-space for rendering.
+    private func renderPosition(direction dir: Direction, zoomState: ZoomState) -> CGFloat {
+        if dir == .vertical {
+            return (capturePosition + zoomState.panOffset.x) * zoomState.level.rawValue
+        } else {
+            return (capturePosition + zoomState.panOffset.y) * zoomState.level.rawValue
+        }
+    }
+
+    /// Build a full-screen line path at the given window-space position.
+    private func makeLinePath(direction dir: Direction, renderPos: CGFloat, screenSize: CGSize) -> CGMutablePath {
+        let path = CGMutablePath()
+        if dir == .vertical {
+            path.move(to: CGPoint(x: renderPos, y: 0))
+            path.addLine(to: CGPoint(x: renderPos, y: screenSize.height))
+        } else {
+            path.move(to: CGPoint(x: 0, y: renderPos))
+            path.addLine(to: CGPoint(x: screenSize.width, y: renderPos))
+        }
+        return path
+    }
+
+    /// Update line path, pill position/text based on current capture-space position + cursor location.
+    package func update(capturePosition: CGFloat, cursorAlongAxis: CGFloat, screenSize: CGSize, direction: Direction, style: GuideLineStyle, zoomState: ZoomState) {
+        self.capturePosition = capturePosition
+
+        let renderPos = renderPosition(direction: direction, zoomState: zoomState)
 
         // Line update — always instant
         CATransaction.instant {
-            let linePath = CGMutablePath()
-            if direction == .vertical {
-                linePath.move(to: CGPoint(x: position, y: 0))
-                linePath.addLine(to: CGPoint(x: position, y: screenSize.height))
-            } else {
-                linePath.move(to: CGPoint(x: 0, y: position))
-                linePath.addLine(to: CGPoint(x: screenSize.width, y: position))
-            }
-            lineLayer.path = linePath
+            lineLayer.path = makeLinePath(direction: direction, renderPos: renderPos, screenSize: screenSize)
 
             lineLayer.strokeColor = style.color
             if style.useDifferenceBlend {
@@ -109,10 +125,20 @@ package final class GuideLine {
         }
 
         // Pill update — animated on flip, instant otherwise
-        layoutPill(position: position, cursorAlongAxis: cursorAlongAxis, screenSize: screenSize, direction: direction)
+        // Pill is positioned at renderPos (window-space) but displays capturePosition (screen-space value)
+        layoutPill(renderPosition: renderPos, capturePosition: capturePosition, cursorAlongAxis: cursorAlongAxis, screenSize: screenSize, direction: direction)
     }
 
-    private func layoutPill(position: CGFloat, cursorAlongAxis: CGFloat, screenSize: CGSize, direction: Direction) {
+    /// Reposition line path from stored capturePosition after zoom/pan change.
+    /// Only updates the line path, not the pill (placed lines have hidden pills).
+    package func updateRenderPosition(zoomState: ZoomState, screenSize: CGSize) {
+        let renderPos = renderPosition(direction: direction, zoomState: zoomState)
+        CATransaction.instant {
+            lineLayer.path = makeLinePath(direction: direction, renderPos: renderPos, screenSize: screenSize)
+        }
+    }
+
+    private func layoutPill(renderPosition: CGFloat, capturePosition: CGFloat, cursorAlongAxis: CGFloat, screenSize: CGSize, direction: Direction) {
         // Placed lines don't show pills
         if !isPreview { return }
 
@@ -132,7 +158,7 @@ package final class GuideLine {
             pillOpacity = 1.0
         } else {
             let label = direction == .vertical ? "X" : "Y"
-            let value = Int(round(position))
+            let value = Int(round(capturePosition))
             labelAttr = PillRenderer.labelText(label)
             valueAttr = PillRenderer.valueText(value)
             bgColor = DesignTokens.Pill.backgroundColor
@@ -154,9 +180,9 @@ package final class GuideLine {
 
         if direction == .vertical {
             // Vertical line: pill to the right (or left if near right edge)
-            let onRight = position + 8 + pillW < screenSize.width - 12
+            let onRight = renderPosition + 8 + pillW < screenSize.width - 12
             nowFarSide = !onRight
-            pillX = onRight ? position + 8 : position - 8 - pillW
+            pillX = onRight ? renderPosition + 8 : renderPosition - 8 - pillW
 
             // Position along axis relative to cursor (12px offset)
             pillY = cursorAlongAxis - 12 - pillHeight
@@ -164,9 +190,9 @@ package final class GuideLine {
             if nowBelowOrAfter { pillY = cursorAlongAxis + 12 }
         } else {
             // Horizontal line: pill above (or below if near top)
-            let above = position - 8 - pillHeight > 12
+            let above = renderPosition - 8 - pillHeight > 12
             nowFarSide = !above
-            pillY = above ? position - 8 - pillHeight : position + 8
+            pillY = above ? renderPosition - 8 - pillHeight : renderPosition + 8
 
             // Position along axis relative to cursor (12px offset)
             pillX = cursorAlongAxis + 12
@@ -265,15 +291,16 @@ package final class GuideLine {
     }
 
     /// Shrink line toward click point with path animation, then call completion.
-    package func shrinkToPoint(_ clickPoint: CGPoint, screenSize: CGSize, completion: @escaping () -> Void) {
+    /// Both clickPoint and renderPos are in window-space for visual rendering.
+    package func shrinkToPoint(_ clickPoint: CGPoint, renderPos: CGFloat, screenSize: CGSize, completion: @escaping () -> Void) {
         // Create end path: both endpoints converge to click point along the line
         let endPath = CGMutablePath()
         if direction == .vertical {
-            endPath.move(to: CGPoint(x: position, y: clickPoint.y))
-            endPath.addLine(to: CGPoint(x: position, y: clickPoint.y))
+            endPath.move(to: CGPoint(x: renderPos, y: clickPoint.y))
+            endPath.addLine(to: CGPoint(x: renderPos, y: clickPoint.y))
         } else {
-            endPath.move(to: CGPoint(x: clickPoint.x, y: position))
-            endPath.addLine(to: CGPoint(x: clickPoint.x, y: position))
+            endPath.move(to: CGPoint(x: clickPoint.x, y: renderPos))
+            endPath.addLine(to: CGPoint(x: clickPoint.x, y: renderPos))
         }
 
         CATransaction.begin()

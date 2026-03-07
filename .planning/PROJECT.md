@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A macOS pixel inspector available as both a Raycast extension and a standalone menu bar app with configurable global hotkeys and auto-updates. Two commands: (1) **Measure** — crosshair with edge detection, W×H dimensions, arrow-key skip, drag-to-snap selections. (2) **Alignment Guides** — place vertical/horizontal guide lines to verify element alignment, color cycling, hover-to-remove, position pills. Both use fullscreen frozen overlays with per-screen multi-monitor capture, GPU-composited CAShapeLayer rendering, and liquid glass hint bars. Distributed as a code-signed, notarized DMG via GitHub Releases.
+A macOS pixel inspector available as both a Raycast extension and a standalone menu bar app with configurable global hotkeys and auto-updates. Two commands: (1) **Measure** — crosshair with edge detection, W×H dimensions, arrow-key skip, drag-to-snap selections, Z-key zoom (2x/4x). (2) **Alignment Guides** — place vertical/horizontal guide lines to verify element alignment, color cycling, hover-to-remove, position pills, Z-key zoom. Both use fullscreen frozen overlays with per-screen multi-monitor capture, GPU-composited CAShapeLayer rendering, liquid glass hint bars, and cursor-anchored zoom with animated transforms. Distributed as a code-signed, notarized DMG via GitHub Releases.
 
 ## Core Value
 
@@ -71,18 +71,17 @@ Instant, accurate pixel inspection of anything on screen — zero friction from 
 - ✓ Branded DMG installer with /Applications alias — v2.0
 - ✓ Dual GitHub Actions CI: build-release (tag-push) + update-appcast (release-publish) — v2.0
 
+- ✓ Z key zoom cycling (1x/2x/4x) with animated cursor-anchored CATransform3D and per-window state — v2.1
+- ✓ View pans 1:1 with cursor while zoomed, hard stop at screen edges — v2.1
+- ✓ Edge detection, W×H dimensions, arrow-key skip, drag-to-select all accurate at any zoom level — v2.1
+- ✓ Peek pan animation reveals off-viewport edges during arrow-key skip while zoomed — v2.1
+- ✓ Alignment guides (preview, placement, hover-remove) fully functional at all zoom levels — v2.1
+- ✓ Z keycap in hint bar with flash animation + standalone fallback pill when hint bar hidden — v2.1
+- ✓ Per-window independent zoom state with reset on ESC — v2.1
+
 ### Active
 
-**Current Milestone: v2.1 Zoom**
-
-**Goal:** Add full-screen zoom to both Measure and Alignment Guides, cycling through 2x → 4x → 1x on Z key press, with fully functional crosshair and edge detection at every zoom level.
-
-**Target features:**
-- Full-screen zoom centered on cursor (Z key)
-- Progressive zoom levels: 2x → 4x → 1x cycle
-- Fully functional edge detection and crosshair while zoomed
-- Alignment Guides zoom with working preview/placement/hover-remove
-- Zoom level indicator in hint bar or overlay
+(No active milestone — use `/gsd:new-milestone` to start next)
 
 ### Out of Scope
 
@@ -96,7 +95,7 @@ Instant, accurate pixel inspection of anything on screen — zero friction from 
 
 ## Context
 
-- Shipped v2.0 Standalone App with ~5,562 LOC Swift + 73 LOC TypeScript across 23 phases (5 milestones)
+- Shipped v2.1 Zoom with 5,892 LOC Swift + 73 LOC TypeScript across 27 phases (6 milestones)
 - Dual distribution: Raycast extension (TypeScript thin wrapper → Swift via `@raycast` macro) + standalone menu bar app (DMG)
 - DesignRulerCore SPM library contains all shared overlay/detection/rendering code
 - macOS 14+ minimum, Swift 5.9+, AppKit + CoreGraphics + QuartzCore + SwiftUI + KeyboardShortcuts + Sparkle
@@ -160,5 +159,13 @@ Instant, accurate pixel inspection of anything on screen — zero friction from 
 | Empty entitlements (Hardened Runtime only) | CGWindowListCreateImage/CGEventTap governed by TCC, not entitlements | ✓ Good |
 | LSUIElement = YES | Menu bar agent — no Dock icon, no Cmd+Tab entry | ✓ Good |
 
+| ZoomState value type per-window | Per-instance struct avoids shared state; each monitor independent | ✓ Good |
+| Z key at OverlayWindow base before subclass dispatch | Zoom is shared infrastructure, not command-specific | ✓ Good |
+| Two-layer architecture (zoomed content + untransformed UI) | Pill/crosshair/hint bar stay readable; only screenshot zooms | ✓ Good |
+| Capture-space storage with window-space rendering | Store once in real coordinates; derive visual position from zoom state | ✓ Good |
+| Peek pan animation (3-phase DispatchWorkItem chain) | Reveals off-viewport edges without losing cursor position | ✓ Good |
+| Dual-point API for alignment guides | Methods accept both capture-space and window-space where both needed | ✓ Good |
+| ZoomKeyCap standalone SwiftUI view (not reusing KeyCap) | Clean flash animation via ZStack with two text layers | ✓ Good |
+
 ---
-*Last updated: 2026-03-05 after v2.1 milestone start*
+*Last updated: 2026-03-07 after v2.1 milestone completion*

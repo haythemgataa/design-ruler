@@ -2,19 +2,16 @@
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-05)
+See: .planning/PROJECT.md (updated 2026-03-07)
 
 **Core value:** Instant, accurate pixel inspection of anything on screen — zero friction from invoke to dimension readout, whether launched from Raycast or a global hotkey.
-**Current focus:** Phase 24 — Zoom Transform Infrastructure (v2.1)
+**Current focus:** Planning next milestone
 
 ## Current Position
 
-Phase: 24 of 27 (Zoom Transform Infrastructure)
-Plan: 0 of ? in current phase
-Status: Ready to plan
-Last activity: 2026-03-05 — Roadmap created for v2.1 Zoom
-
-Progress: [░░░░░░░░░░] 0% (v2.1)
+Phase: — (between milestones)
+Status: v2.1 Zoom shipped 2026-03-07
+Last activity: 2026-03-07 — Completed v2.1 milestone (17/17 requirements, 4 phases, 6 plans)
 
 ## Performance Metrics
 
@@ -33,6 +30,9 @@ Progress: [░░░░░░░░░░] 0% (v2.1)
 **Velocity (v2.0):**
 - Total plans completed: 14 | Average: ~4min | Total: ~56min
 
+**Velocity (v2.1):**
+- Total plans completed: 6 | Average: ~4min | Total: ~24min
+
 ## Accumulated Context
 
 ### Decisions
@@ -49,6 +49,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-05
-Stopped at: Roadmap created for v2.1 Zoom milestone (4 phases, 17 requirements mapped)
-Resume: Plan Phase 24 (Zoom Transform Infrastructure)
+Last session: 2026-03-07
+Stopped at: Completed v2.1 milestone
+Resume: `/gsd:new-milestone` to start next version

@@ -90,3 +90,22 @@
 
 ---
 
+
+## v2.1 Zoom (Shipped: 2026-03-07)
+
+**Phases completed:** 4 phases (24-27), 6 plans
+**Timeline:** 2 days (Mar 5 - Mar 7, 2026)
+**Codebase:** 5,892 LOC Swift (+3,607 net lines)
+**Git range:** `1fc3c62`..`c74f2cb`
+**Changes:** 34 files changed, +3,813 / -206 lines
+
+**Key accomplishments:**
+- Added ZoomState model with 3-level cycling (1x/2x/4x), cursor-anchored animated CATransform3D, and per-window independent zoom
+- Built capture-space coordinate mapping with 4 algebraic functions for accurate edge detection and selection at any zoom level
+- Implemented peek pan animation for arrow-key edge skipping — 3-phase pan-out/hold/return reveals off-viewport edges while zoomed
+- Made alignment guides fully zoom-aware with capture-space storage, zoom-adjusted hover threshold, and stable guide repositioning
+- Added Z keycap to hint bar with scale+opacity flash animation showing current zoom level, plus standalone fallback pill
+- Achieved 17/17 requirements coverage across zoom core, measure integration, guides integration, and shared UX
+
+---
+

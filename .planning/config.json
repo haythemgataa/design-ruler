@@ -9,6 +9,6 @@
     "auto_advance": false
   },
   "git": {
-    "branching_strategy": "none"
+    "branching_strategy": "phase"
   }
 }

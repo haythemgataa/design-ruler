@@ -37,14 +37,15 @@ package final class AlignmentGuidesWindow: OverlayWindow {
         let size = screenFrame.size
         let containerView = NSView(frame: NSRect(origin: .zero, size: size))
 
-        // Background image view
-        if let img = screenshot {
-            let bgView = NSView(frame: NSRect(origin: .zero, size: size))
-            bgView.wantsLayer = true
-            bgView.layer?.contents = img
-            bgView.layer?.contentsGravity = .resize
-            containerView.addSubview(bgView)
-        }
+        // Background view hosts the content layer (receives zoom transform).
+        // UI elements (guidelineView, hint bar) stay in containerView above bgView
+        // so they remain at normal screen-space size when zoomed.
+        setupContentLayer(screenshot: screenshot, screenSize: size)
+        let bgView = NSView(frame: NSRect(origin: .zero, size: size))
+        bgView.wantsLayer = true
+        bgView.layer!.addSublayer(contentLayer!)
+        contentLayer?.contentsScale = backingScaleFactor
+        containerView.addSubview(bgView)
 
         // Guideline view (transparent, no hit testing needed)
         let guidelineView = NSView(frame: NSRect(origin: .zero, size: size))
@@ -64,12 +65,20 @@ package final class AlignmentGuidesWindow: OverlayWindow {
         setupHintBar(mode: .alignmentGuides, screenSize: size, screenshot: screenshot, hideHintBar: hideHintBar, container: containerView)
     }
 
+    // MARK: - Zoom Coordinate Helpers
+
+    /// Convert window-space cursor to capture-space point (window-local).
+    /// At 1x zoom, this is identity.
+    private func capturePoint(from windowPoint: NSPoint) -> NSPoint {
+        windowPointToCapturePoint(windowPoint, zoomState: zoomState, screenSize: screenBounds.size)
+    }
+
     // MARK: - Coordinator-dispatched actions
 
     /// Cycle color style (called by coordinator on the active window).
     package func performCycleStyle() {
         if hintBarView.superview != nil { hintBarView.pressKey(.space) }
-        guideLineManager.cycleStyle(cursorPosition: lastCursorPosition)
+        guideLineManager.cycleStyle(windowPoint: lastCursorPosition)
     }
 
     package func releaseSpaceKey() {
@@ -79,7 +88,7 @@ package final class AlignmentGuidesWindow: OverlayWindow {
     /// Toggle line direction (called by coordinator on the active window).
     package func performToggleDirection() {
         if hintBarView.superview != nil { hintBarView.pressKey(.tab) }
-        guideLineManager.toggleDirection()
+        guideLineManager.toggleDirection(windowPoint: lastCursorPosition)
         cursorDirection = guideLineManager.direction
         let newCursor: NSCursor = cursorDirection == .vertical ? .resizeLeftRight : .resizeUpDown
         CursorManager.shared.updateResize(newCursor)
@@ -105,8 +114,10 @@ package final class AlignmentGuidesWindow: OverlayWindow {
 
     override package func showInitialState() {
         initCursorPosition()
+        guideLineManager.updateForZoom(zoomState)
         guideLineManager.showPreview()
-        guideLineManager.updatePreview(at: lastCursorPosition)
+        let cp = capturePoint(from: lastCursorPosition)
+        guideLineManager.updatePreview(capturePoint: cp, windowPoint: lastCursorPosition)
         let resizeCursor: NSCursor = cursorDirection == .vertical ? .resizeLeftRight : .resizeUpDown
         CursorManager.shared.showResize(resizeCursor)
         hintBarEntrance()
@@ -114,10 +125,11 @@ package final class AlignmentGuidesWindow: OverlayWindow {
 
     override package func handleMouseMoved(to windowPoint: NSPoint) {
         let wasHovering = guideLineManager.hasHoveredLine
+        let cp = capturePoint(from: windowPoint)
 
         // Check hover first so preview knows whether to show "Remove" or coordinates
-        guideLineManager.updateHover(at: windowPoint)
-        guideLineManager.updatePreview(at: windowPoint)
+        guideLineManager.updateHover(at: cp)
+        guideLineManager.updatePreview(capturePoint: cp, windowPoint: windowPoint)
 
         // Cursor transitions via CursorManager (only on state change)
         let isHovering = guideLineManager.hasHoveredLine
@@ -128,6 +140,8 @@ package final class AlignmentGuidesWindow: OverlayWindow {
                 CursorManager.shared.transitionBack()
             }
         }
+
+        updateGuidesZoomPillPosition()
     }
 
     override package func handleKeyDown(with event: NSEvent) {
@@ -136,6 +150,148 @@ package final class AlignmentGuidesWindow: OverlayWindow {
         case 49: onSpacebarPressed?()
         default: break
         }
+    }
+
+    override package func zoomDidChange() {
+        guideLineManager.updateForZoom(zoomState)
+    }
+
+    // MARK: - Zoom Fallback Pill
+
+    private var zoomPillBg: CAShapeLayer?
+    private var zoomPillText: CATextLayer?
+    private var zoomPillWorkItem: DispatchWorkItem?
+    private var zoomPillSize: CGSize = .zero
+
+    override package func showZoomFallbackPill(level: ZoomLevel) {
+        zoomPillWorkItem?.cancel()
+        removeZoomPill()
+
+        let text: String
+        switch level {
+        case .one:  text = "x1"
+        case .two:  text = "x2"
+        case .four: text = "x4"
+        }
+
+        guard let container = contentView, let parentLayer = container.layer else { return }
+        let scale = backingScaleFactor
+
+        let textAttr = NSAttributedString(string: text, attributes: [
+            .font: PillRenderer.makeDesignFont(size: 12),
+            .foregroundColor: NSColor.white,
+            .kern: DesignTokens.Pill.kerning,
+        ])
+        let textSize = textAttr.size()
+        let padding: CGFloat = 16
+        let pillW = ceil(textSize.width) + padding
+        let pillH = DesignTokens.Pill.height
+        zoomPillSize = CGSize(width: pillW, height: pillH)
+
+        // Position to the right of cursor
+        let cursor = lastCursorPosition
+        let pos = guidesZoomPillPosition(cursor: cursor, pillW: pillW, pillH: pillH)
+
+        let bg = CAShapeLayer()
+        bg.fillColor = DesignTokens.Pill.backgroundColor
+        bg.strokeColor = nil
+        bg.frame = CGRect(origin: pos, size: CGSize(width: pillW, height: pillH))
+        bg.path = PillRenderer.squirclePath(
+            rect: CGRect(origin: .zero, size: CGSize(width: pillW, height: pillH)),
+            radius: DesignTokens.Pill.cornerRadius
+        )
+        bg.shadowColor = DesignTokens.Shadow.color
+        bg.shadowOffset = DesignTokens.Shadow.offset
+        bg.shadowRadius = DesignTokens.Shadow.radius
+        bg.shadowOpacity = DesignTokens.Shadow.opacity
+        bg.contentsScale = scale
+        bg.opacity = 0
+        parentLayer.addSublayer(bg)
+
+        let tl = CATextLayer()
+        tl.contentsScale = scale
+        tl.truncationMode = .none
+        tl.isWrapped = false
+        tl.alignmentMode = .center
+        tl.string = textAttr
+        let textY = round(pos.y + (pillH - ceil(textSize.height)) / 2)
+        tl.frame = CGRect(x: pos.x, y: textY, width: pillW, height: ceil(textSize.height))
+        tl.opacity = 0
+        parentLayer.addSublayer(tl)
+
+        self.zoomPillBg = bg
+        self.zoomPillText = tl
+
+        CATransaction.animated(duration: DesignTokens.Animation.fast) {
+            bg.opacity = 1
+            tl.opacity = 1
+        }
+
+        let removeItem = DispatchWorkItem { [weak self] in
+            self?.fadeAndRemoveZoomPill()
+        }
+        zoomPillWorkItem = removeItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: removeItem)
+    }
+
+    private func guidesZoomPillPosition(cursor: NSPoint, pillW: CGFloat, pillH: CGFloat) -> CGPoint {
+        let gap: CGFloat = 6
+        let vw = frame.width
+
+        if cursorDirection == .vertical {
+            // Vertical line: guide pill is to the right of line at cursor.x + 8, 60pt wide
+            let guidePillEnd = cursor.x + 8 + 60
+            let guidePillStart = cursor.x - 8 - 60
+            let py = round(cursor.y - 12 - pillH)
+
+            var px = round(guidePillEnd + gap)
+            if px + pillW > vw - 6 {
+                px = round(guidePillStart - gap - pillW)
+            }
+            if px < 6 { px = round(guidePillEnd + gap) }
+            return CGPoint(x: px, y: py)
+        } else {
+            // Horizontal line: guide pill is above the line at cursor.x + 12, 60pt wide
+            let guidePillEnd = cursor.x + 12 + 60
+            let py = round(cursor.y - 12 - pillH)
+
+            var px = round(guidePillEnd + gap)
+            if px + pillW > vw - 6 {
+                px = round(cursor.x - 12 - 60 - gap - pillW)
+            }
+            if px < 6 { px = round(guidePillEnd + gap) }
+            return CGPoint(x: px, y: py)
+        }
+    }
+
+    private func updateGuidesZoomPillPosition() {
+        guard let bg = zoomPillBg, let tl = zoomPillText else { return }
+        let pillW = zoomPillSize.width
+        let pillH = zoomPillSize.height
+        let pos = guidesZoomPillPosition(cursor: lastCursorPosition, pillW: pillW, pillH: pillH)
+        CATransaction.instant {
+            bg.frame = CGRect(origin: pos, size: CGSize(width: pillW, height: pillH))
+            let textH = tl.frame.height
+            tl.frame = CGRect(x: pos.x, y: round(pos.y + (pillH - textH) / 2), width: pillW, height: textH)
+        }
+    }
+
+    private func fadeAndRemoveZoomPill() {
+        guard let bg = zoomPillBg, let tl = zoomPillText else { return }
+        CATransaction.animated(duration: DesignTokens.Animation.fast) {
+            bg.opacity = 0
+            tl.opacity = 0
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + DesignTokens.Animation.fast) { [weak self] in
+            self?.removeZoomPill()
+        }
+    }
+
+    private func removeZoomPill() {
+        zoomPillBg?.removeFromSuperlayer()
+        zoomPillText?.removeFromSuperlayer()
+        zoomPillBg = nil
+        zoomPillText = nil
     }
 
     override package func deactivate() {
@@ -152,11 +308,13 @@ package final class AlignmentGuidesWindow: OverlayWindow {
         initCursorPosition()
         guideLineManager.setPreviewStyle(currentStyle)
         guideLineManager.setDirection(currentDirection)
+        guideLineManager.updateForZoom(zoomState)
         cursorDirection = currentDirection
         let resizeCursor: NSCursor = cursorDirection == .vertical ? .resizeLeftRight : .resizeUpDown
         CursorManager.shared.updateResize(resizeCursor)
         guideLineManager.showPreview()
-        guideLineManager.updatePreview(at: lastCursorPosition)
+        let cp = capturePoint(from: lastCursorPosition)
+        guideLineManager.updatePreview(capturePoint: cp, windowPoint: lastCursorPosition)
         if hintBarView.superview != nil {
             hintBarView.updatePosition(cursorY: lastCursorPosition.y, screenHeight: screenBounds.height)
         }
@@ -177,9 +335,10 @@ package final class AlignmentGuidesWindow: OverlayWindow {
 
         // Hover-first conflict resolution: if hovering a line, remove it instead of placing
         if guideLineManager.hasHoveredLine {
-            guideLineManager.removeLine(guideLineManager.hoveredLine!, clickPoint: windowPoint)
+            guideLineManager.removeLine(guideLineManager.hoveredLine!)
             guideLineManager.resetRemoveMode()
-            guideLineManager.updatePreview(at: windowPoint)
+            let cp = capturePoint(from: windowPoint)
+            guideLineManager.updatePreview(capturePoint: cp, windowPoint: windowPoint)
             CursorManager.shared.transitionBack()
             return
         }

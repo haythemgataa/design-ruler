@@ -39,7 +39,11 @@ package enum DesignTokens {
         package static let fast: CFTimeInterval = 0.15
         package static let standard: CFTimeInterval = 0.2
         package static let slow: CFTimeInterval = 0.3
+        package static let zoom: CFTimeInterval = 0.25
         package static let collapse: CFTimeInterval = 0.35
+        package static let peekPan: CFTimeInterval = 0.2
+        package static let peekHold: CFTimeInterval = 0.6
+        package static let peekReturn: CFTimeInterval = 0.2
     }
 }
 
