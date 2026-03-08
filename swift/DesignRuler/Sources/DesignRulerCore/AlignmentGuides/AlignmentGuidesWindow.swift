@@ -334,8 +334,8 @@ package final class AlignmentGuidesWindow: OverlayWindow {
         let windowPoint = event.locationInWindow
 
         // Hover-first conflict resolution: if hovering a line, remove it instead of placing
-        if guideLineManager.hasHoveredLine {
-            guideLineManager.removeLine(guideLineManager.hoveredLine!)
+        if let hoveredLine = guideLineManager.hoveredLine {
+            guideLineManager.removeLine(hoveredLine)
             guideLineManager.resetRemoveMode()
             let cp = capturePoint(from: windowPoint)
             guideLineManager.updatePreview(capturePoint: cp, windowPoint: windowPoint)

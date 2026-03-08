@@ -43,9 +43,9 @@ final class HotkeyController {
             case .alignmentGuides:
                 AlignmentGuidesCoordinator.shared.handleExit()
             }
-        } else if activeCommand != nil {
+        } else if let currentCommand = activeCommand {
             // Cross-command switch: close current, then launch other
-            switch activeCommand! {
+            switch currentCommand {
             case .measure:
                 MeasureCoordinator.shared.handleExit()
             case .alignmentGuides:

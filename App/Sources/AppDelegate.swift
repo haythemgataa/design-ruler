@@ -3,16 +3,46 @@ import DesignRulerCore
 import KeyboardShortcuts
 import ServiceManagement
 import Sparkle
+import UserNotifications
 
-class AppDelegate: NSObject, NSApplicationDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverDelegate {
     private var menuBarController: MenuBarController!
     private var hotkeyController: HotkeyController!
     private var settingsWindowController: SettingsWindowController!
-    private let updaterController = SPUStandardUpdaterController(
+    private lazy var updaterController = SPUStandardUpdaterController(
         startingUpdater: true,
         updaterDelegate: nil,
-        userDriverDelegate: nil
+        userDriverDelegate: self
     )
+
+    // MARK: - SPUStandardUserDriverDelegate
+
+    /// Declares support for gentle reminders so Sparkle doesn't warn about background update alerts.
+    var supportsGentleScheduledUpdateReminders: Bool { true }
+
+    /// Called when Sparkle finds an update in the background (scheduled check).
+    /// Post a local notification so the user sees the alert even while in another app.
+    func standardUserDriverWillHandleShowingUpdate(
+        _ handleShowingUpdate: Bool,
+        forUpdate update: SUAppcastItem,
+        state: SPUUserUpdateState
+    ) {
+        guard !state.userInitiated else { return }
+
+        let center = UNUserNotificationCenter.current()
+        center.requestAuthorization(options: [.alert]) { granted, _ in
+            guard granted else { return }
+            let content = UNMutableNotificationContent()
+            content.title = "Design Ruler \(update.displayVersionString) Available"
+            content.body = "Open Design Ruler to install the update."
+            let request = UNNotificationRequest(
+                identifier: "sparkle-update-\(update.versionString)",
+                content: content,
+                trigger: nil
+            )
+            center.add(request)
+        }
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -33,6 +63,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Create settings window controller
         settingsWindowController = SettingsWindowController()
 
+        // Create hotkey controller first so menu bar callbacks can reference it safely
+        hotkeyController = HotkeyController()
+
         // Create menu bar and wire overlay launch callbacks
         menuBarController = MenuBarController()
         menuBarController.onMeasure = { [weak self] in
@@ -51,9 +84,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self else { return }
             self.settingsWindowController.showSettings(updater: self.updaterController.updater)
         }
-
-        // Create hotkey controller and wire launch callbacks
-        hotkeyController = HotkeyController()
         hotkeyController.onLaunchMeasure = { [weak self] in
             self?.hotkeyController.sessionStarted(command: .measure)
             let prefs = AppPreferences.shared

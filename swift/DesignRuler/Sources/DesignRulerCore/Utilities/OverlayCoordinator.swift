@@ -60,11 +60,10 @@ open class OverlayCoordinator {
         isSessionActive = true
         OverlayCoordinator.anySessionActive = true
 
-        // 1. Warmup capture (1x1 pixel, absorbs CGWindowListCreateImage cold-start penalty)
-        _ = CGWindowListCreateImage(
-            CGRect(x: 0, y: 0, width: 1, height: 1),
-            .optionOnScreenOnly, kCGNullWindowID, .bestResolution
-        )
+        // 1. Warmup capture (absorbs ScreenCaptureKit cold-start penalty)
+        if let screen = NSScreen.main {
+            _ = ScreenCapture.captureScreen(screen)
+        }
 
         // 2. Permission check
         let hasPermission = PermissionChecker.hasScreenRecordingPermission()
@@ -81,9 +80,8 @@ open class OverlayCoordinator {
 
         // 3. Detect cursor screen
         let mouseLocation = NSEvent.mouseLocation
-        let cursorScreen = NSScreen.screens.first { screen in
-            NSMouseInRect(mouseLocation, screen.frame, false)
-        } ?? NSScreen.main!
+        guard let cursorScreen = NSScreen.screens.first(where: { NSMouseInRect(mouseLocation, $0.frame, false) })
+                ?? NSScreen.main else { return }
 
         // 4. Reset command-specific state from previous run (before new captures)
         resetCommandState()
