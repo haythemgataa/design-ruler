@@ -23,7 +23,7 @@ Download the latest DMG from [GitHub Releases](https://github.com/haythemgataa/d
 
 ### Raycast Extension
 
-Install from the [Raycast Store](https://www.raycast.com/store) or build from source with `ray build`.
+Build from source with `ray build` or, **coming soon**, install from the [Raycast Store](https://www.raycast.com/store).
 
 ---
 
