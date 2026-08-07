@@ -18,7 +18,8 @@ Arrow keys skip past edges. Drag to select regions (snap-to-edges). ESC exits.
 (vertical/horizontal). Tab toggles direction, spacebar cycles color (5
 presets). Hover a line to see "Remove" state, click to delete. ESC exits.
 
-Both commands support multi-monitor (one window per screen, cursor activates).
+Both commands support multi-monitor (one window per screen, cursor activates)
+and zoom (Z cycles 1x → 2x → 4x, cursor-anchored, pans 1:1 with the cursor).
 
 **Standalone app** adds: menu bar icon, configurable global keyboard
 shortcuts, settings window (preferences, launch at login, Sparkle
@@ -37,7 +38,7 @@ Standalone App (App/)
   │   ├─ HotkeyController.swift    — session-aware global hotkey dispatch
   │   ├─ HotkeyNames.swift         — KeyboardShortcuts.Name extensions (.measure, .alignmentGuides)
   │   ├─ AppPreferences.swift      — @Observable singleton over UserDefaults
-  │   ├─ SettingsView.swift        — SwiftUI Form (General, Measure, Shortcuts, About)
+  │   ├─ SettingsView.swift        — SwiftUI Form (General, Measure, Alignment Guides, About)
   │   ├─ SettingsWindowController.swift — NSWindow lifecycle (3-branch reuse)
   │   ├─ DesignRuler.entitlements  — Hardened Runtime (empty dict)
   │   └─ Info.plist                — LSUIElement, Sparkle keys, bundle metadata
@@ -51,7 +52,7 @@ Raycast Extension (src/ + swift/)
 
 Shared Swift (swift/DesignRuler/)
   ├─ Package.swift                 — DesignRulerCore (library) + DesignRuler (executable)
-  ├─ Sources/DesignRulerCore/      — 23 shared Swift files (open/package access)
+  ├─ Sources/DesignRulerCore/      — 26 shared Swift files (open/package access)
   │   ├─ Measure/
   │   │   ├─ MeasureCoordinator.swift   — open class, OverlayCoordinator subclass
   │   │   ├─ MeasureWindow.swift        — OverlayWindow subclass, edge detection + drag
@@ -80,7 +81,8 @@ Shared Swift (swift/DesignRuler/)
   │   │   ├─ ScreenCapture.swift        — shared CGWindowListCreateImage wrapper
   │   │   ├─ DesignTokens.swift         — centralized colors, radii, durations, BlendMode
   │   │   ├─ TransactionHelpers.swift   — CATransaction.instant{} and .animated{}
-  │   │   └─ CoordinateConverter.swift  — AppKit ↔ CG point + rect conversion
+  │   │   ├─ CoordinateConverter.swift  — AppKit ↔ CG point + rect conversion
+  │   │   └─ ZoomState.swift            — ZoomLevel enum, ZoomState, capture ↔ window mapping
   │   └─ Permissions/
   │       └─ PermissionChecker.swift    — screen recording check/request
   └─ Sources/RaycastBridge/        — 2 thin @raycast entry points (import DesignRulerCore)
@@ -107,6 +109,8 @@ Scripts (scripts/)
 - Single class for edge detection (no ImageEdgeDetector wrapper).
 - EdgeHit is minimal: just `distance` and `screenPosition`.
 - Multi-monitor: `OverlayCoordinator.run()` captures all screens before creating any windows.
+- Zoom: `ZoomState` is a value type owned per-`OverlayWindow`. Only the screenshot
+  content layer scales; overlay UI stays screen-space. See section 8.
 - CursorManager: centralized state machine using `NSCursor.set()` + `cursorUpdate(with:)`.
 - Global state (color, direction) lives in coordinator subclasses, synced via callbacks.
 - Design tokens: all shared colors, radii, durations, blend mode in `DesignTokens.swift`.
@@ -287,7 +291,83 @@ text stays readable.
 
 ---
 
-## 8. Rendering Performance Rules
+## 8. Zoom
+
+Z cycles zoom 1x → 2x → 4x → 1x. Shared infrastructure in `OverlayWindow`,
+so both commands get it for free. Models live in `ZoomState.swift`.
+
+### Two Coordinate Spaces
+Zoom introduces a third space on top of AppKit/CG (see section 4):
+
+- **capture space** — coordinates in the original unzoomed screenshot.
+  All persistent state (edges, selections, guide lines) is stored here.
+- **window space** — where things actually appear on screen right now.
+  Depends on the current zoom level and pan offset.
+
+`ZoomState.swift` provides the four mapping functions:
+```swift
+windowPointToCapturePoint(_:zoomState:screenSize:)  // window → capture
+capturePointToWindowPoint(_:zoomState:)             // capture → window
+panOffsetForZoom(cursorWindowPoint:currentZoom:newLevel:screenSize:)
+clampPanOffset(_:zoomLevel:screenSize:)
+```
+
+**Rule**: convert incoming cursor points to capture space before detection or
+storage; convert stored points back to window space for rendering. At 1x with
+zero pan both conversions are the identity.
+
+### Content Layer
+`OverlayWindow.setupContentLayer(screenshot:screenSize:)` creates the CALayer
+that holds the screenshot and receives the zoom transform. Only the screenshot
+scales — crosshair, pills, guide lines, and hint bar live outside the content
+layer so they stay at screen-space size.
+
+- `anchorPoint` MUST be `(0, 0)`. All zoom math assumes origin-based scaling;
+  the default `(0.5, 0.5)` scales from center and breaks both cursor anchoring
+  and pan clamping.
+- `magnificationFilter` / `minificationFilter` = `.nearest` for crisp pixels.
+- `ZoomState.contentTransform` composes scale then translate (translate applied
+  in scaled space, so pan offsets stay in capture units).
+
+### Zoom Toggle (`handleZoomToggle`)
+1. Compute the next level via `ZoomLevel.next()`
+2. `panOffsetForZoom` solves for the pan that keeps the cursor's pixel fixed
+3. `clampPanOffset` keeps the viewport inside the capture bounds
+4. Animate `contentLayer.transform` over `DesignTokens.Animation.zoom` (0.25s)
+5. `isAnimatingZoom` suppresses pan updates for the animation duration
+6. `zoomDidChange()` — subclass hook (guides reposition their lines here)
+
+### Pan (`updateZoomPan`)
+Called on every mouse move. Solves for the pan offset that maps the cursor's
+window point to the same capture point it would have at 1x — i.e. 1:1 cursor
+tracking. Guarded by `isZoomed`, `!isAnimatingZoom`, `!isPeekAnimating`.
+
+### Reset
+`resetZoom()` snaps back to 1x with identity transform. Called by
+`OverlayCoordinator` on exit and when deactivating a window during a
+monitor switch — each window owns an independent `ZoomState`, so zoom does
+not follow the cursor across screens.
+
+### Zoom Level Feedback
+- Hint bar visible: `hintBarView.flashZoomLevel(_:)` — the Z keycap
+  cross-fades "Z" out (scale 0.6 + blur) and the level text ("x2") in
+- Hint bar hidden: `showZoomFallbackPill(level:)` — subclass-provided pill,
+  debounced auto-hide
+
+### Peek Pan (Measure only)
+When an arrow-key skip lands on an edge outside the zoomed viewport,
+`MeasureWindow.peekToEdge` pans to reveal it, holds, then returns:
+- pan-out `peekPan` (0.2s) → hold `peekHold` (0.6s) → return `peekReturn` (0.2s)
+- The crosshair layer gets a counter-translation so it visually travels with
+  the content instead of staying pinned to the cursor
+- A `DispatchWorkItem` drives the return phase; mouse movement cancels it
+  via `cancelPeek()` (user is taking over)
+- Visibility test uses a 20px margin at the viewport edges
+- No-op at 1x
+
+---
+
+## 9. Rendering Performance Rules
 
 ### CAShapeLayer Updates (GPU-composited)
 - No `draw()` override — only CALayer property updates on mouse move
@@ -315,7 +395,7 @@ shadow, with the clipped content layer as a sublayer.
 
 ---
 
-## 9. Hint Bar Behavior
+## 10. Hint Bar Behavior
 
 ### Layout
 - Glass panel with adaptive brightness sampling (dark/light mode aware)
@@ -348,7 +428,7 @@ shadow, with the clipped content layer as a sublayer.
 
 ---
 
-## 10. User Preferences
+## 11. User Preferences
 
 ### Raycast Extension
 | Name | Type | Default | Scope | Description |
@@ -359,8 +439,8 @@ shadow, with the clipped content layer as a sublayer.
 ### Standalone App (UserDefaults via AppPreferences)
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| hideHintBar | Bool | false | Hide the keyboard shortcut hint bar |
-| corrections | String | "smart" | Border correction mode: smart, include, none |
+| hideHintBar | Bool | false | Hide the keyboard shortcut hint bar (General section) |
+| corrections | String | "smart" | Border correction mode: smart, include, none (Measure section) |
 | Launch at Login | SMAppService | off | Register/unregister via SMAppService.mainApp |
 | Measure shortcut | KeyboardShortcuts | unassigned | Global hotkey for Measure |
 | Alignment Guides shortcut | KeyboardShortcuts | unassigned | Global hotkey for Alignment Guides |
@@ -368,7 +448,7 @@ shadow, with the clipped content layer as a sublayer.
 
 ---
 
-## 11. Key Behaviors
+## 12. Key Behaviors
 
 ### Measure
 - **Launch**: captures all screens, fullscreen overlays appear, cursor hidden,
@@ -379,7 +459,9 @@ shadow, with the clipped content layer as a sublayer.
 - **Mouse move**: resets all skip counts
 - **Drag**: select region with snap-to-edges (minimum 4x4px, shake on too-small)
 - **Hover selection**: pointing hand cursor, click to remove
-- **ESC**: exits silently (unhides cursor only if mouse had moved)
+- **Z**: cycle zoom 1x → 2x → 4x → 1x (cursor-anchored)
+- **Arrow keys while zoomed**: peek pan reveals off-viewport edges, then returns
+- **ESC**: exits silently (unhides cursor only if mouse had moved), resets zoom
 - **Pill flip**: animates 0.15s easeOut when swapping sides near edges
 
 ### Alignment Guides
@@ -387,15 +469,19 @@ shadow, with the clipped content layer as a sublayer.
 - **Tab**: toggle preview direction (vertical ↔ horizontal)
 - **Spacebar**: cycle color (dynamic → red → green → orange → blue)
 - **Click**: place guide line at cursor (with position pill showing X or Y coord)
-- **Hover placed line**: 5px threshold, line turns red+dashed, "Remove" pill,
+- **Hover placed line**: 5px screen-space threshold (divided by zoom scale for
+  the capture-space comparison), line turns red+dashed, "Remove" pill,
   pointing hand cursor
 - **Click hovered line**: removes it (shrink-to-click-point animation)
 - **Conflict resolution**: hover-first — clicking a hovered line removes it;
   clicking where no line is hovered places a new one
-- **ESC**: exits
+- **Z**: cycle zoom 1x → 2x → 4x → 1x; placed lines stay on the same pixels
+- **ESC**: exits, resets zoom
 
 ### Shared
 - Multi-monitor: one window per screen, mouse enter/exit activates
+- Zoom: per-window state, resets to 1x when leaving a screen
+- Zoom feedback: hint bar Z keycap flashes the level; fallback pill when hidden
 - Hint bar: expanded → collapsed after 3s, bottom ↔ top slide
 - 10-minute inactivity watchdog auto-exits
 - SIGTERM handler for clean cursor restoration
@@ -403,7 +489,7 @@ shadow, with the clipped content layer as a sublayer.
 
 ---
 
-## 12. Animations
+## 13. Animations
 
 All animations use Core Animation (GPU-composited, ~0 CPU cost).
 
@@ -454,6 +540,25 @@ Arc layout (~108 degrees, 5 circles). Active circle is larger with white
 border. Fade-in on appearance, debounced auto-hide after ~1s via
 `DispatchWorkItem`.
 
+### Zoom Transform (OverlayWindow)
+`contentLayer.transform` animates over `DesignTokens.Animation.zoom` (0.25s
+easeOut) on each Z press. `isAnimatingZoom` blocks `updateZoomPan` for the
+duration so mouse movement can't fight the animation. Pan updates during
+normal movement are instant (`CATransaction.instant`).
+
+### Zoom Level Flash (HintBarContent)
+The Z keycap cross-fades between "Z" and the level text ("x2"/"x4"/"x1") over
+0.2s easeOut: outgoing glyph scales to 0.6 with a 4pt blur while the incoming
+level text fades in. Driven by the `zoomFlashText` published property, cleared
+on a timer.
+
+### Peek Pan (MeasureWindow)
+Three phases when an arrow-key skip targets an edge outside the zoomed
+viewport: pan-out (`peekPan` 0.2s) → hold (`peekHold` 0.6s) → return
+(`peekReturn` 0.2s). The crosshair layer receives an inverse translation so it
+travels with the content. Return phase runs from a cancellable
+`DispatchWorkItem`; `isPeekAnimating` guards pan updates.
+
 ### Fade-In Pattern
 Standard pattern used across the codebase:
 ```swift
@@ -463,7 +568,7 @@ setOpacity(1, animated: true)   // fade in
 
 ---
 
-## 13. Multi-Monitor Coordination
+## 14. Multi-Monitor Coordination
 
 ### Window Lifecycle
 Managed by `OverlayCoordinator.run()`:
@@ -490,7 +595,7 @@ Called by subclasses in `showInitialState()` and `activate()`.
 
 ---
 
-## 14. CursorManager
+## 15. CursorManager
 
 Centralized state machine (`CursorManager.swift`) with 5 states:
 
@@ -523,7 +628,7 @@ SIGTERM handler in `OverlayCoordinator` base calls `CursorManager.shared.restore
 
 ---
 
-## 15. Swift Bridge Patterns
+## 16. Swift Bridge Patterns
 
 ### Raycast Bridge (TypeScript → Swift)
 ```typescript
@@ -560,7 +665,7 @@ menuBarController.onMeasure = { [weak self] in
 
 ---
 
-## 16. Standalone App Architecture
+## 17. Standalone App Architecture
 
 ### RunMode and Session Lifecycle
 `OverlayCoordinator` has a `RunMode` enum (`.raycast` / `.standalone`):
@@ -585,7 +690,9 @@ inactivity timer, SIGTERM) and on permission-abort early return.
   disable/enable global hotkeys during menu tracking
 
 ### Settings (SettingsView + SettingsWindowController)
-- SwiftUI Form with `.grouped` style: General, Measure, Shortcuts, About sections
+- SwiftUI Form with `.grouped` style: General (Launch at Login, Hide Hint Bar,
+  auto-update toggle), Measure (Border Corrections + shortcut recorder),
+  Alignment Guides (shortcut recorder), About (version, GitHub, Check for Updates)
 - `AppPreferences` is `@Observable` singleton with computed properties over `UserDefaults`
 - Preferences read inside overlay-launch closures (at invocation time, not capture time)
 - Launch at Login: `SMAppService.mainApp.register()`/`.unregister()`, `.onAppear` re-syncs
@@ -616,7 +723,7 @@ inactivity timer, SIGTERM) and on permission-abort early return.
 
 ---
 
-## 17. Learned Anti-Patterns
+## 18. Learned Anti-Patterns
 
 Bugs encountered and fixed — avoid re-introducing these:
 
@@ -658,9 +765,27 @@ Bugs encountered and fixed — avoid re-introducing these:
   called once at init doesn't survive library observer changes. Use
   `NSMenuDelegate.menuNeedsUpdate` to re-apply shortcuts on every menu open.
 
+- **Content layer anchorPoint default breaks zoom**: `setupContentLayer` must
+  set `anchorPoint = (0, 0)`. `panOffsetForZoom` and `clampPanOffset` both
+  assume origin-based scaling; the CALayer default `(0.5, 0.5)` scales from
+  center, so the cursor anchor drifts and the pan clamp lets the viewport
+  slide off the capture.
+
+- **Storing overlay state in window space**: edges, selections, and guide lines
+  must be stored in capture space. Window-space state silently desyncs from
+  the pixels it describes the moment zoom or pan changes.
+
+- **Screen-space thresholds compared against capture-space distances**: divide
+  by the zoom scale first (`GuideLineManager` uses `5.0 / zoomState.level.rawValue`).
+  Otherwise hover targets get 2x/4x harder to hit while zoomed.
+
+- **Pan updates fighting an in-flight animation**: `updateZoomPan` must bail on
+  `isAnimatingZoom` and `isPeekAnimating`. Without the guards a mouse move
+  mid-animation snaps the content and the animation visibly stutters.
+
 ---
 
-## 18. Testing Checklist
+## 19. Testing Checklist
 
 ### Measure
 - [ ] Launches on the screen where cursor is (not always main)
@@ -675,6 +800,12 @@ Bugs encountered and fixed — avoid re-introducing these:
 - [ ] Drag-to-select snaps to edges, minimum 4x4px enforced
 - [ ] Hover selection shows pointing hand, click removes
 - [ ] Smart/include/none corrections preference works
+- [ ] Z cycles 1x → 2x → 4x → 1x; pixel under cursor stays put
+- [ ] Zoomed pixels are crisp (nearest-neighbor, not blurred)
+- [ ] W×H measurements stay correct at 2x and 4x
+- [ ] Drag-to-select and hover-to-remove work while zoomed
+- [ ] Arrow-key skip to an off-viewport edge peek-pans, holds, returns
+- [ ] Mouse move during a peek cancels it cleanly
 - [ ] ESC exits silently
 
 ### Alignment Guides
@@ -685,10 +816,16 @@ Bugs encountered and fixed — avoid re-introducing these:
 - [ ] Color circle indicator appears and auto-hides
 - [ ] Hover placed line: red+dashed, "Remove" pill, pointing hand cursor
 - [ ] Click hovered line removes with shrink animation
+- [ ] Z zooms; placed lines stay pinned to the same pixels at 2x and 4x
+- [ ] Hover threshold still feels like 5px while zoomed
 - [ ] ESC exits silently
 
 ### Shared
 - [ ] Multi-monitor: windows on all screens, cursor activates correct one
+- [ ] Zoom is per-screen; leaving a screen resets that window to 1x
+- [ ] Hint bar Z keycap flashes the current level on each press
+- [ ] With hideHintBar on, the fallback zoom pill appears instead
+- [ ] Overlay UI (crosshair, pills, guide lines, hint bar) does not scale with zoom
 - [ ] Hint bar expanded → collapsed after 3s
 - [ ] Hint bar at bottom, shifts to top when cursor near bottom
 - [ ] Hint bar clears MacBook notch when at top
