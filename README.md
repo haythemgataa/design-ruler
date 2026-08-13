@@ -30,7 +30,10 @@ Freeze your screen and measure pixel distances between any two edges — instant
 - **Hover a selection** and click to remove it
 - **Smart 1px border corrections** — configurable: smart (default), include, or none
 - **Zoom-aware** — edge detection, crosshair, and selections stay accurate at 2x and 4x; arrow-key skipping peek-pans to reveal edges outside the zoomed viewport
-  [Measure.webm](https://github.com/user-attachments/assets/3a9c0342-d1f8-4033-9911-1ebeaa24700d)
+  
+<p align="center" width="100%">
+<video src="https://github.com/user-attachments/assets/3a9c0342-d1f8-4033-9911-1ebeaa24700d" width="80%" controls></video>
+</p>
 
 
 ### <picture><source media="(prefers-color-scheme: dark)" srcset="assets/alignment-guides-icon@dark.png"><img src="assets/alignment-guides-icon.png" width="20" valign="middle" alt=""></picture> Alignment Guides
@@ -45,7 +48,10 @@ Place horizontal and vertical guide lines anywhere on screen to check element al
 - **Click a hovered line** to remove it (shrink-to-point animation)
 - **Position pill** on each placed line shows its exact X or Y coordinate
 - **Zoom-aware** — guide lines are stored in capture space, so they stay pinned to the same pixels at 2x and 4x
-  [Alignment Guides.webm](https://github.com/user-attachments/assets/66af28a6-a65f-4ce8-830d-3570e88bab0c)
+  
+<p align="center" width="100%">
+<video src="https://github.com/user-attachments/assets/66af28a6-a65f-4ce8-830d-3570e88bab0c" width="80%" controls></video>
+</p>
 
 
 
