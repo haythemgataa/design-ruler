@@ -15,18 +15,6 @@
 
 ---
 
-## Install
-
-### Standalone App
-
-Download the latest DMG from [GitHub Releases](https://github.com/haythemgataa/design-ruler/releases), open it, and drag Design Ruler to Applications. The app lives in your menu bar — no Dock icon, no Cmd+Tab entry.
-
-### Raycast Extension
-
-Build from source with `ray build` or, **coming soon**, install from the [Raycast Store](https://www.raycast.com/store).
-
----
-
 ## Commands
 
 ### <picture><source media="(prefers-color-scheme: dark)" srcset="assets/measure-icon@dark.png"><img src="assets/measure-icon.png" width="20" valign="middle" alt=""></picture> Measure
@@ -42,6 +30,8 @@ Freeze your screen and measure pixel distances between any two edges — instant
 - **Hover a selection** and click to remove it
 - **Smart 1px border corrections** — configurable: smart (default), include, or none
 - **Zoom-aware** — edge detection, crosshair, and selections stay accurate at 2x and 4x; arrow-key skipping peek-pans to reveal edges outside the zoomed viewport
+  [Measure.webm](https://github.com/user-attachments/assets/3a9c0342-d1f8-4033-9911-1ebeaa24700d)
+
 
 ### <picture><source media="(prefers-color-scheme: dark)" srcset="assets/alignment-guides-icon@dark.png"><img src="assets/alignment-guides-icon.png" width="20" valign="middle" alt=""></picture> Alignment Guides
 
@@ -55,6 +45,9 @@ Place horizontal and vertical guide lines anywhere on screen to check element al
 - **Click a hovered line** to remove it (shrink-to-point animation)
 - **Position pill** on each placed line shows its exact X or Y coordinate
 - **Zoom-aware** — guide lines are stored in capture space, so they stay pinned to the same pixels at 2x and 4x
+  [Alignment Guides.webm](https://github.com/user-attachments/assets/66af28a6-a65f-4ce8-830d-3570e88bab0c)
+
+
 
 ---
 
@@ -100,6 +93,18 @@ Open from the menu bar dropdown. Configure:
 
 ### Auto-Updates
 Design Ruler uses [Sparkle](https://sparkle-project.org) to check for updates automatically. You can also check manually from the menu bar.
+
+---
+
+## Install
+
+### Standalone App
+
+Download the latest DMG from [GitHub Releases](https://github.com/haythemgataa/design-ruler/releases), open it, and drag Design Ruler to Applications. The app lives in your menu bar — no Dock icon, no Cmd+Tab entry.
+
+### Raycast Extension
+
+Build from source with `ray build` or, **coming soon**, install from the [Raycast Store](https://www.raycast.com/store).
 
 ---
 
