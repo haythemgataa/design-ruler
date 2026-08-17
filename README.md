@@ -32,7 +32,7 @@ Freeze your screen and measure pixel distances between any two edges — instant
 - **Zoom-aware** — edge detection, crosshair, and selections stay accurate at 2x and 4x; arrow-key skipping peek-pans to reveal edges outside the zoomed viewport
   
 <p align="center" width="100%">
-<video src="https://github.com/user-attachments/assets/3a9c0342-d1f8-4033-9911-1ebeaa24700d" width="80%" controls></video>
+<video src="https://github.com/user-attachments/assets/495fdfdc-8c26-474a-af04-cce9f36c5d46" width="80%" controls></video>
 </p>
 
 
@@ -50,7 +50,7 @@ Place horizontal and vertical guide lines anywhere on screen to check element al
 - **Zoom-aware** — guide lines are stored in capture space, so they stay pinned to the same pixels at 2x and 4x
   
 <p align="center" width="100%">
-<video src="https://github.com/user-attachments/assets/66af28a6-a65f-4ce8-830d-3570e88bab0c" width="80%" controls></video>
+<video src="https://github.com/user-attachments/assets/1052e99a-e633-4fbf-b3c7-0907aec84019" width="80%" controls></video>
 </p>
 
 
