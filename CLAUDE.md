@@ -338,9 +338,11 @@ layer so they stay at screen-space size.
 6. `zoomDidChange()` — subclass hook (guides reposition their lines here)
 
 ### Pan (`updateZoomPan`)
-Called on every mouse move. Solves for the pan offset that maps the cursor's
-window point to the same capture point it would have at 1x — i.e. 1:1 cursor
-tracking. Guarded by `isZoomed`, `!isAnimatingZoom`, `!isPeekAnimating`.
+Called on every mouse move, BEFORE the subclass's `handleMouseMoved` (after the
+`willHandleMouseMove` hook, where Measure cancels an in-flight peek). Solves for
+the pan offset that maps the cursor's window point to the same capture point it
+would have at 1x — i.e. 1:1 cursor tracking. Guarded by `isZoomed`,
+`!isAnimatingZoom`, `!isPeekAnimating`.
 
 ### Reset
 `resetZoom()` snaps back to 1x with identity transform. Called by
@@ -696,8 +698,10 @@ inactivity timer, SIGTERM) and on permission-abort early return.
 - `AppPreferences` is `@Observable` singleton with computed properties over `UserDefaults`
 - Preferences read inside overlay-launch closures (at invocation time, not capture time)
 - Launch at Login: `SMAppService.mainApp.register()`/`.unregister()`, `.onAppear` re-syncs
-- Sparkle: `SPUStandardUpdaterController(startingUpdater: true)`, auto-check toggle,
-  Check for Updates button
+- Sparkle: `SPUStandardUpdaterController(startingUpdater: true)` created in
+  `applicationDidFinishLaunching`, auto-check toggle, Check for Updates button
+- Version: `Info.plist` reads `$(MARKETING_VERSION)` / `$(CURRENT_PROJECT_VERSION)`;
+  CI sets them from the tag and `git rev-list --count HEAD`
 - SettingsWindowController: 3-branch reuse (visible → bring to front, hidden → re-center + show, nil → create new)
 
 ### Global Hotkeys (HotkeyController)
@@ -712,10 +716,11 @@ inactivity timer, SIGTERM) and on permission-abort early return.
 
 ### Distribution (CI/CD)
 - Code-signed with Developer ID Application (Hardened Runtime, empty entitlements)
-- Notarized via `notarytool submit --wait` + `stapler staple` on the DMG
-- DMG created by `create-dmg` with branded 1200x800 background, app icon + /Applications alias
-- Two GitHub Actions workflows:
-  - `build-release.yml`: tag-push → archive → sign → notarize → DMG → draft release (13 steps)
+- Notarized via `notarytool submit --wait` (credentials passed inline) + `stapler staple` on the DMG
+- DMG created by `create-dmg` from a staging dir holding only the `.app`, with branded
+  1200x800 background (tagged 144 DPI in CI), app icon + /Applications alias
+- Two GitHub Actions workflows (`gh` steps authenticate via `GH_TOKEN: ${{ github.token }}`):
+  - `build-release.yml`: tag-push → archive → sign → notarize → DMG → draft release (14 steps)
   - `update-appcast.yml`: release-publish → EdDSA sign → appcast.xml → upload (7 steps)
 - 7 GitHub Secrets: `DEVELOPER_ID_CERT_BASE64`, `DEVELOPER_ID_CERT_PASSWORD`,
   `KEYCHAIN_PASSWORD`, `APPLE_ID`, `NOTARY_PASSWORD`, `TEAM_ID`, `SPARKLE_PRIVATE_KEY`
@@ -756,6 +761,15 @@ Bugs encountered and fixed — avoid re-introducing these:
   validates `SUPublicEDKey` immediately on start — a placeholder causes
   a visible error dialog.
 
+- **Lazy Sparkle controller never starts**: a `lazy var updaterController` is
+  only created on first access (Settings / Check for Updates), so scheduled
+  update checks never run. Create it in `applicationDidFinishLaunching`.
+
+- **Hardcoded Info.plist versions**: XcodeGen writes `1.0` / `1` unless
+  `project.yml` maps `CFBundleShortVersionString` / `CFBundleVersion` to
+  `$(MARKETING_VERSION)` / `$(CURRENT_PROJECT_VERSION)`. Without that, CI's
+  version overrides are ignored and Sparkle re-offers the same update forever.
+
 - **KeyboardShortcuts onChange double-fire**: When rejecting a conflict
   via `setShortcut(nil)`, the `onChange` handler fires twice (once with the
   shortcut, once with nil). Guard the else-branch with `newShortcut != nil`
@@ -782,6 +796,13 @@ Bugs encountered and fixed — avoid re-introducing these:
 - **Pan updates fighting an in-flight animation**: `updateZoomPan` must bail on
   `isAnimatingZoom` and `isPeekAnimating`. Without the guards a mouse move
   mid-animation snaps the content and the animation visibly stutters.
+
+- **Converting the cursor with the previous frame's pan**: `OverlayWindow.mouseMoved`
+  must call `updateZoomPan` BEFORE `handleMouseMoved`. Otherwise the subclass maps
+  the cursor to capture space with the stale pan, and edges, guide previews, and
+  hit-tests land (zoom − 1) × the last mouse delta off the cursor, staying wrong
+  after the mouse stops. Cancel pan-blocking animations (peek) in
+  `willHandleMouseMove`, not in `handleMouseMoved`, or the pan update bails.
 
 ---
 
@@ -858,5 +879,7 @@ Bugs encountered and fixed — avoid re-introducing these:
 - [ ] Conflict detection shows orange warning when assigning duplicate shortcut
 - [ ] Menu bar dropdown shows assigned shortcut symbols next to command names
 - [ ] `codesign --verify --deep --strict` passes on Release build
-- [ ] DMG opens with app icon and /Applications alias
+- [ ] DMG opens with app icon and /Applications alias (no extra plist/log files)
+- [ ] DMG background fills the 600x400 window (not cropped to the top-left quarter)
+- [ ] Settings About shows the tagged version, not 1.0
 - [ ] Tag push triggers CI and produces signed, notarized DMG
