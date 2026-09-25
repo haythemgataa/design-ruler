@@ -11,7 +11,8 @@ permissions:
 jobs:
   build-sign-notarize:
     name: Build, Sign, Notarize & Package
-    runs-on: macos-15
+    # macOS 26 SDK (Xcode 26) required — see ci.yml
+    runs-on: macos-26
 
     env:
       DEVELOPER_ID_CERT_BASE64: ${{ secrets.DEVELOPER_ID_CERT_BASE64 }}
@@ -78,41 +79,8 @@ jobs:
             -exportPath "$RUNNER_TEMP/export" \
             -exportOptionsPlist "ExportOptions.plist"
 
-      - name: Copy DMG background
-        run: |
-          cp scripts/assets/dmg-background.png "$RUNNER_TEMP/dmg-background.png"
-          # 1200x800 art for a 600x400 window: tag it 144 DPI so Finder draws it at 600x400pt
-          sips -s dpiWidth 144 -s dpiHeight 144 "$RUNNER_TEMP/dmg-background.png"
-
-      - name: Stage app for DMG
-        run: |
-          # Export dir also holds DistributionSummary.plist, ExportOptions.plist and Packaging.log
-          mkdir -p "$RUNNER_TEMP/dmg-staging"
-          ditto "$RUNNER_TEMP/export/Design Ruler.app" "$RUNNER_TEMP/dmg-staging/Design Ruler.app"
-
-      - name: Extract volume icon from app bundle
-        run: |
-          VOLICON=$(find "$RUNNER_TEMP/dmg-staging/Design Ruler.app/Contents/Resources" -name "*.icns" | head -1)
-          test -n "$VOLICON" || { echo "No .icns in app bundle (missing AppIcon?)"; exit 1; }
-          echo "VOLICON=$VOLICON" >> $GITHUB_ENV
-
       - name: Create DMG
-        run: |
-          create-dmg \
-            --volname "Design Ruler" \
-            --volicon "$VOLICON" \
-            --background "$RUNNER_TEMP/dmg-background.png" \
-            --window-pos 200 120 \
-            --window-size 600 400 \
-            --icon-size 128 \
-            --icon "Design Ruler.app" 150 200 \
-            --app-drop-link 450 200 \
-            --hide-extension "Design Ruler.app" \
-            --no-internet-enable \
-            "$RUNNER_TEMP/Design-Ruler-$VERSION.dmg" \
-            "$RUNNER_TEMP/dmg-staging/" || true
-          # create-dmg may exit with code 2 for warnings; verify DMG exists
-          test -f "$RUNNER_TEMP/Design-Ruler-$VERSION.dmg"
+        run: scripts/create-dmg.sh "$RUNNER_TEMP/export/Design Ruler.app" "$RUNNER_TEMP/Design-Ruler-$VERSION.dmg"
 
       - name: Notarize DMG
         run: |

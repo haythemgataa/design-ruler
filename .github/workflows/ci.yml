@@ -1,0 +1,111 @@
+name: CI
+
+# Compiles everything and produces an ad-hoc signed test DMG as a workflow artifact.
+# Needs no Apple Developer credentials; signed + notarized builds come from build-release.yml.
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['**.md', '.planning/**']
+  pull_request:
+    paths-ignore: ['**.md', '.planning/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint Raycast extension
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: ESLint
+        run: npx eslint src
+
+      - name: Prettier
+        run: npx prettier --check src
+
+  build:
+    name: Build & package test DMG
+    # macos-26 defaults to Xcode 26: the hint bar uses macOS 26 SDK APIs (NSGlassEffectView,
+    # GlassEffectContainer). `#available` only guards at runtime, so older SDKs fail to compile.
+    runs-on: macos-26
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # build number = commit count, same as releases
+
+      - name: Compute build info
+        run: |
+          echo "BUILD_NUMBER=$(git rev-list --count HEAD)" >> "$GITHUB_ENV"
+          echo "SHORT_SHA=$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
+          xcodebuild -version
+
+      - name: Install tools
+        run: brew install create-dmg xcodegen
+
+      - name: Build Swift package (Raycast extension binary)
+        run: swift build --package-path swift/DesignRuler
+
+      - name: Generate Xcode project
+        run: cd App && xcodegen generate
+
+      - name: Build app (ad-hoc signed)
+        run: |
+          cd App
+          xcodebuild build \
+            -project "Design Ruler.xcodeproj" \
+            -scheme "Design Ruler" \
+            -configuration Release \
+            -destination "generic/platform=macOS" \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM=""
+          echo "APP_PATH=$RUNNER_TEMP/DerivedData/Build/Products/Release/Design Ruler.app" >> "$GITHUB_ENV"
+
+      - name: Verify app bundle
+        run: |
+          PLIST="$APP_PATH/Contents/Info.plist"
+          VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$PLIST")
+          BUILD=$(/usr/libexec/PlistBuddy -c "Print CFBundleVersion" "$PLIST")
+          echo "Built version $VERSION ($BUILD)"
+          test "$BUILD" = "$BUILD_NUMBER" || { echo "CFBundleVersion not stamped from build settings"; exit 1; }
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+
+      - name: Create DMG
+        run: |
+          DMG="$RUNNER_TEMP/Design-Ruler-$VERSION-$SHORT_SHA-unsigned.dmg"
+          scripts/create-dmg.sh "$APP_PATH" "$DMG"
+          # Show what testers will see (expect: app, Applications link, hidden styling files)
+          MNT=$(mktemp -d)
+          hdiutil attach -nobrowse -readonly -mountpoint "$MNT" "$DMG"
+          ls -la "$MNT"
+          hdiutil detach "$MNT"
+
+      - name: Upload test DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: Design-Ruler-${{ env.VERSION }}-${{ env.SHORT_SHA }}-unsigned
+          path: ${{ runner.temp }}/Design-Ruler-*-unsigned.dmg
+          if-no-files-found: error
+          retention-days: 14
