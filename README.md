@@ -162,7 +162,7 @@ Build from source with `ray build` or, **coming soon**, install from the [Raycas
 
 ## Building from Source
 
-**Requirements:** macOS 14+, Xcode 15+, [xcodegen](https://github.com/yonaskolb/XcodeGen)
+**Requirements:** macOS 14+ to run; Xcode 26+ (macOS 26 SDK) to build, [xcodegen](https://github.com/yonaskolb/XcodeGen)
 
 ### Standalone App
 ```bash

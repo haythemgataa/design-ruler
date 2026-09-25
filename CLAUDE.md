@@ -814,6 +814,12 @@ Bugs encountered and fixed — avoid re-introducing these:
   `isAnimatingZoom` and `isPeekAnimating`. Without the guards a mouse move
   mid-animation snaps the content and the animation visibly stutters.
 
+- **Building with an SDK older than macOS 26**: `HintBarView` / `HintBarContent` use
+  `NSGlassEffectView`, `GlassEffectContainer` and `.glassEffect`. `#available(macOS 26.0, *)`
+  only guards at runtime; compiling still needs the macOS 26 SDK (Xcode 26). CI and release
+  jobs run on `macos-26` — the `macos-15` image defaults to Xcode 16.4 and fails with
+  "cannot find 'NSGlassEffectView' in scope".
+
 - **Converting the cursor with the previous frame's pan**: `OverlayWindow.mouseMoved`
   must call `updateZoomPan` BEFORE `handleMouseMoved`. Otherwise the subclass maps
   the cursor to capture space with the stale pan, and edges, guide previews, and

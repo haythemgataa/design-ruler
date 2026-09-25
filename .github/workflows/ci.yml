@@ -43,7 +43,9 @@ jobs:
 
   build:
     name: Build & package test DMG
-    runs-on: macos-15
+    # macos-26 defaults to Xcode 26: the hint bar uses macOS 26 SDK APIs (NSGlassEffectView,
+    # GlassEffectContainer). `#available` only guards at runtime, so older SDKs fail to compile.
+    runs-on: macos-26
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -54,6 +56,7 @@ jobs:
         run: |
           echo "BUILD_NUMBER=$(git rev-list --count HEAD)" >> "$GITHUB_ENV"
           echo "SHORT_SHA=$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
+          xcodebuild -version
 
       - name: Install tools
         run: brew install create-dmg xcodegen
