@@ -443,7 +443,7 @@ shadow, with the clipped content layer as a sublayer.
 |-----|------|---------|-------------|
 | hideHintBar | Bool | false | Hide the keyboard shortcut hint bar (General section) |
 | corrections | String | "smart" | Border correction mode: smart, include, none (Measure section) |
-| Launch at Login | SMAppService | off | Register/unregister via SMAppService.mainApp |
+| Launch at Login | SMAppService | on | Registered on first launch (`hasLaunchedBefore`); toggle via SMAppService.mainApp |
 | Measure shortcut | KeyboardShortcuts | unassigned | Global hotkey for Measure |
 | Alignment Guides shortcut | KeyboardShortcuts | unassigned | Global hotkey for Alignment Guides |
 | Auto-check for updates | Sparkle | on | Sparkle automaticallyChecksForUpdates |
@@ -725,6 +725,14 @@ inactivity timer, SIGTERM) and on permission-abort early return.
 - 7 GitHub Secrets: `DEVELOPER_ID_CERT_BASE64`, `DEVELOPER_ID_CERT_PASSWORD`,
   `KEYCHAIN_PASSWORD`, `APPLE_ID`, `NOTARY_PASSWORD`, `TEAM_ID`, `SPARKLE_PRIVATE_KEY`
 - Sparkle feed: `SUFeedURL` → GitHub releases latest download, `SUPublicEDKey` for EdDSA verification
+- Cutting a release (0.x while in beta; the tag sets the version, `project.yml`'s
+  `MARKETING_VERSION` is only the local default):
+  1. Merge to `main`, then `git tag v0.X.Y && git push origin v0.X.Y`
+  2. `build-release.yml` creates a **draft** release with the notarized DMG — download and check it
+  3. Publish the draft with "Set as the latest release" on. Do NOT mark it pre-release:
+     `releases/latest/download/appcast.xml` skips pre-releases, so the Sparkle feed would 404
+  4. `update-appcast.yml` attaches `appcast.xml` to the published release
+  - Failed run: delete the draft and the tag (`git push --delete origin v0.X.Y`), fix, re-tag
 
 ---
 

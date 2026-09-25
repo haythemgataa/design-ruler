@@ -168,12 +168,17 @@ Build from source with `ray build` or, **coming soon**, install from the [Raycas
 ```bash
 cd App
 xcodegen generate
-xcodebuild -project "Design Ruler.xcodeproj" -scheme "Design Ruler" -configuration Debug build
+xcodebuild -project "Design Ruler.xcodeproj" -scheme "Design Ruler" -configuration Debug \
+  -derivedDataPath DerivedData build
+open "DerivedData/Build/Products/Debug/Design Ruler.app"
 ```
+
+Debug builds are ad-hoc signed, so macOS may ask for Screen Recording permission again after a rebuild. If the overlay comes up black, run `tccutil reset ScreenCapture cv.haythem.designruler` and relaunch.
 
 ### Raycast Extension
 ```bash
-ray build
+npm install
+npm run dev   # builds the Swift package and loads Measure / Alignment Guides into Raycast
 ```
 
 Both targets share the same Swift overlay code via the `DesignRulerCore` SPM library.
