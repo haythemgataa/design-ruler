@@ -90,10 +90,12 @@ Shared Swift (swift/DesignRuler/)
       └─ AlignmentGuides.swift
 
 CI/CD (.github/workflows/)
+  ├─ ci.yml                        — push to main / PR → lint + compile + ad-hoc test DMG artifact
   ├─ build-release.yml             — tag-push → archive → sign → notarize → DMG → draft release
   └─ update-appcast.yml            — release-publish → EdDSA sign → appcast.xml → upload
 
 Scripts (scripts/)
+  ├─ create-dmg.sh                 — branded DMG from a built .app (shared by ci + release)
   ├─ generate-appcast.sh           — Sparkle appcast.xml generation from env vars
   └─ assets/dmg-background.png     — 1200×800 branded DMG background
 ```
@@ -717,11 +719,18 @@ inactivity timer, SIGTERM) and on permission-abort early return.
 ### Distribution (CI/CD)
 - Code-signed with Developer ID Application (Hardened Runtime, empty entitlements)
 - Notarized via `notarytool submit --wait` (credentials passed inline) + `stapler staple` on the DMG
-- DMG created by `create-dmg` from a staging dir holding only the `.app`, with branded
-  1200x800 background (tagged 144 DPI in CI), app icon + /Applications alias
-- Two GitHub Actions workflows (`gh` steps authenticate via `GH_TOKEN: ${{ github.token }}`):
-  - `build-release.yml`: tag-push → archive → sign → notarize → DMG → draft release (14 steps)
+- DMG built by `scripts/create-dmg.sh` (wraps `create-dmg`): stages only the `.app`, branded
+  1200x800 background tagged 144 DPI, app icon + /Applications alias. Both CI and release use it,
+  so a green CI run exercises the release DMG path
+- Three GitHub Actions workflows (`gh` steps authenticate via `GH_TOKEN: ${{ github.token }}`):
+  - `ci.yml`: push to `main` / PR / manual → ESLint + Prettier, `swift build`, ad-hoc signed
+    Release build (checks `CFBundleVersion` is stamped, `codesign --verify`), test DMG uploaded
+    as a 14-day artifact. Needs no secrets
+  - `build-release.yml`: tag-push → archive → sign → notarize → DMG → draft release (11 steps)
   - `update-appcast.yml`: release-publish → EdDSA sign → appcast.xml → upload (7 steps)
+- Unsigned test DMGs: macOS blocks them on first open — Privacy & Security → Open Anyway, or
+  `xattr -dr com.apple.quarantine "/Applications/Design Ruler.app"`. Screen Recording must be
+  re-granted per build (ad-hoc signature changes every build)
 - 7 GitHub Secrets: `DEVELOPER_ID_CERT_BASE64`, `DEVELOPER_ID_CERT_PASSWORD`,
   `KEYCHAIN_PASSWORD`, `APPLE_ID`, `NOTARY_PASSWORD`, `TEAM_ID`, `SPARKLE_PRIVATE_KEY`
 - Sparkle feed: `SUFeedURL` → GitHub releases latest download, `SUPublicEDKey` for EdDSA verification

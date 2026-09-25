@@ -182,3 +182,6 @@ npm run dev   # builds the Swift package and loads Measure / Alignment Guides in
 ```
 
 Both targets share the same Swift overlay code via the `DesignRulerCore` SPM library.
+
+### Test Builds
+Every push to `main` and every pull request builds an unsigned test DMG. Download it from the workflow run's **Artifacts** section under [Actions → CI](https://github.com/haythemgataa/design-ruler/actions/workflows/ci.yml). macOS blocks unsigned apps on first open: use **System Settings → Privacy & Security → Open Anyway**, or run `xattr -dr com.apple.quarantine "/Applications/Design Ruler.app"`. Screen Recording permission has to be granted again for each new test build.
