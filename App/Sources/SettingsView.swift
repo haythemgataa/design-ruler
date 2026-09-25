@@ -106,13 +106,13 @@ struct SettingsView: View {
                         Text("Version \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown")")
                             .foregroundStyle(.secondary)
 
-                        Text("\u{00A9} 2025 Haythem Elachi. All rights reserved.")
+                        Text("\u{00A9} 2026 Haythem Gataa. All rights reserved.")
                             .font(.caption)
                             .foregroundStyle(.tertiary)
                     }
                 }
 
-                Link("GitHub", destination: URL(string: "https://github.com/haythem/design-ruler")!)
+                Link("GitHub", destination: URL(string: "https://github.com/haythemgataa/design-ruler")!)
 
                 Button("Check for Updates\u{2026}") {
                     updater.checkForUpdates()

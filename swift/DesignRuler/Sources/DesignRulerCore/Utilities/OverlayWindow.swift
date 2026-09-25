@@ -163,7 +163,7 @@ package class OverlayWindow: NSWindow, OverlayWindowProtocol {
     }
 
     /// Update pan offset so the cursor tracks 1:1 while zoomed (ZOOM-04).
-    /// Called on mouse move after handleMouseMoved. Suppressed during zoom animation.
+    /// Called on mouse move before handleMouseMoved. Suppressed during zoom animation.
     package func updateZoomPan(for windowPoint: NSPoint) {
         guard zoomState.isZoomed, !isAnimatingZoom, !isPeekAnimating else { return }
         // 1:1 cursor tracking: the cursor at windowPoint should map to the same
@@ -228,8 +228,11 @@ package class OverlayWindow: NSWindow, OverlayWindowProtocol {
         let windowPoint = event.locationInWindow
         lastCursorPosition = windowPoint
 
-        handleMouseMoved(to: windowPoint)
+        // Pan BEFORE the subclass converts windowPoint to capture space. With the previous
+        // frame's pan, detection and hit-testing land (zoom - 1) x the mouse delta off the cursor.
+        willHandleMouseMove()
         updateZoomPan(for: windowPoint)
+        handleMouseMoved(to: windowPoint)
 
         if hintBarView.superview != nil {
             hintBarView.updatePosition(cursorY: windowPoint.y, screenHeight: screenBounds.height)
@@ -284,8 +287,14 @@ package class OverlayWindow: NSWindow, OverlayWindowProtocol {
         // Subclasses override to call their typed onActivate callback
     }
 
-    /// Called on mouseMoved after throttle, first-move detection, and cursor position tracking.
-    /// Hint bar positioning runs AFTER this so the subclass processes the point first.
+    /// Called on mouseMoved before the zoom pan update. Subclasses override to cancel
+    /// in-flight pan animations (e.g., Measure's peek pan) that would otherwise block it.
+    package func willHandleMouseMove() {
+        // Subclasses override to cancel pan animations the user is taking over from
+    }
+
+    /// Called on mouseMoved after throttle, first-move detection, cursor position tracking,
+    /// and the zoom pan update. Hint bar positioning runs AFTER this.
     package func handleMouseMoved(to windowPoint: NSPoint) {
         // Subclasses override for command-specific mouse move handling
     }

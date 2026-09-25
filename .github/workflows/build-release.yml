@@ -79,11 +79,21 @@ jobs:
             -exportOptionsPlist "ExportOptions.plist"
 
       - name: Copy DMG background
-        run: cp scripts/assets/dmg-background.png "$RUNNER_TEMP/dmg-background.png"
+        run: |
+          cp scripts/assets/dmg-background.png "$RUNNER_TEMP/dmg-background.png"
+          # 1200x800 art for a 600x400 window: tag it 144 DPI so Finder draws it at 600x400pt
+          sips -s dpiWidth 144 -s dpiHeight 144 "$RUNNER_TEMP/dmg-background.png"
+
+      - name: Stage app for DMG
+        run: |
+          # Export dir also holds DistributionSummary.plist, ExportOptions.plist and Packaging.log
+          mkdir -p "$RUNNER_TEMP/dmg-staging"
+          ditto "$RUNNER_TEMP/export/Design Ruler.app" "$RUNNER_TEMP/dmg-staging/Design Ruler.app"
 
       - name: Extract volume icon from app bundle
         run: |
-          VOLICON=$(find "$RUNNER_TEMP/export/Design Ruler.app/Contents/Resources" -name "*.icns" | head -1)
+          VOLICON=$(find "$RUNNER_TEMP/dmg-staging/Design Ruler.app/Contents/Resources" -name "*.icns" | head -1)
+          test -n "$VOLICON" || { echo "No .icns in app bundle (missing AppIcon?)"; exit 1; }
           echo "VOLICON=$VOLICON" >> $GITHUB_ENV
 
       - name: Create DMG
@@ -100,22 +110,24 @@ jobs:
             --hide-extension "Design Ruler.app" \
             --no-internet-enable \
             "$RUNNER_TEMP/Design-Ruler-$VERSION.dmg" \
-            "$RUNNER_TEMP/export/" || true
+            "$RUNNER_TEMP/dmg-staging/" || true
           # create-dmg may exit with code 2 for warnings; verify DMG exists
           test -f "$RUNNER_TEMP/Design-Ruler-$VERSION.dmg"
 
       - name: Notarize DMG
         run: |
-          xcrun notarytool store-credentials "notary-profile" \
+          # Credentials passed directly: a stored keychain profile would land in the default
+          # keychain, which the search list above no longer includes.
+          xcrun notarytool submit "$RUNNER_TEMP/Design-Ruler-$VERSION.dmg" \
             --apple-id "$APPLE_ID" \
             --team-id "$TEAM_ID" \
-            --password "$NOTARY_PASSWORD"
-          xcrun notarytool submit "$RUNNER_TEMP/Design-Ruler-$VERSION.dmg" \
-            --keychain-profile "notary-profile" \
+            --password "$NOTARY_PASSWORD" \
             --wait
           xcrun stapler staple "$RUNNER_TEMP/Design-Ruler-$VERSION.dmg"
 
       - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" \
             "$RUNNER_TEMP/Design-Ruler-$VERSION.dmg" \
