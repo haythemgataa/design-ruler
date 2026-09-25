@@ -79,7 +79,11 @@ jobs:
             CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGN_STYLE=Manual \
-            DEVELOPMENT_TEAM=""
+            DEVELOPMENT_TEAM="" \
+            ENABLE_HARDENED_RUNTIME=NO
+          # Hardened runtime off: an ad-hoc app has no Team ID, so library validation can't match it
+          # to any embedded framework (Sparkle) and dyld aborts at launch. Only notarization needs
+          # hardened runtime; release builds keep it and are signed with the Developer ID team.
           echo "APP_PATH=$RUNNER_TEMP/DerivedData/Build/Products/Release/Design Ruler.app" >> "$GITHUB_ENV"
 
       - name: Verify app bundle
