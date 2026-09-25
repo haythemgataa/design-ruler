@@ -243,12 +243,15 @@ package final class MeasureWindow: OverlayWindow {
         hintBarEntrance()
     }
 
-    override package func handleMouseMoved(to windowPoint: NSPoint) {
-        // Cancel any in-flight peek animation — user is taking over
+    override package func willHandleMouseMove() {
+        // Cancel any in-flight peek animation — user is taking over. Runs before the
+        // base pan update, which is suppressed while isPeekAnimating is set.
         if isPeekAnimating {
             cancelPeek()
         }
+    }
 
+    override package func handleMouseMoved(to windowPoint: NSPoint) {
         // Convert window-space to capture-space for edge detection (MEAS-01)
         let appKitScreenPoint = captureScreenPoint(from: windowPoint)
 
