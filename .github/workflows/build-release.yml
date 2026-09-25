@@ -79,6 +79,9 @@ jobs:
             -exportPath "$RUNNER_TEMP/export" \
             -exportOptionsPlist "ExportOptions.plist"
 
+      - name: Check embedded frameworks pass library validation
+        run: scripts/check-library-validation.sh "$RUNNER_TEMP/export/Design Ruler.app"
+
       - name: Create DMG
         run: scripts/create-dmg.sh "$RUNNER_TEMP/export/Design Ruler.app" "$RUNNER_TEMP/Design-Ruler-$VERSION.dmg"
 

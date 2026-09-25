@@ -91,6 +91,7 @@ jobs:
           test "$BUILD" = "$BUILD_NUMBER" || { echo "CFBundleVersion not stamped from build settings"; exit 1; }
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+          scripts/check-library-validation.sh "$APP_PATH"
 
       - name: Create DMG
         run: |
@@ -115,6 +116,9 @@ jobs:
         run: |
           # Install the app exactly as a tester would (copy out of the DMG), then launch it.
           # LSUIElement menu bar app: no window, so "launched" = process still alive after a few seconds.
+          # Runners have SIP disabled, so library validation isn't enforced here — that's covered by
+          # check-library-validation.sh above. This catches other crashes at launch.
+          csrutil status || true
           mkdir -p "$RUNNER_TEMP/smoke"
           MNT=$(mktemp -d)
           hdiutil attach -nobrowse -readonly -mountpoint "$MNT" "$DMG_PATH" >/dev/null
