@@ -9,11 +9,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverDelegat
     private var menuBarController: MenuBarController!
     private var hotkeyController: HotkeyController!
     private var settingsWindowController: SettingsWindowController!
-    private lazy var updaterController = SPUStandardUpdaterController(
-        startingUpdater: true,
-        updaterDelegate: nil,
-        userDriverDelegate: self
-    )
+    private var updaterController: SPUStandardUpdaterController!
 
     // MARK: - SPUStandardUserDriverDelegate
 
@@ -53,6 +49,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverDelegat
         // Configure coordinators for standalone mode (event loop already running)
         MeasureCoordinator.shared.runMode = .standalone
         AlignmentGuidesCoordinator.shared.runMode = .standalone
+
+        // Start Sparkle at launch so scheduled update checks run without opening Settings
+        updaterController = SPUStandardUpdaterController(
+            startingUpdater: true,
+            updaterDelegate: nil,
+            userDriverDelegate: self
+        )
 
         // First launch: enable launch at login by default
         if !UserDefaults.standard.bool(forKey: "hasLaunchedBefore") {

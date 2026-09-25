@@ -112,7 +112,7 @@ struct SettingsView: View {
                     }
                 }
 
-                Link("GitHub", destination: URL(string: "https://github.com/haythem/design-ruler")!)
+                Link("GitHub", destination: URL(string: "https://github.com/haythemgataa/design-ruler")!)
 
                 Button("Check for Updates\u{2026}") {
                     updater.checkForUpdates()
