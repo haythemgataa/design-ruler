@@ -20,13 +20,14 @@ open class MeasureCoordinator: OverlayCoordinator {
     }
 
     override open func captureAllScreens() -> [(screen: NSScreen, image: CGImage?)] {
-        var captures: [(screen: NSScreen, image: CGImage?)] = []
-        for screen in NSScreen.screens {
+        let captures = super.captureAllScreens()
+        for (screen, image) in captures {
             let detector = EdgeDetector()
             detector.correctionMode = correctionMode
-            let cgImage = detector.capture(screen: screen)
+            if let image {
+                detector.applyCapture(cgImage: image, screenFrame: CoordinateConverter.appKitRectToCG(screen.frame))
+            }
             detectors[ObjectIdentifier(screen)] = detector
-            captures.append((screen, cgImage))
         }
         return captures
     }
