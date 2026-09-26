@@ -14,15 +14,7 @@ package final class EdgeDetector {
 
     package init() {}
 
-    /// Capture full screen before window exists. Returns CGImage for window background.
-    package func capture(screen: NSScreen) -> CGImage? {
-        guard let cgImage = ScreenCapture.captureScreen(screen) else { return nil }
-        let cgRect = CoordinateConverter.appKitRectToCG(screen.frame)
-        applyCapture(cgImage: cgImage, screenFrame: cgRect)
-        return cgImage
-    }
-
-    /// Apply captured image — sets colorMap. Call from main thread.
+    /// Apply a screen capture taken before the window exists — sets colorMap. Call from main thread.
     package func applyCapture(cgImage: CGImage, screenFrame: CGRect) {
         let pixelWidth = cgImage.width
         let pixelHeight = cgImage.height
