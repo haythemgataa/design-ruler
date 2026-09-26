@@ -79,7 +79,11 @@ jobs:
             CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGN_STYLE=Manual \
-            DEVELOPMENT_TEAM=""
+            DEVELOPMENT_TEAM="" \
+            ENABLE_HARDENED_RUNTIME=NO
+          # Hardened runtime off: an ad-hoc app has no Team ID, so library validation can't match it
+          # to any embedded framework (Sparkle) and dyld aborts at launch. Only notarization needs
+          # hardened runtime; release builds keep it and are signed with the Developer ID team.
           echo "APP_PATH=$RUNNER_TEMP/DerivedData/Build/Products/Release/Design Ruler.app" >> "$GITHUB_ENV"
 
       - name: Verify app bundle
@@ -91,10 +95,12 @@ jobs:
           test "$BUILD" = "$BUILD_NUMBER" || { echo "CFBundleVersion not stamped from build settings"; exit 1; }
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+          scripts/check-library-validation.sh "$APP_PATH"
 
       - name: Create DMG
         run: |
           DMG="$RUNNER_TEMP/Design-Ruler-$VERSION-$SHORT_SHA-unsigned.dmg"
+          echo "DMG_PATH=$DMG" >> "$GITHUB_ENV"
           scripts/create-dmg.sh "$APP_PATH" "$DMG"
           # Show what testers will see (expect: app, Applications link, hidden styling files)
           MNT=$(mktemp -d)
@@ -108,4 +114,45 @@ jobs:
           name: Design-Ruler-${{ env.VERSION }}-${{ env.SHORT_SHA }}-unsigned
           path: ${{ runner.temp }}/Design-Ruler-*-unsigned.dmg
           if-no-files-found: error
+          retention-days: 14
+
+      - name: Smoke-test launch from the DMG
+        run: |
+          # Install the app exactly as a tester would (copy out of the DMG), then launch it.
+          # LSUIElement menu bar app: no window, so "launched" = process still alive after a few seconds.
+          # Runners have SIP disabled, so library validation isn't enforced here — that's covered by
+          # check-library-validation.sh above. This catches other crashes at launch.
+          csrutil status || true
+          mkdir -p "$RUNNER_TEMP/smoke"
+          MNT=$(mktemp -d)
+          hdiutil attach -nobrowse -readonly -mountpoint "$MNT" "$DMG_PATH" >/dev/null
+          ditto "$MNT/Design Ruler.app" "$RUNNER_TEMP/smoke/Design Ruler.app"
+          hdiutil detach "$MNT" >/dev/null
+          SMOKE_APP="$RUNNER_TEMP/smoke/Design Ruler.app"
+          codesign -dvv "$SMOKE_APP" 2>&1 | grep -E 'Identifier|Signature|TeamIdentifier|flags|Runtime' || true
+          spctl --assess --type execute -vv "$SMOKE_APP" 2>&1 || true   # informational: ad-hoc is expected to be rejected
+          START=$(date '+%Y-%m-%d %H:%M:%S')
+          open "$SMOKE_APP"
+          sleep 10
+          screencapture -x "$RUNNER_TEMP/smoke/screen.png" 2>/dev/null || true
+          echo "--- logs from Design Ruler since launch ---"
+          log show --start "$START" --style compact --predicate 'process == "Design Ruler"' 2>/dev/null | tail -60 || true
+          if pgrep -x "Design Ruler" >/dev/null; then
+            echo "OK: Design Ruler is running 10s after launch"
+            pkill -x "Design Ruler" || true
+          else
+            echo "FAIL: Design Ruler is not running 10s after launch"
+            for f in ~/Library/Logs/DiagnosticReports/Design*Ruler*; do
+              [ -e "$f" ] && { echo "=== $f"; head -120 "$f"; }
+            done
+            exit 1
+          fi
+
+      - name: Upload smoke-test screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-test-${{ env.SHORT_SHA }}
+          path: ${{ runner.temp }}/smoke/screen.png
+          if-no-files-found: ignore
           retention-days: 14

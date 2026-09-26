@@ -96,6 +96,7 @@ CI/CD (.github/workflows/)
 
 Scripts (scripts/)
   ├─ create-dmg.sh                 — branded DMG from a built .app (shared by ci + release)
+  ├─ check-library-validation.sh   — fails if dyld would refuse an embedded framework at launch
   ├─ generate-appcast.sh           — Sparkle appcast.xml generation from env vars
   └─ assets/dmg-background.png     — 1200×800 branded DMG background
 ```
@@ -724,8 +725,9 @@ inactivity timer, SIGTERM) and on permission-abort early return.
   so a green CI run exercises the release DMG path
 - Three GitHub Actions workflows (`gh` steps authenticate via `GH_TOKEN: ${{ github.token }}`):
   - `ci.yml`: push to `main` / PR / manual → ESLint + Prettier, `swift build`, ad-hoc signed
-    Release build (checks `CFBundleVersion` is stamped, `codesign --verify`), test DMG uploaded
-    as a 14-day artifact. Needs no secrets
+    Release build with hardened runtime off (checks `CFBundleVersion` is stamped,
+    `codesign --verify`, `check-library-validation.sh`), test DMG uploaded as a 14-day artifact,
+    then a launch smoke test of the app copied out of the DMG. Needs no secrets
   - `build-release.yml`: tag-push → archive → sign → notarize → DMG → draft release (11 steps)
   - `update-appcast.yml`: release-publish → EdDSA sign → appcast.xml → upload (7 steps)
 - Unsigned test DMGs: macOS blocks them on first open — Privacy & Security → Open Anyway, or
@@ -819,6 +821,14 @@ Bugs encountered and fixed — avoid re-introducing these:
   only guards at runtime; compiling still needs the macOS 26 SDK (Xcode 26). CI and release
   jobs run on `macos-26` — the `macos-15` image defaults to Xcode 16.4 and fails with
   "cannot find 'NSGlassEffectView' in scope".
+
+- **Ad-hoc signing with hardened runtime on**: dyld's library validation only loads
+  frameworks signed with the app's own Team ID, and ad-hoc code has none ("not set" never
+  matches, even ad-hoc to ad-hoc). The app then dies at launch: "Library not loaded:
+  @rpath/Sparkle.framework … mapping process and mapped file (non-platform) have different
+  Team IDs". The ad-hoc CI test build therefore sets `ENABLE_HARDENED_RUNTIME=NO`;
+  `scripts/check-library-validation.sh` guards both workflows. The CI launch smoke test can't
+  catch it: GitHub's macOS runners have SIP disabled, so library validation isn't enforced.
 
 - **Converting the cursor with the previous frame's pan**: `OverlayWindow.mouseMoved`
   must call `updateZoomPan` BEFORE `handleMouseMoved`. Otherwise the subclass maps
