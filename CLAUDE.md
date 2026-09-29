@@ -585,7 +585,7 @@ travels with the content. Return phase runs from a cancellable
 
 ### Launch Ripple (LaunchRipple)
 On launch a frosted, refracting ripple spreads from the hint bar's center (`hintBarView.frame.midY`;
-48pt above the bottom on screens without a bar) across every screen over `DesignTokens.Animation.launchRipple` (1.15s,
+48pt above the bottom on screens without a bar) across every screen over `DesignTokens.Animation.launchRipple` (1s,
 easeOut cubic). Parameters were tuned in a browser WebGL prototype and live as constants in
 `LaunchRippleRenderer`.
 - Metal fragment shader compiled at runtime from an inline source string (no `.metal` /
@@ -596,6 +596,10 @@ easeOut cubic). Parameters were tuned in a browser WebGL prototype and live as c
 - Drawn into a non-opaque `CAMetalLayer` added as a sublayer of `contentLayer`, so it zooms and
   pans with the screenshot and stays below all overlay UI. Outside the ring the shader returns
   transparent and the screenshot shows through. Driven by `NSView.displayLink` capped at 60fps
+- Drawn at point resolution (half-size drawable on Retina, ¼ the fragments); `baseLod` makes
+  the shader sample the matching mip so the refraction doesn't alias. 8-tap mip-sampled blur
+- At most 2 frames in flight: a tick is skipped when the GPU is behind, never blocking the main
+  thread in `nextDrawable()` (which waits up to 1s for a free drawable)
 - The shader is the identity at t = 0 and t = 1, and a keyframe opacity ramp covers the
   handoffs, so switching back to the plain screenshot is invisible. The layer is removed when done
 - Tuning constants live in the shader source; only resolution, origin and progress are uniforms
