@@ -63,13 +63,14 @@ package final class LaunchRippleRenderer {
         }
     }
 
-    // Look tuned in the browser prototype: ripple from the hint bar, 110% band, 60% distortion,
-    // 80% color fringe, 20px blur on a 425px-tall preview, 50% tint, 10% rim glow.
+    // Look tuned in the browser prototype: ripple from the hint bar, 110% band (since narrowed to
+    // 75% to cut fragment work), 60% distortion, 80% color fringe, 20px blur on a 425px-tall
+    // preview, 50% tint, 10% rim glow.
     private static let shaderSource = """
     #include <metal_stdlib>
     using namespace metal;
 
-    constant float BAND_WIDTH = 0.66;  // fraction of the distance to the farthest corner
+    constant float BAND_WIDTH = 0.45;  // fraction of the distance to the farthest corner
     constant float DISTORTION = 0.6;
     constant float CHROMA = 0.8;
     constant float BLUR = 0.047;       // blur radius as a fraction of screen height
@@ -83,6 +84,7 @@ package final class LaunchRippleRenderer {
         float2 center;   // ripple origin, uv with y up
         float t;         // linear progress 0...1
         float e;         // eased progress 0...1
+        float baseLod;   // mip matching the drawable's resolution (1 when drawn at half size)
     };
 
     // One oversized triangle covering the screen; uv has a top-left origin like the CGImage.
@@ -134,20 +136,21 @@ package final class LaunchRippleRenderer {
         float2 uG = up + o;
         float2 uB = up + o * (1.0 - ch);
 
-        // Frost blur: 16-tap golden-angle disk, sampled from mips so large radii stay smooth.
+        // Frost blur: 8-tap golden-angle disk, sampled from mips so large radii stay smooth.
+        // The mip is picked so neighbouring taps sit ~3 texels apart (sqrt(8)), which hides gaps.
         float br = BLUR * frost;
-        float lod = log2(max(1.0, br * P.res.y / 4.0));
+        float lod = max(P.baseLod, log2(max(1.0, br * P.res.y / 2.8)));
         float3 col = float3(0.0);
-        for (int i = 0; i < 16; i++) {
+        for (int i = 0; i < 8; i++) {
             float fi = float(i);
             float a = fi * 2.39996;
-            float rad = sqrt((fi + 0.5) / 16.0);
+            float rad = sqrt((fi + 0.5) / 8.0);
             float2 k = float2(cos(a) / asp, sin(a)) * rad * br;
             col.r += tex.sample(s, texCoord(uR + k), level(lod)).r;
             col.g += tex.sample(s, texCoord(uG + k), level(lod)).g;
             col.b += tex.sample(s, texCoord(uB + k), level(lod)).b;
         }
-        col /= 16.0;
+        col /= 8.0;
 
         float gray = dot(col, float3(0.299, 0.587, 0.114));
         float3 frosted = mix(col, float3(gray), 0.55) * 0.82 + float3(0.80, 0.90, 1.0) * 0.28;
@@ -168,6 +171,7 @@ private struct RippleParams {
     var center: SIMD2<Float>
     var t: Float
     var e: Float
+    var baseLod: Float
 }
 
 /// One window's ripple. Loads the screenshot into a mipmapped texture off the main thread, then
@@ -181,6 +185,9 @@ package final class LaunchRipple: NSObject {
     private var displayLink: CADisplayLink?
     private var startTime: CFTimeInterval = 0
     private var isFinished = false
+    /// Frames the GPU hasn't finished. When it falls behind, a tick is skipped rather than
+    /// blocking the main thread in `nextDrawable()`.
+    private let inFlight = DispatchSemaphore(value: 2)
 
     /// `center` is the ripple origin in unit coordinates with y up (0,0 = bottom-left).
     package init(screenshot: CGImage, center: CGPoint) {
@@ -225,7 +232,9 @@ package final class LaunchRipple: NSObject {
         layer.colorspace = screenshot.colorSpace  // present the pixels exactly as the content layer does
         layer.contentsScale = contentLayer.contentsScale
         layer.frame = contentLayer.bounds
-        layer.drawableSize = CGSize(width: texture.width, height: texture.height)
+        // Drawn at point resolution (half size on Retina, a quarter of the fragments): the band is
+        // frosted and outside it the layer is transparent, so the full-res screenshot shows through.
+        layer.drawableSize = contentLayer.bounds.size
 
         // The shader is already the identity at t = 0 and t = 1; the opacity ramp also hides any
         // color-space mismatch with the content layer at the handoffs.
@@ -243,7 +252,7 @@ package final class LaunchRipple: NSObject {
 
         startTime = CACurrentMediaTime()
         let link = view.displayLink(target: self, selector: #selector(step))
-        // A full-Retina frame costs up to ~9ms of GPU time; 60fps keeps ProMotion screens from dropping frames.
+        // Capped at 60fps: 120Hz ProMotion would double the GPU work for no visible gain.
         link.preferredFrameRateRange = CAFrameRateRange(minimum: 30, maximum: 60, preferred: 60)
         link.add(to: .main, forMode: .common)
         displayLink = link
@@ -257,20 +266,30 @@ package final class LaunchRipple: NSObject {
     }
 
     private func render(t: Float) {
+        guard inFlight.wait(timeout: .now()) == .success else { return }
         guard let layer = metalLayer, let texture,
               let pipeline = LaunchRippleRenderer.shared.pipeline,
               let drawable = layer.nextDrawable(),
-              let commands = LaunchRippleRenderer.shared.queue?.makeCommandBuffer() else { return }
+              let commands = LaunchRippleRenderer.shared.queue?.makeCommandBuffer() else {
+            inFlight.signal()
+            return
+        }
+        let inFlight = inFlight
+        commands.addCompletedHandler { _ in inFlight.signal() }
 
         let pass = MTLRenderPassDescriptor()
         pass.colorAttachments[0].texture = drawable.texture
         pass.colorAttachments[0].loadAction = .dontCare
         pass.colorAttachments[0].storeAction = .store
-        guard let encoder = commands.makeRenderCommandEncoder(descriptor: pass) else { return }
+        guard let encoder = commands.makeRenderCommandEncoder(descriptor: pass) else {
+            commands.commit()  // runs the completed handler, releasing the in-flight slot
+            return
+        }
 
         var params = RippleParams(
             res: SIMD2(Float(texture.width), Float(texture.height)),
-            center: center, t: t, e: 1 - pow(1 - t, 3)  // easeOut cubic, as in the prototype
+            center: center, t: t, e: 1 - pow(1 - t, 3),  // easeOut cubic, as in the prototype
+            baseLod: max(0, log2(Float(texture.height) / Float(layer.drawableSize.height)))
         )
         encoder.setRenderPipelineState(pipeline)
         encoder.setFragmentTexture(texture, index: 0)
