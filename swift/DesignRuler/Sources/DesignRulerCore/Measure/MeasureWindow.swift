@@ -11,6 +11,8 @@ package final class MeasureWindow: OverlayWindow {
     private var isDragging = false
     private var isHoveringSelection = false
     private var peekWorkItem: DispatchWorkItem?
+    private var peekHomePan: CGPoint?   // cursor-tracking pan to return to while a peek is in flight
+    private var peekGeneration = 0      // stale peek callbacks must not touch a newer peek's state
 
     // Typed callback for multi-monitor activation
     package var onActivate: ((MeasureWindow) -> Void)?
@@ -105,9 +107,15 @@ package final class MeasureWindow: OverlayWindow {
         }
         guard let edgeHit = edge else { return }
 
+        // "Home" is the cursor-tracking pan. A peek already in flight has moved panOffset away
+        // from it, so measure the cursor and the edge against home, not the peeked view.
+        let homePan = peekHomePan ?? zoomState.panOffset
+        var homeState = zoomState
+        homeState.panOffset = homePan
+
         // Edge position is in capture-space (distance from cursor).
         // Get the cursor in capture-space, then compute the edge's capture-space position.
-        let cursorCapture = capturePoint(from: crosshairView.cursorPosition)
+        let cursorCapture = windowPointToCapturePoint(crosshairView.cursorPosition, zoomState: homeState, screenSize: screenBounds.size)
         let edgeCapturePos: CGFloat
         let isHorizontalAxis: Bool
 
@@ -132,10 +140,10 @@ package final class MeasureWindow: OverlayWindow {
         let s = zoomState.level.rawValue
 
         if isHorizontalAxis {
-            edgeWindowPos = (edgeCapturePos + zoomState.panOffset.x) * s
+            edgeWindowPos = (edgeCapturePos + homePan.x) * s
             viewportSize = screenBounds.width
         } else {
-            edgeWindowPos = (edgeCapturePos + zoomState.panOffset.y) * s
+            edgeWindowPos = (edgeCapturePos + homePan.y) * s
             viewportSize = screenBounds.height
         }
 
@@ -144,8 +152,7 @@ package final class MeasureWindow: OverlayWindow {
         guard edgeWindowPos < margin || edgeWindowPos > viewportSize - margin else { return }
 
         // Calculate pan offset that brings edge into view with margin
-        let savedPanOffset = zoomState.panOffset
-        var peekOffset = savedPanOffset
+        var peekOffset = homePan
 
         if isHorizontalAxis {
             if edgeWindowPos < margin {
@@ -168,18 +175,15 @@ package final class MeasureWindow: OverlayWindow {
         // Clamp the peek offset to valid bounds
         peekOffset = clampPanOffset(peekOffset, zoomLevel: zoomState.level, screenSize: screenBounds.size)
 
-        // Calculate cursor-centered pan (the "home" position to return to)
-        let cursorPos = lastCursorPosition
-        let homePan = clampPanOffset(
-            CGPoint(x: (cursorPos.x / s) - cursorPos.x, y: (cursorPos.y / s) - cursorPos.y),
-            zoomLevel: zoomState.level, screenSize: screenBounds.size
-        )
-
-        // Cancel any in-flight peek
+        // Replace any in-flight peek. The new generation stops the old peek's pending return and
+        // completion from acting on this one (e.g. clearing isPeekAnimating mid-hold).
         peekWorkItem?.cancel()
+        peekGeneration += 1
+        let generation = peekGeneration
 
         // Phase 1: Pan out to edge, crosshair follows content
         isPeekAnimating = true
+        peekHomePan = homePan
         zoomState.panOffset = peekOffset
         let peekDelta = CGPoint(x: (peekOffset.x - homePan.x) * s, y: (peekOffset.y - homePan.y) * s)
         CATransaction.animated(duration: DesignTokens.Animation.peekPan) {
@@ -189,17 +193,19 @@ package final class MeasureWindow: OverlayWindow {
 
         // Phase 2: Hold, then Phase 3: Return (crosshair returns to screen-space)
         let returnItem = DispatchWorkItem { [weak self] in
-            guard let self, self.isPeekAnimating else { return }
+            guard let self, self.isPeekAnimating, self.peekGeneration == generation else { return }
             self.zoomState.panOffset = homePan
             CATransaction.animated(duration: DesignTokens.Animation.peekReturn) {
                 self.contentLayer?.transform = self.zoomState.contentTransform
                 self.crosshairView.layer?.transform = CATransform3DIdentity
             }
 
-            // Clear flag after return animation completes
+            // Clear flag after return animation completes (unless a newer peek or a cancel took over)
             DispatchQueue.main.asyncAfter(deadline: .now() + DesignTokens.Animation.peekReturn) { [weak self] in
-                self?.isPeekAnimating = false
-                self?.peekWorkItem = nil
+                guard let self, self.peekGeneration == generation else { return }
+                self.isPeekAnimating = false
+                self.peekHomePan = nil
+                self.peekWorkItem = nil
             }
         }
         peekWorkItem = returnItem
@@ -209,10 +215,17 @@ package final class MeasureWindow: OverlayWindow {
     }
 
     /// Cancel any in-flight peek animation and reset state.
+    /// Puts the model pan back at home; the caller's pan update, zoom toggle or zoom reset
+    /// applies the content transform.
     private func cancelPeek() {
         peekWorkItem?.cancel()
-        isPeekAnimating = false
         peekWorkItem = nil
+        peekGeneration += 1
+        if let home = peekHomePan {
+            zoomState.panOffset = home
+        }
+        peekHomePan = nil
+        isPeekAnimating = false
         CATransaction.instant {
             crosshairView.layer?.transform = CATransform3DIdentity
         }
@@ -234,18 +247,16 @@ package final class MeasureWindow: OverlayWindow {
 
     override package func showInitialState() {
         CursorManager.shared.hide()
-        let mouseLocation = NSEvent.mouseLocation
-        let windowPoint = NSPoint(
-            x: mouseLocation.x - screenBounds.origin.x,
-            y: mouseLocation.y - screenBounds.origin.y
-        )
-        crosshairView.showInitialPill(at: windowPoint)
+        // Seed lastCursorPosition so a Z press before the first mouse move anchors the zoom at
+        // the cursor instead of (0,0), the bottom-left corner.
+        initCursorPosition()
+        crosshairView.showInitialPill(at: lastCursorPosition)
         hintBarEntrance()
     }
 
-    override package func willHandleMouseMove() {
-        // Cancel any in-flight peek animation — user is taking over. Runs before the
-        // base pan update, which is suppressed while isPeekAnimating is set.
+    override package func cancelPanAnimations() {
+        // Cancel any in-flight peek — user is taking over (mouse move or Z). Runs before the
+        // base pan/zoom update, which peeks would otherwise block (isPeekAnimating) or fight.
         if isPeekAnimating {
             cancelPeek()
         }
@@ -342,8 +353,8 @@ package final class MeasureWindow: OverlayWindow {
         }
         crosshairView.showAfterDrag()
 
-        let mouse = NSEvent.mouseLocation
-        let wp = NSPoint(x: mouse.x - screenBounds.origin.x, y: mouse.y - screenBounds.origin.y)
+        initCursorPosition()
+        let wp = lastCursorPosition
         // Convert to capture-space for edge detection (MEAS-01)
         let sp = captureScreenPoint(from: wp)
         if let edges = edgeDetector.onMouseMoved(at: sp) {

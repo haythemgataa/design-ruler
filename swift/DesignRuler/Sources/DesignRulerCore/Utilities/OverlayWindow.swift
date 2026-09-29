@@ -22,6 +22,7 @@ package class OverlayWindow: NSWindow, OverlayWindowProtocol {
     package var zoomState = ZoomState()
     package var contentLayer: CALayer?
     private var isAnimatingZoom = false
+    private var zoomAnimationGeneration = 0  // stale animation-end callbacks must not clear a newer zoom's flag
     package var isPeekAnimating = false
 
     // Callbacks for multi-monitor coordination
@@ -132,6 +133,9 @@ package class OverlayWindow: NSWindow, OverlayWindowProtocol {
     /// Toggle zoom level: 1x -> 2x -> 4x -> 1x. Called on Z key press.
     /// Animates the transform change with 0.25s easeOut (ZOOM-01, ZOOM-02, ZOOM-03).
     package func handleZoomToggle() {
+        // Drop in-flight pan animations (Measure's peek) first: the new pan is computed from
+        // the cursor-tracking pan, not from a peeked one.
+        cancelPanAnimations()
         let newLevel = zoomState.level.next()
         let cursorPoint = lastCursorPosition
         let screenSize = screenBounds.size
@@ -151,12 +155,15 @@ package class OverlayWindow: NSWindow, OverlayWindowProtocol {
         // Animate the transform change (0.25s easeOut per locked decision)
         guard let cl = contentLayer else { return }
         isAnimatingZoom = true
+        zoomAnimationGeneration += 1
+        let generation = zoomAnimationGeneration
         CATransaction.animated(duration: DesignTokens.Animation.zoom) {
             cl.transform = zoomState.contentTransform
         }
-        // Clear animation flag after duration
+        // Clear animation flag after duration, unless a newer Z press restarted the animation
         DispatchQueue.main.asyncAfter(deadline: .now() + DesignTokens.Animation.zoom) { [weak self] in
-            self?.isAnimatingZoom = false
+            guard let self, self.zoomAnimationGeneration == generation else { return }
+            self.isAnimatingZoom = false
         }
 
         zoomDidChange()
@@ -201,6 +208,7 @@ package class OverlayWindow: NSWindow, OverlayWindowProtocol {
             contentLayer?.transform = CATransform3DIdentity
         }
         isAnimatingZoom = false
+        zoomDidChange()  // selections / guide lines re-project to 1x (e.g. after a monitor switch)
     }
 
     // MARK: - Window Properties
@@ -230,7 +238,7 @@ package class OverlayWindow: NSWindow, OverlayWindowProtocol {
 
         // Pan BEFORE the subclass converts windowPoint to capture space. With the previous
         // frame's pan, detection and hit-testing land (zoom - 1) x the mouse delta off the cursor.
-        willHandleMouseMove()
+        cancelPanAnimations()
         updateZoomPan(for: windowPoint)
         handleMouseMoved(to: windowPoint)
 
@@ -246,7 +254,8 @@ package class OverlayWindow: NSWindow, OverlayWindowProtocol {
             onRequestExit?()
             return
         }
-        if Int(event.keyCode) == 6 { // Z key — zoom toggle (shared infrastructure)
+        if OverlayWindow.isZoomKey(event) { // Z — zoom toggle (shared infrastructure)
+            guard !event.isARepeat else { return }  // holding Z must not keep cycling levels
             if hintBarView.superview != nil { hintBarView.pressKey(.zoom) }
             handleZoomToggle()
             if hintBarView.superview != nil {
@@ -260,6 +269,15 @@ package class OverlayWindow: NSWindow, OverlayWindowProtocol {
             return
         }
         handleKeyDown(with: event)
+    }
+
+    /// Z by the character it types, not its key position, so it follows AZERTY/QWERTZ layouts
+    /// (keyCode 6 is W on AZERTY, Y on QWERTZ). Layouts without Latin letters fall back to the
+    /// ANSI Z position.
+    private static func isZoomKey(_ event: NSEvent) -> Bool {
+        guard let scalars = event.charactersIgnoringModifiers?.lowercased().unicodeScalars,
+              scalars.count == 1, let scalar = scalars.first else { return false }
+        return scalar.isASCII ? scalar == "z" : event.keyCode == 6
     }
 
     // MARK: - Subclass Helpers
@@ -287,9 +305,10 @@ package class OverlayWindow: NSWindow, OverlayWindowProtocol {
         // Subclasses override to call their typed onActivate callback
     }
 
-    /// Called on mouseMoved before the zoom pan update. Subclasses override to cancel
-    /// in-flight pan animations (e.g., Measure's peek pan) that would otherwise block it.
-    package func willHandleMouseMove() {
+    /// Called before the zoom pan changes: on mouseMoved before the pan update, and at the start
+    /// of handleZoomToggle. Subclasses override to cancel in-flight pan animations (e.g. Measure's
+    /// peek pan) that would otherwise block or fight it.
+    package func cancelPanAnimations() {
         // Subclasses override to cancel pan animations the user is taking over from
     }
 

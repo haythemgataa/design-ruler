@@ -97,13 +97,7 @@ package final class HintBarView: NSView {
         self.leftCollapsedPanel = leftGlass
         addSubview(leftGlass)
 
-        let leftContent: NSView
-        if state.mode == .alignmentGuides {
-            leftContent = NSHostingView(rootView: CollapsedAlignmentGuidesLeftContent(state: state))
-        } else {
-            leftContent = NSHostingView(rootView: CollapsedLeftContent(state: state))
-        }
-        leftContent.autoresizingMask = [.width, .height]
+        let leftContent = makeCollapsedLeftContent()
         leftGlass.addSubview(leftContent)
         self.leftHostingView = leftContent
 
@@ -123,6 +117,19 @@ package final class HintBarView: NSView {
         // Start with collapsed panels hidden (expanded is default)
         leftGlass.isHidden = true
         rightGlass.isHidden = true
+    }
+
+    /// Collapsed left panel content for the current mode. The two modes use different SwiftUI
+    /// view types, so switching mode means swapping the hosting view (see setMode).
+    private func makeCollapsedLeftContent() -> NSView {
+        let content: NSView
+        if state.mode == .alignmentGuides {
+            content = NSHostingView(rootView: CollapsedAlignmentGuidesLeftContent(state: state))
+        } else {
+            content = NSHostingView(rootView: CollapsedLeftContent(state: state))
+        }
+        content.autoresizingMask = [.width, .height]
+        return content
     }
 
     private func makeGlassPanel(cornerRadius: CGFloat = 14) -> NSView {
@@ -169,6 +176,14 @@ package final class HintBarView: NSView {
 
     package func setMode(_ mode: HintBarMode) {
         state.mode = mode
+        // Fallback path (pre-macOS 26): init built the collapsed left content for the default
+        // mode, and it doesn't react to state.mode, so rebuild it. configure() sizes it after.
+        if !isMorphPath, let leftGlass = leftCollapsedPanel {
+            leftHostingView?.removeFromSuperview()
+            let leftContent = makeCollapsedLeftContent()
+            leftGlass.addSubview(leftContent)
+            leftHostingView = leftContent
+        }
     }
 
     // MARK: - Public API: bar state

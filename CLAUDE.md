@@ -78,7 +78,7 @@ Shared Swift (swift/DesignRuler/)
   │   ├─ Utilities/
   │   │   ├─ OverlayCoordinator.swift   — shared lifecycle base (RunMode, session guards, exit)
   │   │   ├─ OverlayWindow.swift        — shared window base (config, tracking, throttle)
-  │   │   ├─ ScreenCapture.swift        — shared CGWindowListCreateImage wrapper
+  │   │   ├─ ScreenCapture.swift        — shared ScreenCaptureKit batch capture (all screens, 5s cap)
   │   │   ├─ DesignTokens.swift         — centralized colors, radii, durations, BlendMode
   │   │   ├─ TransactionHelpers.swift   — CATransaction.instant{} and .animated{}
   │   │   ├─ CoordinateConverter.swift  — AppKit ↔ CG point + rect conversion
@@ -175,7 +175,7 @@ instead of gating with `#if DEBUG`.
 
 ### Rules
 - Mouse events from NSWindow → AppKit coords
-- CGWindowListCreateImage → CG coords
+- Screen captures (ScreenCaptureKit CGImages) → CG coords
 - ColorMap pixel buffer → CG coords
 - CrosshairView draws in AppKit coords
 - EdgeHit.screenPosition → CG coords
@@ -207,18 +207,22 @@ Creating fullscreen windows steals focus — title bars gray out. Fix:
 
 ```swift
 // Base run() orchestrates:
-// 1. Warmup capture (1x1 pixel)
-// 2. Permission check
-// 3. Detect cursor screen (NSEvent.mouseLocation + NSMouseInRect)
-// 4. resetCommandState()
-// 5. captureAllScreens() — Measure overrides to use EdgeDetector
-// 6. setActivationPolicy(.accessory)
-// 7. Cleanup old windows
-// 8. createWindow() per screen — subclass factory
-// 9. wireCallbacks() — subclass wiring
-// 10. Show all windows, makeKey cursor screen, showInitialState()
-// 11. Signal handler, inactivity timer, app.run()
+// 1. Permission check
+// 2. Detect cursor screen (NSEvent.mouseLocation + NSMouseInRect)
+// 3. resetCommandState()
+// 4. captureAllScreens() — one ScreenCaptureKit batch; Measure also builds EdgeDetectors.
+//    Failed screens are dropped; nothing captured → abortStartup() (no black overlays)
+// 5. setActivationPolicy(.accessory)
+// 6. Cleanup old windows
+// 7. createWindow() per captured screen — subclass factory; wireCallbacks() — subclass wiring
+// 8. Show all windows
+// 9. makeKey cursor screen, showInitialState()
+// 10. Signal handler, inactivity timer, app.run()
 ```
+
+`ScreenCapture.captureScreens(_:)` runs one `SCShareableContent` query and captures
+every display concurrently in a detached task, waiting at most 5s for the whole batch.
+There is no warmup capture: it only doubled the work.
 
 The cursor screen gets the hint bar; other screens get `hideHintBar: true`.
 
@@ -333,22 +337,28 @@ layer so they stay at screen-space size.
   in scaled space, so pan offsets stay in capture units).
 
 ### Zoom Toggle (`handleZoomToggle`)
+Z is matched by the character it types (`charactersIgnoringModifiers == "z"`), not
+`keyCode` 6, so it follows AZERTY/QWERTZ; non-Latin layouts fall back to keyCode 6.
+Key repeats are ignored.
+0. `cancelPanAnimations()` — Measure drops an in-flight peek, restoring the home pan
 1. Compute the next level via `ZoomLevel.next()`
 2. `panOffsetForZoom` solves for the pan that keeps the cursor's pixel fixed
 3. `clampPanOffset` keeps the viewport inside the capture bounds
 4. Animate `contentLayer.transform` over `DesignTokens.Animation.zoom` (0.25s)
-5. `isAnimatingZoom` suppresses pan updates for the animation duration
+5. `isAnimatingZoom` suppresses pan updates for the animation duration (a generation
+   counter stops an earlier Z press's timer from clearing it mid-animation)
 6. `zoomDidChange()` — subclass hook (guides reposition their lines here)
 
 ### Pan (`updateZoomPan`)
 Called on every mouse move, BEFORE the subclass's `handleMouseMoved` (after the
-`willHandleMouseMove` hook, where Measure cancels an in-flight peek). Solves for
+`cancelPanAnimations` hook, where Measure cancels an in-flight peek). Solves for
 the pan offset that maps the cursor's window point to the same capture point it
 would have at 1x — i.e. 1:1 cursor tracking. Guarded by `isZoomed`,
 `!isAnimatingZoom`, `!isPeekAnimating`.
 
 ### Reset
-`resetZoom()` snaps back to 1x with identity transform. Called by
+`resetZoom()` snaps back to 1x with identity transform, then calls `zoomDidChange()`
+so selections and guide lines re-project. Called by
 `OverlayCoordinator` on exit and when deactivating a window during a
 monitor switch — each window owns an independent `ZoomState`, so zoom does
 not follow the cursor across screens.
@@ -365,8 +375,12 @@ When an arrow-key skip lands on an edge outside the zoomed viewport,
 - pan-out `peekPan` (0.2s) → hold `peekHold` (0.6s) → return `peekReturn` (0.2s)
 - The crosshair layer gets a counter-translation so it visually travels with
   the content instead of staying pinned to the cursor
-- A `DispatchWorkItem` drives the return phase; mouse movement cancels it
-  via `cancelPeek()` (user is taking over)
+- A `DispatchWorkItem` drives the return phase; mouse movement or Z cancels it
+  via `cancelPeek()` (user is taking over), which restores `peekHomePan`
+- `peekHomePan` holds the cursor-tracking pan while a peek is in flight; a second
+  arrow press measures from it, not from the peeked pan
+- `peekGeneration` is bumped on every peek and cancel; the return item and its
+  completion only act if the generation still matches
 - Visibility test uses a 20px margin at the viewport edges
 - No-op at 1x
 
@@ -426,6 +440,9 @@ shadow, with the clipped content layer as a sublayer.
 ### Critical Setup Order
 `HintBarView.setMode()` MUST be called BEFORE `configure()`.
 `OverlayWindow.setupHintBar()` enforces this order automatically.
+On the pre-macOS 26 fallback path, `init` builds the collapsed left panel for the
+default (Measure) mode and that view type doesn't follow `state.mode`, so
+`setMode()` swaps it for the mode's content.
 
 ### Preference
 - `hideHintBar`: hides hint bar entirely
@@ -489,8 +506,9 @@ shadow, with the clipped content layer as a sublayer.
 - Zoom feedback: hint bar Z keycap flashes the level; fallback pill when hidden
 - Hint bar: expanded → collapsed after 3s, bottom ↔ top slide
 - 10-minute inactivity watchdog auto-exits
-- SIGTERM handler for clean cursor restoration
-- CGWindowListCreateImage warmup capture on launch (1x1 pixel, absorbs cold-start)
+- SIGTERM handler for clean cursor restoration; in standalone mode SIGTERM also quits
+  the app. `handleExit()` restores `SIG_DFL` so the app is killable between sessions
+- No warmup capture; if no screen could be captured the session aborts (`onSessionEnd`)
 
 ---
 
@@ -683,7 +701,8 @@ Session guards prevent overlapping invocations:
 - `CursorManager.shared.restore()` runs at the start of every new session
 
 `onSessionEnd` callback fires at the end of `handleExit()` (covers ESC,
-inactivity timer, SIGTERM) and on permission-abort early return.
+inactivity timer, SIGTERM) and from `abortStartup()` (permission abort, no screens,
+nothing captured).
 
 ### Menu Bar (MenuBarController)
 - `NSStatusItem` with "ruler" SF Symbol (template mode for dark/light)
@@ -835,7 +854,28 @@ Bugs encountered and fixed — avoid re-introducing these:
   the cursor to capture space with the stale pan, and edges, guide previews, and
   hit-tests land (zoom − 1) × the last mouse delta off the cursor, staying wrong
   after the mouse stops. Cancel pan-blocking animations (peek) in
-  `willHandleMouseMove`, not in `handleMouseMoved`, or the pan update bails.
+  `cancelPanAnimations`, not in `handleMouseMoved`, or the pan update bails.
+
+- **Letter shortcuts by keyCode**: keyCode 6 is Z only on QWERTY (W on AZERTY, Y on
+  QWERTZ). Match letters by `charactersIgnoringModifiers`, falling back to the keyCode
+  only for layouts without Latin letters.
+
+- **Uncancellable completion timers**: a nested `asyncAfter` that clears
+  `isPeekAnimating` / `isAnimatingZoom` can fire during a newer peek or zoom and clear
+  its flag mid-animation (a stuck translated crosshair, a pan that fights the zoom).
+  Guard such callbacks with a generation counter.
+
+- **Measure without `initCursorPosition()`**: `lastCursorPosition` stays (0,0) until the
+  first mouse move, so Z before moving zooms toward the bottom-left corner. Both
+  `showInitialState()` and `activate()` must seed it.
+
+- **`signal(SIGTERM, SIG_IGN)` left in place**: the session's SIGTERM dispatch source
+  needs SIG_IGN, but a standalone app that never restores `SIG_DFL` ignores `kill` forever
+  after its first overlay session.
+
+- **Showing overlays for failed captures**: a window with no screenshot is a black
+  screen with the cursor hidden. Drop screens whose capture failed and abort the
+  session when none succeeded.
 
 ---
 
@@ -855,6 +895,9 @@ Bugs encountered and fixed — avoid re-introducing these:
 - [ ] Hover selection shows pointing hand, click removes
 - [ ] Smart/include/none corrections preference works
 - [ ] Z cycles 1x → 2x → 4x → 1x; pixel under cursor stays put
+- [ ] Z pressed before moving the mouse zooms around the cursor (not the bottom-left corner)
+- [ ] Z works by letter on AZERTY/QWERTZ layouts; holding Z does not keep cycling
+- [ ] Z during a peek, or a second arrow press during a peek, leaves no offset content or crosshair
 - [ ] Zoomed pixels are crisp (nearest-neighbor, not blurred)
 - [ ] W×H measurements stay correct at 2x and 4x
 - [ ] Drag-to-select and hover-to-remove work while zoomed
@@ -889,6 +932,9 @@ Bugs encountered and fixed — avoid re-introducing these:
 - [ ] Guides: resize cursor visible on launch
 - [ ] 10-minute inactivity auto-exit works
 - [ ] SIGTERM restores cursor state cleanly
+- [ ] Standalone: `kill <pid>` quits the app during a session and between sessions
+- [ ] Without Screen Recording permission, no black overlay appears (session ends)
+- [ ] macOS 14/15: Alignment Guides collapsed hint bar shows Tab/Space keycaps, not arrows
 - [ ] Pill shows "0000 × 0000" on launch, fades in (design ruler)
 - [ ] Pill animates smoothly when flipping sides near edges
 - [ ] Hint bar slides (not jumps) when swapping top/bottom

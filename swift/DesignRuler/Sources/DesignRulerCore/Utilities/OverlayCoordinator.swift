@@ -22,8 +22,8 @@ package protocol OverlayWindowProtocol: AnyObject {
 /// Each subclass provides its window factory and command-specific callback wiring.
 ///
 /// The `run()` method enforces the locked startup order:
-///   warmup capture (1x1) -> permission check -> detect cursor screen ->
-///   captureScreens() -> createWindows() -> .accessory policy -> cleanup old windows ->
+///   permission check -> detect cursor screen -> captureAllScreens() (abort if nothing was
+///   captured) -> .accessory policy -> cleanup old windows -> createWindow() per captured screen ->
 ///   show all windows -> make key window -> launchTime -> activate -> signal handler ->
 ///   inactivity timer -> app.run()
 open class OverlayCoordinator {
@@ -60,40 +60,43 @@ open class OverlayCoordinator {
         isSessionActive = true
         OverlayCoordinator.anySessionActive = true
 
-        // 1. Warmup capture (absorbs ScreenCaptureKit cold-start penalty)
-        if let screen = NSScreen.main {
-            _ = ScreenCapture.captureScreen(screen)
-        }
-
-        // 2. Permission check
+        // 1. Permission check
         let hasPermission = PermissionChecker.hasScreenRecordingPermission()
         if !hasPermission {
             PermissionChecker.requestScreenRecordingPermission()
             // In standalone mode, don't proceed — fullscreen windows would block the permission dialog
             if runMode == .standalone {
-                isSessionActive = false
-                OverlayCoordinator.anySessionActive = false
-                onSessionEnd?()   // Reverts menu bar icon on permission abort
+                abortStartup()
                 return
             }
         }
 
-        // 3. Detect cursor screen
+        // 2. Detect cursor screen
         let mouseLocation = NSEvent.mouseLocation
         guard let cursorScreen = NSScreen.screens.first(where: { NSMouseInRect(mouseLocation, $0.frame, false) })
-                ?? NSScreen.main else { return }
+                ?? NSScreen.main else {
+            abortStartup()
+            return
+        }
 
-        // 4. Reset command-specific state from previous run (before new captures)
+        // 3. Reset command-specific state from previous run (before new captures)
         resetCommandState()
 
-        // 5. Capture all screens (subclass may override for command-specific capture)
-        let captures = captureAllScreens()
+        // 4. Capture all screens (subclass may override for command-specific capture).
+        // Screens that failed to capture get no window: a frozen overlay with no screenshot is
+        // just a black screen. If nothing was captured (no permission, ScreenCaptureKit timed
+        // out), end the session instead of showing black overlays.
+        let captures = captureAllScreens().filter { $0.image != nil }
+        guard !captures.isEmpty else {
+            abortStartup()
+            return
+        }
 
-        // 6. Create windows from captures (subclass provides window factory)
+        // 5. Accessory activation policy
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
 
-        // 7. Cleanup old windows
+        // 6. Cleanup old windows
         if runMode == .raycast {
             for oldWindow in windows {
                 oldWindow.orderOut(nil)
@@ -120,7 +123,7 @@ open class OverlayCoordinator {
         activeWindow = nil
         firstMoveReceived = false
 
-        // 8. Create one window per screen
+        // 7. Create one window per captured screen
         for capture in captures {
             let isCursorScreen = capture.screen === cursorScreen
             let window = createWindow(
@@ -133,21 +136,23 @@ open class OverlayCoordinator {
             windows.append(window)
         }
 
-        // 9. Show all windows
+        // 8. Show all windows
         for window in windows {
             window.orderFrontRegardless()
         }
 
-        // 10. Make cursor screen window key and show initial state
-        let cw = windows.first { window in
-            (window as? OverlayWindowProtocol)?.targetScreen === cursorScreen
-        } ?? windows.first!
+        // 9. Make cursor screen window key and show initial state
+        guard let cw = windows.first(where: { ($0 as? OverlayWindowProtocol)?.targetScreen === cursorScreen })
+                ?? windows.first else {
+            abortStartup()
+            return
+        }
         cw.makeKey()
         (cw as? OverlayWindowProtocol)?.showInitialState()
         activeWindow = cw
         cursorWindow = cw
 
-        // 11. Launch time, activate, signal handler, inactivity timer, run loop
+        // 10. Launch time, activate, signal handler, inactivity timer, run loop
         launchTime = CFAbsoluteTimeGetCurrent()
         NSApp.activate(ignoringOtherApps: true)
         setupSignalHandler()
@@ -160,15 +165,11 @@ open class OverlayCoordinator {
 
     // MARK: - Overridable Methods (subclass hooks)
 
-    /// Capture all screens. Default uses ScreenCapture.captureScreen() for each.
-    /// Measure overrides to capture via EdgeDetector instead.
+    /// Capture all screens in one ScreenCaptureKit batch. A nil image means that screen failed.
+    /// Measure overrides to also build an EdgeDetector per screen from the same images.
     open func captureAllScreens() -> [(screen: NSScreen, image: CGImage?)] {
-        var captures: [(screen: NSScreen, image: CGImage?)] = []
-        for screen in NSScreen.screens {
-            let cgImage = ScreenCapture.captureScreen(screen)
-            captures.append((screen, cgImage))
-        }
-        return captures
+        let screens = NSScreen.screens
+        return Array(zip(screens, ScreenCapture.captureScreens(screens)))
     }
 
     /// Create a window for the given screen. Subclasses MUST override.
@@ -208,6 +209,13 @@ open class OverlayCoordinator {
 
     // MARK: - Shared Methods (not overridden)
 
+    /// End a session whose windows never appeared (permission abort, no screens, nothing captured).
+    private func abortStartup() {
+        isSessionActive = false
+        OverlayCoordinator.anySessionActive = false
+        onSessionEnd?()   // Reverts menu bar icon / hotkey session state
+    }
+
     /// Clean exit: restore cursor, close all windows, terminate app (Raycast) or return (standalone).
     public func handleExit() {
         isSessionActive = false                     // synchronous first — allows instant re-invocation
@@ -217,6 +225,7 @@ open class OverlayCoordinator {
         inactivityTimer = nil
         sigTermSource?.cancel()
         sigTermSource = nil
+        signal(SIGTERM, SIG_DFL)                    // SIG_IGN was only for the session's handler
         // Reset zoom on all windows before closing (SHUX-03)
         for window in windows {
             (window as? OverlayWindow)?.resetZoom()
@@ -253,11 +262,18 @@ open class OverlayCoordinator {
     }
 
     /// Install SIGTERM handler for clean cursor restoration on process kill.
+    /// The signal is ignored (so the dispatch source receives it) only while a session runs;
+    /// handleExit() restores the default disposition.
     public func setupSignalHandler() {
+        sigTermSource?.cancel()
         signal(SIGTERM, SIG_IGN)
         let source = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
         source.setEventHandler { [weak self] in
-            self?.handleExit()
+            guard let self else { return }
+            self.handleExit()               // Raycast mode terminates inside handleExit()
+            if self.runMode == .standalone {
+                NSApp.terminate(nil)        // A kill should quit the app, not just end the session
+            }
         }
         source.resume()
         sigTermSource = source
