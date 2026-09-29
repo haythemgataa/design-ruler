@@ -4,6 +4,8 @@ import Sparkle
 import SwiftUI
 
 struct SettingsView: View {
+    static let width: CGFloat = 520
+
     let updater: SPUUpdater
 
     @State private var launchAtLogin: Bool
@@ -16,114 +18,193 @@ struct SettingsView: View {
     init(updater: SPUUpdater) {
         self.updater = updater
         _launchAtLogin = State(initialValue: SMAppService.mainApp.status == .enabled)
-        _hideHintBar = State(initialValue: UserDefaults.standard.bool(forKey: "hideHintBar"))
-        _corrections = State(initialValue: UserDefaults.standard.string(forKey: "corrections") ?? "smart")
+        _hideHintBar = State(initialValue: AppPreferences.shared.hideHintBar)
+        _corrections = State(initialValue: AppPreferences.shared.corrections)
         _automaticallyChecksForUpdates = State(initialValue: updater.automaticallyChecksForUpdates)
+    }
+
+    private var version: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
+    }
+
+    private var correctionsDescription: String {
+        switch corrections {
+        case "include": return "Always counts 1px borders as part of the measured element."
+        case "none": return "Reports edges exactly as detected, with no adjustments."
+        default: return "Counts a 1px border only when that lands the size on the 4px grid."
+        }
     }
 
     var body: some View {
         Form {
+            // --- Header ---
+            Section {
+                HStack(spacing: 14) {
+                    Image(nsImage: NSApp.applicationIconImage)
+                        .resizable()
+                        .frame(width: 56, height: 56)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Design Ruler")
+                            .font(.title2.weight(.semibold))
+                        Text("Version \(version)")
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    Button("Check for Updates\u{2026}") {
+                        updater.checkForUpdates()
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+
             // --- General ---
             Section("General") {
-                Toggle("Launch at Login", isOn: $launchAtLogin)
-                    .onChange(of: launchAtLogin) { _, newValue in
-                        if newValue {
-                            try? SMAppService.mainApp.register()
-                        } else {
-                            try? SMAppService.mainApp.unregister()
-                        }
+                Toggle(isOn: $launchAtLogin) {
+                    SettingLabel("Launch at Login", symbol: "power", color: .green,
+                                 detail: "Keeps Design Ruler in the menu bar after you restart.")
+                }
+                .onChange(of: launchAtLogin) { _, newValue in
+                    if newValue {
+                        try? SMAppService.mainApp.register()
+                    } else {
+                        try? SMAppService.mainApp.unregister()
                     }
+                }
 
-                Toggle("Hide Hint Bar", isOn: $hideHintBar)
-                    .onChange(of: hideHintBar) { _, newValue in
-                        UserDefaults.standard.set(newValue, forKey: "hideHintBar")
-                    }
+                Toggle(isOn: $hideHintBar) {
+                    SettingLabel("Hide Hint Bar", symbol: "keyboard", color: .gray,
+                                 detail: "Hides the keyboard shortcut bar at the bottom of the overlay.")
+                }
+                .onChange(of: hideHintBar) { _, newValue in
+                    AppPreferences.shared.hideHintBar = newValue
+                }
 
-                Toggle("Automatically Check for Updates", isOn: $automaticallyChecksForUpdates)
-                    .onChange(of: automaticallyChecksForUpdates) { _, newValue in
-                        updater.automaticallyChecksForUpdates = newValue
-                    }
+                Toggle(isOn: $automaticallyChecksForUpdates) {
+                    SettingLabel("Check for Updates Automatically", symbol: "arrow.triangle.2.circlepath", color: .blue,
+                                 detail: "Looks for new versions in the background once a day.")
+                }
+                .onChange(of: automaticallyChecksForUpdates) { _, newValue in
+                    updater.automaticallyChecksForUpdates = newValue
+                }
             }
 
             // --- Measure ---
             Section("Measure") {
-                Picker("Border Corrections", selection: $corrections) {
+                Picker(selection: $corrections) {
                     Text("Smart").tag("smart")
-                    Text("Include").tag("include")
+                    Text("Include Borders").tag("include")
                     Text("None").tag("none")
+                } label: {
+                    SettingLabel("Border Corrections", symbol: "square.dashed", color: .orange,
+                                 detail: correctionsDescription)
                 }
-                .pickerStyle(.radioGroup)
+                .pickerStyle(.menu)
                 .onChange(of: corrections) { _, newValue in
-                    UserDefaults.standard.set(newValue, forKey: "corrections")
-                }
-
-                KeyboardShortcuts.Recorder("Shortcut:", name: .measure) { newShortcut in
-                    if let newShortcut, newShortcut == KeyboardShortcuts.getShortcut(for: .alignmentGuides) {
-                        KeyboardShortcuts.setShortcut(nil, for: .measure)
-                        measureConflict = "Already assigned to Alignment Guides"
-                    } else if newShortcut != nil {
-                        measureConflict = nil
-                    }
-                }
-
-                if let measureConflict {
-                    Text(measureConflict)
-                        .foregroundStyle(.orange)
-                        .font(.caption)
+                    AppPreferences.shared.corrections = newValue
                 }
             }
 
-            // --- Alignment Guides ---
-            Section("Alignment Guides") {
-                KeyboardShortcuts.Recorder("Shortcut:", name: .alignmentGuides) { newShortcut in
-                    if let newShortcut, newShortcut == KeyboardShortcuts.getShortcut(for: .measure) {
-                        KeyboardShortcuts.setShortcut(nil, for: .alignmentGuides)
-                        guidesConflict = "Already assigned to Measure"
-                    } else if newShortcut != nil {
-                        guidesConflict = nil
-                    }
-                }
-
-                if let guidesConflict {
-                    Text(guidesConflict)
-                        .foregroundStyle(.orange)
-                        .font(.caption)
-                }
+            // --- Keyboard Shortcuts ---
+            Section {
+                shortcutRow("Measure", symbol: "ruler", color: .purple,
+                            name: .measure, other: .alignmentGuides, otherTitle: "Alignment Guides",
+                            conflict: $measureConflict)
+                shortcutRow("Alignment Guides", symbol: "rectangle.split.3x1", color: .pink,
+                            name: .alignmentGuides, other: .measure, otherTitle: "Measure",
+                            conflict: $guidesConflict)
+            } header: {
+                Text("Keyboard Shortcuts")
+            } footer: {
+                Text("Shortcuts work from any app. Press the same shortcut again to close the overlay, or the other one to switch.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            // --- About ---
-            Section("About") {
-                HStack(spacing: 12) {
-                    Image(nsImage: NSApp.applicationIconImage)
-                        .resizable()
-                        .frame(width: 64, height: 64)
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Design Ruler")
-                            .font(.title2)
-                            .fontWeight(.semibold)
-
-                        Text("Version \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown")")
-                            .foregroundStyle(.secondary)
-
-                        Text("\u{00A9} 2026 Haythem Gataa. All rights reserved.")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
+            // --- Footer ---
+            Section {
+                HStack {
+                    Text("\u{00A9} 2026 Haythem Gataa")
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Link(destination: URL(string: "https://github.com/haythemgataa/design-ruler")!) {
+                        Label("View on GitHub", systemImage: "arrow.up.right.square")
                     }
                 }
-
-                Link("GitHub", destination: URL(string: "https://github.com/haythemgataa/design-ruler")!)
-
-                Button("Check for Updates\u{2026}") {
-                    updater.checkForUpdates()
-                }
+                .font(.callout)
             }
         }
         .formStyle(.grouped)
         .onAppear {
             launchAtLogin = SMAppService.mainApp.status == .enabled
         }
-        .frame(width: 480)
+        .frame(width: Self.width)
         .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+extension SettingsView {
+    /// Shortcut recorder row. Rejects a shortcut already used by the other command and shows
+    /// the conflict in place of the row's explanation.
+    private func shortcutRow(_ title: String, symbol: String, color: Color,
+                             name: KeyboardShortcuts.Name, other: KeyboardShortcuts.Name, otherTitle: String,
+                             conflict: Binding<String?>) -> some View {
+        LabeledContent {
+            KeyboardShortcuts.Recorder(for: name) { newShortcut in
+                if let newShortcut, newShortcut == KeyboardShortcuts.getShortcut(for: other) {
+                    KeyboardShortcuts.setShortcut(nil, for: name)
+                    conflict.wrappedValue = "Already assigned to \(otherTitle)"
+                } else if newShortcut != nil {  // setShortcut(nil) re-fires onChange with nil; keep the warning
+                    conflict.wrappedValue = nil
+                }
+            }
+        } label: {
+            SettingLabel(title, symbol: symbol, color: color, warning: conflict.wrappedValue)
+        }
+    }
+}
+
+/// Settings row label in the System Settings style: a colored icon tile, a title, and an
+/// optional one-line explanation or orange warning underneath.
+private struct SettingLabel: View {
+    let title: String
+    let symbol: String
+    let color: Color
+    var detail: String?
+    var warning: String?
+
+    init(_ title: String, symbol: String, color: Color, detail: String? = nil, warning: String? = nil) {
+        self.title = title
+        self.symbol = symbol
+        self.color = color
+        self.detail = detail
+        self.warning = warning
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 10) {
+            Image(systemName: symbol)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 24, height: 24)
+                .background(color.gradient, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                if let warning {
+                    Text(warning)
+                        .font(.callout)
+                        .foregroundStyle(.orange)
+                } else if let detail {
+                    Text(detail)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
     }
 }

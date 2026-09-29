@@ -212,7 +212,7 @@ package final class HintBarView: NSView {
 
     /// Animate from expanded to collapsed state.
     /// On macOS 26+, triggers a liquid glass morph via SwiftUI GlassEffectContainer.
-    /// On older systems, uses an NSAnimationContext crossfade between panels.
+    /// On older systems, crossfades to the collapsed panels as they slide in from the bar's edges.
     package func animateToCollapsed(duration: TimeInterval = DesignTokens.Animation.collapse) {
         guard currentBarState == .expanded else { return }
         guard !isAnimatingCollapse else { return }
@@ -220,8 +220,7 @@ package final class HintBarView: NSView {
 
         // Accessibility: instant toggle if reduce motion is enabled
         if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
-            setBarState(.collapsed)
-            isAnimatingCollapse = false
+            collapseInstantly()
             return
         }
 
@@ -230,6 +229,11 @@ package final class HintBarView: NSView {
         } else {
             animateToCollapsedFallback(duration: duration)
         }
+    }
+
+    private func collapseInstantly() {
+        setBarState(.collapsed)
+        isAnimatingCollapse = false
     }
 
     private func animateToCollapsedMorph() {
@@ -242,32 +246,55 @@ package final class HintBarView: NSView {
         }
     }
 
+    /// Crossfade with an inward slide: the collapsed panels start at the expanded bar's outer
+    /// edges and slide to their resting positions, so the bar reads as shrinking to the center.
+    /// Uses explicit layer animations; the panels' model values are already final.
     private func animateToCollapsedFallback(duration: TimeInterval) {
-        // Set collapsed panels visible but fully transparent BEFORE unhiding
-        // (prevents single-frame flash at final position -- Pitfall 3 from research)
-        leftCollapsedPanel?.alphaValue = 0
-        rightCollapsedPanel?.alphaValue = 0
-        leftCollapsedPanel?.isHidden = false
-        rightCollapsedPanel?.isHidden = false
+        guard let expanded = glassPanel, let left = leftCollapsedPanel, let right = rightCollapsedPanel,
+              let expandedLayer = expanded.layer, let leftLayer = left.layer, let rightLayer = right.layer else {
+            return collapseInstantly()
+        }
 
-        NSAnimationContext.runAnimationGroup({ context in
-            context.duration = duration
-            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            context.allowsImplicitAnimation = true
+        let leftOffset = expanded.frame.minX - left.frame.minX
+        let rightOffset = expanded.frame.maxX - right.frame.maxX
+        let easeOut = CAMediaTimingFunction(name: .easeOut)
 
-            // Fade out expanded bar
-            self.glassPanel?.animator().alphaValue = 0
+        func slideIn(from offset: CGFloat) -> CAAnimationGroup {
+            let slide = CABasicAnimation(keyPath: "transform.translation.x")
+            slide.fromValue = offset
+            slide.toValue = 0
+            let fade = CABasicAnimation(keyPath: "opacity")
+            fade.fromValue = 0
+            fade.toValue = 1
+            let group = CAAnimationGroup()
+            group.animations = [slide, fade]
+            group.duration = duration
+            group.timingFunction = easeOut
+            return group
+        }
 
-            // Fade in collapsed bars
-            self.leftCollapsedPanel?.animator().alphaValue = 1
-            self.rightCollapsedPanel?.animator().alphaValue = 1
-        }, completionHandler: { [weak self] in
+        let fadeOut = CABasicAnimation(keyPath: "opacity")
+        fadeOut.fromValue = 1
+        fadeOut.toValue = 0
+        fadeOut.duration = duration * 0.6  // expanded bar clears early so the two layouts don't overlap
+        fadeOut.timingFunction = easeOut
+        fadeOut.fillMode = .forwards
+        fadeOut.isRemovedOnCompletion = false
+
+        CATransaction.begin()
+        CATransaction.setCompletionBlock { [weak self] in
             guard let self else { return }
-            self.glassPanel?.isHidden = true
-            self.glassPanel?.alphaValue = 1  // reset for potential reuse
+            expanded.isHidden = true
+            expandedLayer.removeAnimation(forKey: "collapseFade")
             self.currentBarState = .collapsed
             self.isAnimatingCollapse = false
-        })
+        }
+        left.isHidden = false
+        right.isHidden = false
+        leftLayer.add(slideIn(from: leftOffset), forKey: "collapseSlide")
+        rightLayer.add(slideIn(from: rightOffset), forKey: "collapseSlide")
+        expandedLayer.add(fadeOut, forKey: "collapseFade")
+        CATransaction.commit()
     }
 
     // MARK: - Launch entrance animation
