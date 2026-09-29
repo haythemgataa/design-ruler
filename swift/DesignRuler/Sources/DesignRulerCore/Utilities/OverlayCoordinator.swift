@@ -59,6 +59,7 @@ open class OverlayCoordinator {
         CursorManager.shared.restore()
         isSessionActive = true
         OverlayCoordinator.anySessionActive = true
+        LaunchRippleRenderer.shared.prepare()  // compile the launch shader while screens are captured
 
         // 1. Permission check
         let hasPermission = PermissionChecker.hasScreenRecordingPermission()
@@ -139,6 +140,7 @@ open class OverlayCoordinator {
         // 8. Show all windows
         for window in windows {
             window.orderFrontRegardless()
+            (window as? OverlayWindow)?.playLaunchRipple()
         }
 
         // 9. Make cursor screen window key and show initial state
@@ -228,6 +230,7 @@ open class OverlayCoordinator {
         signal(SIGTERM, SIG_DFL)                    // SIG_IGN was only for the session's handler
         // Reset zoom on all windows before closing (SHUX-03)
         for window in windows {
+            (window as? OverlayWindow)?.cancelLaunchRipple()
             (window as? OverlayWindow)?.resetZoom()
         }
         for window in windows {

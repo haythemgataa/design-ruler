@@ -44,6 +44,7 @@ package enum DesignTokens {
         package static let peekPan: CFTimeInterval = 0.2
         package static let peekHold: CFTimeInterval = 0.6
         package static let peekReturn: CFTimeInterval = 0.2
+        package static let launchRipple: CFTimeInterval = 1.15
     }
 }
 

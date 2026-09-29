@@ -38,7 +38,7 @@ Standalone App (App/)
   │   ├─ HotkeyController.swift    — session-aware global hotkey dispatch
   │   ├─ HotkeyNames.swift         — KeyboardShortcuts.Name extensions (.measure, .alignmentGuides)
   │   ├─ AppPreferences.swift      — @Observable singleton over UserDefaults
-  │   ├─ SettingsView.swift        — SwiftUI Form (General, Measure, Alignment Guides, About)
+  │   ├─ SettingsView.swift        — SwiftUI Form (header, General, Measure, Shortcuts, footer)
   │   ├─ SettingsWindowController.swift — NSWindow lifecycle (3-branch reuse)
   │   ├─ DesignRuler.entitlements  — Hardened Runtime (empty dict)
   │   └─ Info.plist                — LSUIElement, Sparkle keys, bundle metadata
@@ -52,7 +52,7 @@ Raycast Extension (src/ + swift/)
 
 Shared Swift (swift/DesignRuler/)
   ├─ Package.swift                 — DesignRulerCore (library) + DesignRuler (executable)
-  ├─ Sources/DesignRulerCore/      — 26 shared Swift files (open/package access)
+  ├─ Sources/DesignRulerCore/      — 27 shared Swift files (open/package access)
   │   ├─ Measure/
   │   │   ├─ MeasureCoordinator.swift   — open class, OverlayCoordinator subclass
   │   │   ├─ MeasureWindow.swift        — OverlayWindow subclass, edge detection + drag
@@ -65,6 +65,7 @@ Shared Swift (swift/DesignRuler/)
   │   ├─ Rendering/
   │   │   ├─ PillRenderer.swift         — shared pill factories, font, paths, text, shadows
   │   │   ├─ HintBarView.swift          — glass hint bar, slide animation, expand/collapse
+  │   │   ├─ LaunchRipple.swift         — Metal launch ripple (inline shader, CAMetalLayer)
   │   │   └─ HintBarContent.swift       — SwiftUI keycap layouts, HintBarTextStyle
   │   ├─ AlignmentGuides/
   │   │   ├─ AlignmentGuidesCoordinator.swift — open class, OverlayCoordinator subclass
@@ -216,7 +217,7 @@ Creating fullscreen windows steals focus — title bars gray out. Fix:
 // 6. Cleanup old windows
 // 7. createWindow() per captured screen — subclass factory; wireCallbacks() — subclass wiring
 // 8. Show all windows
-// 9. makeKey cursor screen, showInitialState()
+// 9. makeKey cursor screen, showInitialState(), playLaunchRipple() on every window
 // 10. Signal handler, inactivity timer, app.run()
 ```
 
@@ -582,6 +583,26 @@ viewport: pan-out (`peekPan` 0.2s) → hold (`peekHold` 0.6s) → return
 travels with the content. Return phase runs from a cancellable
 `DispatchWorkItem`; `isPeekAnimating` guards pan updates.
 
+### Launch Ripple (LaunchRipple)
+On launch a frosted, refracting ripple spreads from the hint bar's center (`hintBarView.frame.midY`;
+48pt above the bottom on screens without a bar) across every screen over `DesignTokens.Animation.launchRipple` (1.15s,
+easeOut cubic). Parameters were tuned in a browser WebGL prototype and live as constants in
+`LaunchRippleRenderer`.
+- Metal fragment shader compiled at runtime from an inline source string (no `.metal` /
+  `.metallib` resources: Raycast ships only the binary). `prepare()` starts the compile at the top
+  of `run()` so it overlaps screen capture (~35ms); the pipeline is cached for later sessions
+- Per window, the screenshot is loaded off-main into a mipmapped texture (`MTKTextureLoader`);
+  the blur samples mips so large radii stay smooth
+- Drawn into a non-opaque `CAMetalLayer` added as a sublayer of `contentLayer`, so it zooms and
+  pans with the screenshot and stays below all overlay UI. Outside the ring the shader returns
+  transparent and the screenshot shows through. Driven by `NSView.displayLink` capped at 60fps
+- The shader is the identity at t = 0 and t = 1, and a keyframe opacity ramp covers the
+  handoffs, so switching back to the plain screenshot is invisible. The layer is removed when done
+- Tuning constants live in the shader source; only resolution, origin and progress are uniforms
+- Skipped if the shader or texture isn't ready within 0.25s of launch, and with Reduce Motion
+- Cancelled on exit
+- Never moves the screenshot itself: measurements stay exact during the animation
+
 ### Fade-In Pattern
 Standard pattern used across the codebase:
 ```swift
@@ -714,9 +735,12 @@ nothing captured).
   disable/enable global hotkeys during menu tracking
 
 ### Settings (SettingsView + SettingsWindowController)
-- SwiftUI Form with `.grouped` style: General (Launch at Login, Hide Hint Bar,
-  auto-update toggle), Measure (Border Corrections + shortcut recorder),
-  Alignment Guides (shortcut recorder), About (version, GitHub, Check for Updates)
+- SwiftUI Form with `.grouped` style, System Settings look: header (icon, version, Check for
+  Updates), General (Launch at Login, Hide Hint Bar, auto-update toggle), Measure (Border
+  Corrections menu), Keyboard Shortcuts (both recorders + footer), footer (copyright, GitHub)
+- Every row uses `SettingLabel`: colored SF Symbol tile, title, one-line explanation.
+  Border Corrections' explanation follows the selected mode; shortcut conflicts replace the
+  explanation with an orange warning
 - `AppPreferences` is `@Observable` singleton with computed properties over `UserDefaults`
 - Preferences read inside overlay-launch closures (at invocation time, not capture time)
 - Launch at Login: `SMAppService.mainApp.register()`/`.unregister()`, `.onAppear` re-syncs
@@ -938,6 +962,9 @@ Bugs encountered and fixed — avoid re-introducing these:
 - [ ] Pill shows "0000 × 0000" on launch, fades in (design ruler)
 - [ ] Pill animates smoothly when flipping sides near edges
 - [ ] Hint bar slides (not jumps) when swapping top/bottom
+- [ ] Launch ripple plays from the hint bar on every screen, no pop when it ends
+- [ ] Launch ripple skipped with Reduce Motion; Z during the ripple zooms it with the screenshot
+- [ ] macOS 14/15: collapsed hint bar panels slide in from the expanded bar's edges
 
 ### Standalone App
 - [ ] Menu bar icon appears on launch (no Dock icon, no Cmd+Tab entry)
