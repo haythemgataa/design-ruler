@@ -85,6 +85,7 @@ package final class LaunchRippleRenderer {
         float t;         // linear progress 0...1
         float e;         // eased progress 0...1
         float baseLod;   // mip matching the drawable's resolution (1 when drawn at half size)
+        float opacity;   // fade-in / fade-out ramp, applied as premultiplied alpha
     };
 
     // One oversized triangle covering the screen; uv has a top-left origin like the CGImage.
@@ -160,7 +161,8 @@ package final class LaunchRippleRenderer {
         float3 hue = 0.55 + 0.45 * cos(6.2832 * (ang + float3(0.0, 0.33, 0.67)));
         col += rim * GLOW * hue * 0.7;
 
-        return float4(col, 1.0);
+        // Premultiplied: composites exactly like layer opacity over the screenshot.
+        return float4(saturate(col) * P.opacity, P.opacity);
     }
     """
 }
@@ -172,6 +174,7 @@ private struct RippleParams {
     var t: Float
     var e: Float
     var baseLod: Float
+    var opacity: Float
 }
 
 /// One window's ripple. Loads the screenshot into a mipmapped texture off the main thread, then
@@ -185,9 +188,12 @@ package final class LaunchRipple: NSObject {
     private var displayLink: CADisplayLink?
     private var startTime: CFTimeInterval = 0
     private var isFinished = false
-    /// Frames the GPU hasn't finished. When it falls behind, a tick is skipped rather than
-    /// blocking the main thread in `nextDrawable()`.
-    private let inFlight = DispatchSemaphore(value: 2)
+    /// Drawables handed to the compositor that it hasn't shown (or dropped) yet. One more drawable
+    /// is on screen, so once every other drawable is pending, `nextDrawable()` would block the main
+    /// thread (up to 1s) until the compositor frees one; the tick is skipped instead (a wait of a
+    /// few ms is still possible when a slot frees just after its handler fires). Counted on
+    /// presentation, not GPU completion: a finished command buffer doesn't free its drawable.
+    private var pendingPresents = 0
 
     /// `center` is the ripple origin in unit coordinates with y up (0,0 = bottom-left).
     package init(screenshot: CGImage, center: CGPoint) {
@@ -223,7 +229,6 @@ package final class LaunchRipple: NSObject {
 
     private func begin(texture: MTLTexture, in contentLayer: CALayer, view: NSView) {
         self.texture = texture
-        let duration = DesignTokens.Animation.launchRipple
         let layer = CAMetalLayer()
         layer.device = LaunchRippleRenderer.shared.device
         layer.pixelFormat = .bgra8Unorm
@@ -236,15 +241,10 @@ package final class LaunchRipple: NSObject {
         // frosted and outside it the layer is transparent, so the full-res screenshot shows through.
         layer.drawableSize = contentLayer.bounds.size
 
-        // The shader is already the identity at t = 0 and t = 1; the opacity ramp also hides any
-        // color-space mismatch with the content layer at the handoffs.
-        let fade = CAKeyframeAnimation(keyPath: "opacity")
-        fade.values = [0, 1, 1, 0]
-        fade.keyTimes = [0, 0.08, 0.88, 1]
-        fade.duration = duration
-        layer.opacity = 0
-        layer.add(fade, forKey: "launchFade")
-
+        // No opacity animation on the layer: the shader applies the fade. On macOS 27 a Core
+        // Animation animation holding a constant value (a [0, 1, 1, 0] keyframe's middle) in a
+        // fullscreen window stops the built-in display from showing new frames until the value
+        // changes again, so every drawable stays held and `nextDrawable()` blocks.
         CATransaction.instant {
             contentLayer.addSublayer(layer)
         }
@@ -265,37 +265,42 @@ package final class LaunchRipple: NSObject {
         render(t: Float(t))
     }
 
+    /// Fade in over the first 8% and out over the last 12%. The shader is already the identity at
+    /// t = 0 and t = 1; the ramp also hides any color-space mismatch with the content layer.
+    private static func opacity(at t: Float) -> Float {
+        min(1, t / 0.08, (1 - t) / 0.12)
+    }
+
     private func render(t: Float) {
-        guard inFlight.wait(timeout: .now()) == .success else { return }
         guard let layer = metalLayer, let texture,
+              pendingPresents < layer.maximumDrawableCount - 1,
               let pipeline = LaunchRippleRenderer.shared.pipeline,
               let drawable = layer.nextDrawable(),
-              let commands = LaunchRippleRenderer.shared.queue?.makeCommandBuffer() else {
-            inFlight.signal()
-            return
-        }
-        let inFlight = inFlight
-        commands.addCompletedHandler { _ in inFlight.signal() }
+              let commands = LaunchRippleRenderer.shared.queue?.makeCommandBuffer() else { return }
 
         let pass = MTLRenderPassDescriptor()
         pass.colorAttachments[0].texture = drawable.texture
         pass.colorAttachments[0].loadAction = .dontCare
         pass.colorAttachments[0].storeAction = .store
-        guard let encoder = commands.makeRenderCommandEncoder(descriptor: pass) else {
-            commands.commit()  // runs the completed handler, releasing the in-flight slot
-            return
-        }
+        guard let encoder = commands.makeRenderCommandEncoder(descriptor: pass) else { return }
 
         var params = RippleParams(
             res: SIMD2(Float(texture.width), Float(texture.height)),
             center: center, t: t, e: 1 - pow(1 - t, 3),  // easeOut cubic, as in the prototype
-            baseLod: max(0, log2(Float(texture.height) / Float(layer.drawableSize.height)))
+            baseLod: max(0, log2(Float(texture.height) / Float(layer.drawableSize.height))),
+            opacity: Self.opacity(at: t)
         )
         encoder.setRenderPipelineState(pipeline)
         encoder.setFragmentTexture(texture, index: 0)
         encoder.setFragmentBytes(&params, length: MemoryLayout<RippleParams>.stride, index: 0)
         encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         encoder.endEncoding()
+
+        // Called once the drawable is shown or dropped, on an arbitrary thread.
+        pendingPresents += 1
+        drawable.addPresentedHandler { [weak self] _ in
+            DispatchQueue.main.async { self?.pendingPresents -= 1 }
+        }
         commands.present(drawable)
         commands.commit()
     }
