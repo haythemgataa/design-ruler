@@ -598,11 +598,16 @@ easeOut cubic). Parameters were tuned in a browser WebGL prototype and live as c
   transparent and the screenshot shows through. Driven by `NSView.displayLink` capped at 60fps
 - Drawn at point resolution (half-size drawable on Retina, ¼ the fragments); `baseLod` makes
   the shader sample the matching mip so the refraction doesn't alias. 8-tap mip-sampled blur
-- At most 2 frames in flight: a tick is skipped when the GPU is behind, never blocking the main
-  thread in `nextDrawable()` (which waits up to 1s for a free drawable)
-- The shader is the identity at t = 0 and t = 1, and a keyframe opacity ramp covers the
-  handoffs, so switching back to the plain screenshot is invisible. The layer is removed when done
-- Tuning constants live in the shader source; only resolution, origin and progress are uniforms
+- At most `maximumDrawableCount - 1` drawables awaiting presentation (counted until each
+  drawable's presented handler fires, not GPU completion: a finished command buffer doesn't free
+  its drawable). A tick is skipped instead of blocking the main thread in `nextDrawable()`, which
+  waits up to 1s for a free drawable (a residual wait of a few ms is possible)
+- The shader is the identity at t = 0 and t = 1, and an opacity ramp (in over 8%, out over the
+  last 12%) covers the handoffs, so switching back to the plain screenshot is invisible. The ramp
+  is premultiplied alpha in the shader, never a layer animation (see section 18). The layer is
+  removed when done
+- Tuning constants live in the shader source; only resolution, origin, progress (linear and
+  eased), base mip level and opacity are uniforms
 - Skipped if the shader or texture isn't ready within 0.25s of launch, and with Reduce Motion
 - Cancelled on exit
 - Never moves the screenshot itself: measurements stay exact during the animation
@@ -905,6 +910,17 @@ Bugs encountered and fixed — avoid re-introducing these:
   screen with the cursor hidden. Drop screens whose capture failed and abort the
   session when none succeeded.
 
+- **Constant-value Core Animation in a fullscreen overlay (macOS 27)**: while an animation in the
+  window's layer tree is attached but not changing, e.g. the middle of a `[0, 1, 1, 0]` keyframe or
+  one with a future `beginTime`, the built-in ProMotion display shows no new frames from that
+  window until the value changes again. The launch ripple's opacity keyframe did this: every
+  drawable stayed held, `nextDrawable()` blocked the main thread ~300-700ms, and the whole overlay
+  froze on every launch. Completed animations kept with `fillMode = .forwards` are fine, as are
+  holds in other windows. Keep every overlay animation changing for its whole duration (drive
+  holds with timers, as peek does). Only lone animations were tested: delayed starts that overlap
+  a changing animation (`ColorCircleIndicator`'s backwards-filled stagger, `SelectionOverlay`'s
+  delayed fade inside the shake group) are unverified.
+
 ---
 
 ## 19. Testing Checklist
@@ -967,6 +983,8 @@ Bugs encountered and fixed — avoid re-introducing these:
 - [ ] Pill animates smoothly when flipping sides near edges
 - [ ] Hint bar slides (not jumps) when swapping top/bottom
 - [ ] Launch ripple plays from the hint bar on every screen, no pop when it ends
+- [ ] Launch ripple doesn't freeze the overlay on the built-in display (cursor on each screen,
+  hint bar on and off); the crosshair keeps tracking during it
 - [ ] Launch ripple skipped with Reduce Motion; Z during the ripple zooms it with the screenshot
 - [ ] macOS 14/15: collapsed hint bar panels slide in from the expanded bar's edges
 
