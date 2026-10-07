@@ -87,7 +87,6 @@ struct GeneralSettingsView: View {
                         }
                     }
                     .font(.callout)
-                    .padding(.leading, 10)
                     .padding(.top, AppBuild.canAutoUpdate ? 12 : 0)
                 }
             }

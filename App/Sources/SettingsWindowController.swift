@@ -30,8 +30,8 @@ final class SettingsWindowController {
         let window = NSWindow(contentViewController: tabs)
         window.styleMask = [.titled, .closable]
         window.toolbarStyle = .preference
-        // The selected tab names the window (Mission Control, accessibility); the title bar shows only the tabs
-        window.titleVisibility = .hidden
+        // The title row shows the selected tab's name, with the close button beside it and the tabs
+        // below. titleVisibility .hidden would drop the row and center the close button on the tabs
         window.standardWindowButton(.miniaturizeButton)?.isHidden = true
         window.standardWindowButton(.zoomButton)?.isHidden = true
         window.isReleasedWhenClosed = false
@@ -58,7 +58,7 @@ final class SettingsWindowController {
         // constraints that outrank the window's own size, so they resize it instantly and snap an
         // animated resize to its end
         controller.sizingOptions = .standardBounds
-        controller.title = title
+        controller.title = title  // the tab controller passes the selected tab's title to the window
         let item = NSTabViewItem(viewController: controller)
         item.label = title
         item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: title)
