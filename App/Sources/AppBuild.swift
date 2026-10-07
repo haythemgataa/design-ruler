@@ -5,6 +5,9 @@ import Security
 enum AppBuild {
     static let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
 
+    /// Build number: CI stamps it with the commit count.
+    static let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "Unknown"
+
     /// 0.x versions are the beta.
     static let isBeta = version.hasPrefix("0.")
 

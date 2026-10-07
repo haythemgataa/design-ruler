@@ -11,6 +11,7 @@
 		0817E139A5A2DB98BDB9E54B /* DesignRulerCore in Frameworks */ = {isa = PBXBuildFile; productRef = CF72AB3F4C4512428DC84D7C /* DesignRulerCore */; };
 		0CE41A90E9AAA51468BE08E5 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF668E1EE53EFBB40921CA92 /* AppDelegate.swift */; };
 		2167655925FD6A042128F581 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8083D7E1A97B454FC557B93 /* SettingsView.swift */; };
+		3DAF574B259C24B28D484593 /* SettingsComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32C8586BFA43577435EB5941 /* SettingsComponents.swift */; };
 		449BBFE30F0F0227E8F55CFB /* AppPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 352435AF79AA05A40B976755 /* AppPreferences.swift */; };
 		58A8B33F3276F3C22047B15E /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 333112D73EBEB8B909C2DA1E /* Sparkle */; };
 		68D1C08FB1C17CA1BEF1A75D /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = 3909E3F7291E2C1D5749BD3E /* KeyboardShortcuts */; };
@@ -25,6 +26,7 @@
 /* Begin PBXFileReference section */
 		0BC7DBCD53F37054366E0C88 /* HotkeyController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyController.swift; sourceTree = "<group>"; };
 		10ED6B9220FB431DB96C5A4A /* DesignRuler.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DesignRuler.entitlements; sourceTree = "<group>"; };
+		32C8586BFA43577435EB5941 /* SettingsComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsComponents.swift; sourceTree = "<group>"; };
 		352435AF79AA05A40B976755 /* AppPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppPreferences.swift; sourceTree = "<group>"; };
 		4DCB7EBB6B2A29A63383C2A5 /* Design Ruler.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Design Ruler.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		8E2A2FC6A019669DE4932532 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -83,6 +85,7 @@
 				B137A9B4A6F51A0A83C8F073 /* Info.plist */,
 				CDC1A43CCD6F114100681FC1 /* main.swift */,
 				CE9C771BF5E79418EAC8B52D /* MenuBarController.swift */,
+				32C8586BFA43577435EB5941 /* SettingsComponents.swift */,
 				B8083D7E1A97B454FC557B93 /* SettingsView.swift */,
 				C501D2220A1160A846E23063 /* SettingsWindowController.swift */,
 			);
@@ -177,6 +180,7 @@
 				BFC3485E1372FF94BABA9DE0 /* HotkeyController.swift in Sources */,
 				C2BE808A7C9F9E3AAEF639DC /* HotkeyNames.swift in Sources */,
 				C44F43EAD7A4AC58D2C961AC /* MenuBarController.swift in Sources */,
+				3DAF574B259C24B28D484593 /* SettingsComponents.swift in Sources */,
 				2167655925FD6A042128F581 /* SettingsView.swift in Sources */,
 				FF507CAD04EC8B8A0F27CA58 /* SettingsWindowController.swift in Sources */,
 				9DC6DF0CD91F335043980CE3 /* main.swift in Sources */,

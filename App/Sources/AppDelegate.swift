@@ -73,13 +73,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverDelegat
         // Create menu bar and wire overlay launch callbacks
         menuBarController = MenuBarController()
         menuBarController.onMeasure = { [weak self] in
-            self?.hotkeyController.sessionStarted(command: .measure)
-            let prefs = AppPreferences.shared
-            MeasureCoordinator.shared.run(hideHintBar: prefs.hideHintBar, corrections: prefs.corrections)
+            self?.launchMeasure()
         }
         menuBarController.onAlignmentGuides = { [weak self] in
-            self?.hotkeyController.sessionStarted(command: .alignmentGuides)
-            AlignmentGuidesCoordinator.shared.run(hideHintBar: AppPreferences.shared.hideHintBar)
+            self?.launchAlignmentGuides()
         }
         menuBarController.onCheckForUpdates = { [weak self] in
             if AppBuild.canAutoUpdate {
@@ -93,13 +90,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverDelegat
             self.settingsWindowController.showSettings(updater: self.updaterController.updater)
         }
         hotkeyController.onLaunchMeasure = { [weak self] in
-            self?.hotkeyController.sessionStarted(command: .measure)
-            let prefs = AppPreferences.shared
-            MeasureCoordinator.shared.run(hideHintBar: prefs.hideHintBar, corrections: prefs.corrections)
+            self?.launchMeasure()
         }
         hotkeyController.onLaunchAlignmentGuides = { [weak self] in
-            self?.hotkeyController.sessionStarted(command: .alignmentGuides)
-            AlignmentGuidesCoordinator.shared.run(hideHintBar: AppPreferences.shared.hideHintBar)
+            self?.launchAlignmentGuides()
         }
         hotkeyController.onSetActive = { [weak self] active in
             self?.menuBarController.setActive(active)
@@ -112,9 +106,36 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverDelegat
             self?.hotkeyController.sessionEnded()
         }
         AlignmentGuidesCoordinator.shared.onSessionEnd = { [weak self] in
+            // Save the color and direction the session ended with even while Remember is off,
+            // so turning it on later resumes the last-used ones
+            let prefs = AppPreferences.shared
+            prefs.guideStyle = AlignmentGuidesCoordinator.shared.styleName
+            prefs.guideDirection = AlignmentGuidesCoordinator.shared.directionName
             self?.menuBarController.setActive(false)
             self?.hotkeyController.sessionEnded()
         }
+    }
+
+    // MARK: - Overlay Launch
+
+    /// Shared by the menu bar and the global hotkey. Preferences are read here, at invocation
+    /// time, so changes made in Settings apply to the next session
+    private func launchMeasure() {
+        hotkeyController.sessionStarted(command: .measure)
+        let prefs = AppPreferences.shared
+        MeasureCoordinator.shared.run(hideHintBar: !prefs.showHintBar, corrections: prefs.corrections)
+    }
+
+    /// Starts with the remembered color and direction when Remember is on, else dynamic and vertical
+    private func launchAlignmentGuides() {
+        hotkeyController.sessionStarted(command: .alignmentGuides)
+        let prefs = AppPreferences.shared
+        let remembers = prefs.remembersGuideStyle
+        AlignmentGuidesCoordinator.shared.run(
+            hideHintBar: !prefs.showHintBar,
+            style: remembers ? prefs.guideStyle : "dynamic",
+            direction: remembers ? prefs.guideDirection : "vertical"
+        )
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

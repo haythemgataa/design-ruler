@@ -1,6 +1,7 @@
 import QuartzCore
 
-package enum GuideLineStyle: CaseIterable {
+/// Raw values are the names the standalone app persists to remember the last color.
+package enum GuideLineStyle: String, CaseIterable {
     case dynamic   // difference blend mode — visible on any background
     case red
     case green

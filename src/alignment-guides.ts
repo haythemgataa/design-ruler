@@ -2,11 +2,11 @@ import { closeMainWindow, getPreferenceValues } from "@raycast/api";
 import { alignmentGuides } from "swift:../swift/DesignRuler";
 
 interface Preferences {
-  hideHintBar: boolean;
+  showHintBar: boolean;
 }
 
 export default async function Command() {
   await closeMainWindow();
-  const { hideHintBar } = getPreferenceValues<Preferences>();
-  await alignmentGuides(hideHintBar ?? false);
+  const { showHintBar } = getPreferenceValues<Preferences>();
+  await alignmentGuides(showHintBar ?? true);
 }

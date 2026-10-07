@@ -1,8 +1,8 @@
 import AppKit
 import QuartzCore
 
-/// Direction for guide lines
-package enum Direction {
+/// Direction for guide lines. Raw values are the names the standalone app persists.
+package enum Direction: String {
     case vertical, horizontal
 
     package func toggled() -> Direction {

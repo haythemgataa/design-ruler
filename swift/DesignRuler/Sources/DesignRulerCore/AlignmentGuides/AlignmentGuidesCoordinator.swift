@@ -10,16 +10,45 @@ open class AlignmentGuidesCoordinator: OverlayCoordinator {
     package private(set) var currentStyle: GuideLineStyle = .dynamic
     private var currentDirection: Direction = .vertical
 
+    /// What the next session starts with. Only the standalone app changes these (to resume the
+    /// last session's); the Raycast bridge calls the base `run(hideHintBar:)` and keeps the defaults.
+    private var startingStyle: GuideLineStyle = .dynamic
+    private var startingDirection: Direction = .vertical
+
+    /// The color in use, or the one the last session ended with (a `GuideLineStyle` raw value).
+    public var styleName: String { currentStyle.rawValue }
+
+    /// The direction in use, or the one the last session ended with ("vertical" / "horizontal").
+    public var directionName: String { currentDirection.rawValue }
+
+    /// Start a session with the given color and direction. Unknown names fall back to dynamic / vertical.
+    public func run(hideHintBar: Bool, style: String, direction: String) {
+        startingStyle = GuideLineStyle(rawValue: style) ?? .dynamic
+        startingDirection = Direction(rawValue: direction) ?? .vertical
+        // Also current now: a startup that aborts before resetCommandState() (no permission) still
+        // fires onSessionEnd, and the app saves styleName then; it must not save the type defaults
+        // over a remembered color. A running session keeps its own: run() rejects this call.
+        if !isSessionActive {
+            currentStyle = startingStyle
+            currentDirection = startingDirection
+        }
+        super.run(hideHintBar: hideHintBar)
+    }
+
     override open func resetCommandState() {
-        currentStyle = .dynamic
-        currentDirection = .vertical
+        currentStyle = startingStyle
+        currentDirection = startingDirection
     }
 
     override open func createWindow(for screen: NSScreen, image: CGImage?, isCursorScreen: Bool, hideHintBar: Bool) -> NSWindow {
+        // Every window starts in the session's state: the cursor window gets showInitialState(),
+        // never activate(), so it can't pick the style and direction up later.
         let window = AlignmentGuidesWindow.create(
             for: screen,
             screenshot: image,
-            hideHintBar: isCursorScreen ? hideHintBar : true
+            hideHintBar: isCursorScreen ? hideHintBar : true,
+            style: currentStyle,
+            direction: currentDirection
         )
         return window
     }
