@@ -1,11 +1,11 @@
 import AppKit
 import QuartzCore
 
-/// Launch animation: a wave of grid dots spreads from the cursor across the frozen screenshot, with
-/// a soft halo near its front, a light wash across the band and a line at the front. Tuned in the
-/// browser prototype (Grid Wave Tuner).
+/// Launch animation: a wave of grid marks spreads from the cursor across the frozen screenshot, with
+/// a soft halo near its front, a light wash across the band and a line at the front: dots for
+/// Measure, hairline grid lines for Alignment Guides. Tuned in the browser prototype (Grid Wave Tuner).
 ///
-/// Core Animation only: a small pre-drawn dot tile, repeated across the screen by replicator layers
+/// Core Animation only: a small pre-drawn tile of marks, repeated across the screen by replicator layers
 /// and revealed by radial gradient masks whose stops move outward, grouped under the crosshair's
 /// difference blend so it shows on light and dark backgrounds. The render server drives every
 /// frame: nothing runs on the main thread during the wave, and nothing screen-sized has to be drawn,
@@ -20,18 +20,27 @@ import QuartzCore
 /// the timeline starts once the front has left the origin (`Geometry.startProgress`), and the
 /// fade-in is a separate short animation.
 package final class LaunchWave {
+    /// The grid's marks: dots for Measure, lines for Alignment Guides.
+    package enum Style {
+        case dots
+        case lines
+    }
+
+    private let style: Style
     private let container = CALayer()
     private var isFinished = false
 
-    package init() {}
+    package init(style: Style) {
+        self.style = style
+    }
 
     /// Start the wave inside `contentLayer` (screen-sized, y up). `origin` is the cursor in the same
     /// coordinates. It may lie outside the screen: the wave then sweeps in from that side.
     package func start(in contentLayer: CALayer, origin: CGPoint, scale: CGFloat) {
         let size = contentLayer.bounds.size
         guard size.width > 0, size.height > 0,
-              let dotTile = Tile.image(scale: scale, halo: false),
-              let haloTile = Tile.image(scale: scale, halo: true) else { return }
+              let markTile = Tile.image(style, scale: scale, halo: false),
+              let haloTile = Tile.image(style, scale: scale, halo: true) else { return }
         let bounds = CGRect(origin: .zero, size: size)
         let geometry = Geometry(origin: origin, size: size)
         let start = geometry.startProgress(minFront: Self.minFront)
@@ -64,14 +73,14 @@ package final class LaunchWave {
         halo.mask = band(Self.bandStops { Self.profile($0) * (0.35 + 0.65 * Self.frontPeak($0)) },
                          fronts: fronts, geometry: geometry, bounds: bounds, duration: duration)
 
-        let dots = CALayer()
-        dots.frame = bounds
-        dots.addSublayer(tiled(dotTile, scale: scale, nearest: true, bounds: bounds))
-        dots.mask = band(Self.bandStops { Self.profile($0) }, fronts: fronts, geometry: geometry, bounds: bounds, duration: duration)
+        let marks = CALayer()
+        marks.frame = bounds
+        marks.addSublayer(tiled(markTile, scale: scale, nearest: true, bounds: bounds))
+        marks.mask = band(Self.bandStops { Self.profile($0) }, fronts: fronts, geometry: geometry, bounds: bounds, duration: duration)
 
         let ring = circle(fill: false, offset: 0, fronts: fronts, center: origin, bounds: bounds, duration: duration)
 
-        for layer in [wash, halo, dots, ring] { container.addSublayer(layer) }
+        for layer in [wash, halo, marks, ring] { container.addSublayer(layer) }
         if start < Look.fadeIn {
             let fade = CABasicAnimation(keyPath: "opacity")
             fade.fromValue = start / Look.fadeIn
@@ -96,18 +105,19 @@ package final class LaunchWave {
 
     // MARK: - Look
 
-    /// Values picked in the browser prototype.
+    /// Values picked in the browser prototype (the line alphas give the hairline grid about the
+    /// same visual weight as the dots).
     fileprivate enum Look {
-        static let spacing: CGFloat = 12       // pt between dots
-        static let majorEvery = 8              // every 8th dot across and down is a major dot
+        static let spacing: CGFloat = 12       // pt between marks
+        static let majorEvery = 8              // every 8th mark across and down is a major one
         static let dotSize: CGFloat = 1.5      // pt; major dots are twice as big
-        static let minorAlpha: CGFloat = 0.5
-        static let majorAlpha: CGFloat = 1
+        static let dotAlpha: (minor: CGFloat, major: CGFloat) = (0.5, 1)
+        static let lineAlpha: (minor: CGFloat, major: CGFloat) = (0.3, 0.8)  // one device pixel wide
         static let bandWidth: CGFloat = 0.4    // share of the distance across the screen
         static let hold: CGFloat = 0.3         // share of the band at full strength behind the front
         static let trailFade: CGFloat = 1.5    // fade exponent behind the hold
         static let frontGlow: CGFloat = 0.3
-        static let haloSigma: CGFloat = 3      // pt, Gaussian halo around each dot
+        static let haloSigma: CGFloat = 3      // pt, Gaussian halo around each mark
         static let wash: CGFloat = 0.2         // shading across the band, between the dots
         static let ringWidth: CGFloat = 1      // pt, the line at the front
         static let fadeIn: CGFloat = 0.08      // share of the duration
@@ -134,7 +144,7 @@ package final class LaunchWave {
         piece.contents = tile
         piece.contentsScale = scale
         piece.contentsGravity = .resize
-        if nearest { piece.magnificationFilter = .nearest }  // crisp dots when zoomed
+        if nearest { piece.magnificationFilter = .nearest }  // crisp marks when zoomed
 
         let row = CAReplicatorLayer()
         row.frame = bounds
@@ -268,7 +278,7 @@ package final class LaunchWave {
     }
 }
 
-/// One repeat of the dot grid: `majorEvery` × `majorEvery` cells with the major dot at the top-left
+/// One repeat of the grid: `majorEvery` × `majorEvery` cells with the major mark at the top-left
 /// corner. Replicator layers repeat it across the screen, so nothing screen-sized is drawn or copied
 /// to the render server.
 private enum Tile {
@@ -277,26 +287,35 @@ private enum Tile {
     /// Side of one repeat, in points.
     static let side = Look.spacing * CGFloat(Look.majorEvery)
 
-    /// The dots, or their halo (Gaussian blobs), at `scale` pixels per point.
-    static func image(scale: CGFloat, halo: Bool) -> CGImage? {
-        let cell = Look.spacing * scale
+    /// The marks, or their halo (Gaussian blur), at `scale` pixels per point.
+    static func image(_ style: LaunchWave.Style, scale: CGFloat, halo: Bool) -> CGImage? {
         let sidePx = (side * scale).rounded()
         guard let ctx = context(side: Int(sidePx)) else { return nil }
         ctx.clear(CGRect(x: 0, y: 0, width: sidePx, height: sidePx))
+        switch style {
+        case .dots: drawDots(in: ctx, scale: scale, sidePx: sidePx, halo: halo)
+        case .lines: drawLines(in: ctx, scale: scale, sidePx: sidePx, halo: halo)
+        }
+        return ctx.makeImage()
+    }
+
+    private static let white = CGColor(gray: 1, alpha: 1)
+
+    private static func drawDots(in ctx: CGContext, scale: CGFloat, sidePx: CGFloat, halo: Bool) {
+        let cell = Look.spacing * scale
         // Majors are twice the rounded minor size, and the halo blurs the pixels actually drawn
         let minorPx = max(1, (Look.dotSize * scale).rounded())
-        let white = CGColor(gray: 1, alpha: 1)
         for i in 0..<Look.majorEvery {
             for j in 0..<Look.majorEvery {
                 let major = i == 0 && j == 0
                 let px = major ? 2 * minorPx : minorPx
-                let alpha = major ? Look.majorAlpha : Look.minorAlpha
+                let alpha = major ? Look.dotAlpha.major : Look.dotAlpha.minor
                 // CG is y up: row j counts down from the top edge. Dots on an edge wrap around
                 for dx in [-sidePx, 0, sidePx] {
                     for dy in [-sidePx, 0, sidePx] {
                         let center = CGPoint(x: CGFloat(i) * cell + dx, y: sidePx - CGFloat(j) * cell + dy)
                         if halo {
-                            drawHalo(in: ctx, at: center, dotPt: px / scale, alpha: alpha, scale: scale)
+                            drawDotHalo(in: ctx, at: center, dotPt: px / scale, alpha: alpha, scale: scale)
                         } else {
                             ctx.setFillColor(white.copy(alpha: alpha) ?? white)
                             ctx.fill(CGRect(x: center.x - floor(px / 2), y: center.y - floor(px / 2), width: px, height: px))
@@ -305,28 +324,73 @@ private enum Tile {
                 }
             }
         }
-        return ctx.makeImage()
     }
 
-    /// A blurred dot: Gaussian falloff with the same total coverage as the square it blurs, applied
+    /// One-pixel lines on every cell edge; the first column and row are the major ones. Each pass is
+    /// composited as one layer, so crossings don't double up (like the prototype).
+    private static func drawLines(in ctx: CGContext, scale: CGFloat, sidePx: CGFloat, halo: Bool) {
+        let cell = Look.spacing * scale
+        for major in [false, true] {
+            let alpha = major ? Look.lineAlpha.major : Look.lineAlpha.minor
+            let indices = major ? [0] : Array(1..<Look.majorEvery)
+            if halo {
+                // Lines on an edge wrap around
+                for i in indices {
+                    for shift in [-sidePx, 0, sidePx] {
+                        drawLineHalo(in: ctx, at: CGFloat(i) * cell + 0.5 + shift, vertical: true, alpha: alpha, scale: scale)
+                        drawLineHalo(in: ctx, at: sidePx - CGFloat(i) * cell - 0.5 + shift, vertical: false, alpha: alpha, scale: scale)
+                    }
+                }
+                continue
+            }
+            ctx.saveGState()
+            ctx.setAlpha(alpha)
+            ctx.beginTransparencyLayer(auxiliaryInfo: nil)
+            ctx.setFillColor(white)
+            for i in indices {
+                // CG is y up: row i counts down from the top edge
+                ctx.fill(CGRect(x: CGFloat(i) * cell, y: 0, width: 1, height: sidePx))
+                ctx.fill(CGRect(x: 0, y: sidePx - CGFloat(i) * cell - 1, width: sidePx, height: 1))
+            }
+            ctx.endTransparencyLayer()
+            ctx.restoreGState()
+        }
+    }
+
+    /// Gaussian falloff with `alpha` at `peak` times the coverage, out to three sigmas, applied
     /// twice for a brighter halo.
-    private static func drawHalo(in ctx: CGContext, at center: CGPoint, dotPt: CGFloat, alpha: CGFloat, scale: CGFloat) {
-        let sigma = Look.haloSigma
-        let peak = alpha * dotPt * dotPt / (2 * .pi * sigma * sigma)
+    private static func haloGradient(peak: CGFloat, symmetric: Bool) -> CGGradient? {
         let steps = 10
         var components: [CGFloat] = []
         var locations: [CGFloat] = []
         for k in 0...steps {
-            let u = CGFloat(k) / CGFloat(steps)  // 0...1 of three sigmas
-            let a = peak * exp(-pow(3 * u, 2) / 2)
+            let u = CGFloat(k) / CGFloat(steps)
+            let sigmas = symmetric ? 6 * u - 3 : 3 * u  // -3...3 across a line, 0...3 out of a dot
+            let a = peak * exp(-sigmas * sigmas / 2)
             components += [1, 1, 1, 1 - (1 - a) * (1 - a)]
             locations.append(u)
         }
-        guard let space = CGColorSpace(name: CGColorSpace.sRGB),
-              let gradient = CGGradient(colorSpace: space, colorComponents: components, locations: locations, count: locations.count)
-        else { return }
+        guard let space = CGColorSpace(name: CGColorSpace.sRGB) else { return nil }
+        return CGGradient(colorSpace: space, colorComponents: components, locations: locations, count: locations.count)
+    }
+
+    /// A blurred dot: the same total coverage as the square it blurs.
+    private static func drawDotHalo(in ctx: CGContext, at center: CGPoint, dotPt: CGFloat, alpha: CGFloat, scale: CGFloat) {
+        let sigma = Look.haloSigma
+        guard let gradient = haloGradient(peak: alpha * dotPt * dotPt / (2 * .pi * sigma * sigma), symmetric: false) else { return }
         ctx.drawRadialGradient(gradient, startCenter: center, startRadius: 0, endCenter: center,
                                endRadius: 3 * sigma * scale, options: [])
+    }
+
+    /// A blurred one-pixel line: the same total coverage across it, the full length of the tile.
+    private static func drawLineHalo(in ctx: CGContext, at position: CGFloat, vertical: Bool, alpha: CGFloat, scale: CGFloat) {
+        let sigma = Look.haloSigma
+        guard let gradient = haloGradient(peak: alpha * (1 / scale) / (sqrt(2 * .pi) * sigma), symmetric: true) else { return }
+        let reach = 3 * sigma * scale
+        let (start, end) = vertical
+            ? (CGPoint(x: position - reach, y: 0), CGPoint(x: position + reach, y: 0))
+            : (CGPoint(x: 0, y: position - reach), CGPoint(x: 0, y: position + reach))
+        ctx.drawLinearGradient(gradient, start: start, end: end, options: [])
     }
 
     private static func context(side: Int) -> CGContext? {

@@ -65,7 +65,7 @@ Shared Swift (swift/DesignRuler/)
   │   ├─ Rendering/
   │   │   ├─ PillRenderer.swift         — shared pill factories, font, paths, text, shadows
   │   │   ├─ HintBarView.swift          — glass hint bar, slide animation, expand/collapse
-  │   │   ├─ LaunchWave.swift           — launch animation: grid-dot wave from the cursor (Core Animation)
+  │   │   ├─ LaunchWave.swift           — launch animation: grid wave from the cursor, dots (Measure) / lines (Guides)
   │   │   └─ HintBarContent.swift       — SwiftUI keycap layouts, HintBarTextStyle
   │   ├─ AlignmentGuides/
   │   │   ├─ AlignmentGuidesCoordinator.swift — open class, OverlayCoordinator subclass
@@ -584,12 +584,14 @@ travels with the content. Return phase runs from a cancellable
 `DispatchWorkItem`; `isPeekAnimating` guards pan updates.
 
 ### Launch Wave (LaunchWave)
-On launch a wave of grid dots spreads from the cursor over `DesignTokens.Animation.launchWave` (1.5s,
-easeOut cubic): 1.5pt dots every 12pt (every 8th a 3pt major dot), a soft halo near the front, a
-light wash across the band and a 1pt line at the front, all under the crosshair's difference blend.
-Tuned in a browser prototype; the values live in `LaunchWave.Look`.
+On launch a wave of grid marks spreads from the cursor over `DesignTokens.Animation.launchWave` (1.5s,
+easeOut cubic), with a soft halo near the front, a light wash across the band and a 1pt line at the
+front, all under the crosshair's difference blend. `OverlayWindow.launchWaveStyle` picks the marks:
+Measure keeps `.dots` (1.5pt dots every 12pt, every 8th a 3pt major), Alignment Guides overrides
+with `.lines` (one-pixel grid lines on the same 12pt grid, every 8th brighter). Tuned in a browser
+prototype; the values live in `LaunchWave.Look`.
 - Core Animation only, nothing on the main thread per frame and nothing screen-sized to draw or upload:
-  `start()` draws one 96pt tile of 8×8 dots (and one of their halos), ~2-3ms per screen, then the
+  `start()` draws one 96pt tile of 8×8 marks (and one of their halos), ~2-3ms per screen, then the
   render server runs every frame. Nested `CAReplicatorLayer`s repeat the tile from the screen's
   top-left: screen-sized bitmaps cost ~80ms of commit (copied to the render server) and ~110MB
 - Layers in a container under `contentLayer` (zooms with the screenshot, stays below overlay UI):
@@ -1002,8 +1004,8 @@ Bugs encountered and fixed — avoid re-introducing these:
 - [ ] Pill shows "0000 × 0000" on launch, fades in (design ruler)
 - [ ] Pill animates smoothly when flipping sides near edges
 - [ ] Hint bar slides (not jumps) when swapping top/bottom
-- [ ] Launch wave plays on every launch, from the cursor; other screens get it sweeping in from
-  the cursor's side; no pop when it ends
+- [ ] Launch wave plays on every launch, from the cursor: dots in Measure, grid lines in Alignment
+  Guides; other screens get it sweeping in from the cursor's side; no pop when it ends
 - [ ] Launch wave shows on light, dark and mid-tone backgrounds (dots and front line invert)
 - [ ] Launch wave doesn't freeze the overlay on the built-in display (cursor on each screen,
   hint bar on and off); the crosshair keeps tracking during it

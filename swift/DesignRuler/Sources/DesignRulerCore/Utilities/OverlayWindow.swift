@@ -139,10 +139,13 @@ package class OverlayWindow: NSWindow, OverlayWindowProtocol {
         cancelLaunchWave()
         let mouse = NSEvent.mouseLocation
         let origin = CGPoint(x: mouse.x - screenBounds.origin.x, y: mouse.y - screenBounds.origin.y)
-        let wave = LaunchWave()
+        let wave = LaunchWave(style: launchWaveStyle)
         launchWave = wave
         wave.start(in: contentLayer, origin: origin, scale: backingScaleFactor)
     }
+
+    /// The wave's marks. Measure keeps the dots; Alignment Guides overrides with grid lines.
+    package var launchWaveStyle: LaunchWave.Style { .dots }
 
     /// Remove the wave immediately. Called on exit.
     package func cancelLaunchWave() {
