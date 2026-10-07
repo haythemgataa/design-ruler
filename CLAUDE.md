@@ -738,12 +738,16 @@ inactivity timer, SIGTERM) and from `abortStartup()` (permission abort, no scree
 nothing captured).
 
 ### Menu Bar (MenuBarController)
-- `NSStatusItem` with "ruler" SF Symbol (template mode for dark/light)
+- `NSStatusItem` with the `MenuBarIcon` asset as a template image (adapts to dark/light)
 - Dropdown: Measure, Alignment Guides, separator, Settings..., Check for Updates..., separator, Quit.
   In builds that can't update themselves the update item reads "Check GitHub for Updates…" and
   opens GitHub Releases
-- `setActive(true/false)` swaps icon to "ruler.fill" / "ruler"
+- `setActive(true/false)` re-applies the same icon (there is no active variant)
 - `anySessionActive` guard before `setActive(true)` prevents stuck icon
+- Menu items have no images: macOS 27 hides them unless `preferredImageVisibility = .visible`
+  (macOS 27 SDK only), and Measure's symbol (`guidepoint.vertical.numbers`) didn't exist before
+  macOS 26. Check new SF Symbols against macOS 14 in
+  `/System/Library/CoreServices/CoreGlyphs.bundle/Contents/Resources/name_availability.plist`
 - Decoupled from coordinators via callbacks (`onMeasure`, `onAlignmentGuides`, etc.)
 - `NSMenuDelegate`: `menuNeedsUpdate` refreshes shortcut display, `menuWillOpen`/`menuDidClose`
   disable/enable global hotkeys during menu tracking
@@ -1037,7 +1041,7 @@ Bugs encountered and fixed — avoid re-introducing these:
 - [ ] Menu bar icon appears on launch (no Dock icon, no Cmd+Tab entry)
 - [ ] Clicking menu bar icon shows dropdown with Measure, Alignment Guides, Settings, Quit
 - [ ] Clicking Measure/Guides in dropdown launches overlay
-- [ ] Menu bar icon shows filled variant during active overlay, hollow when idle
+- [ ] Menu bar dropdown items show no icons (macOS 14 through 27)
 - [ ] ESC exits overlay but app stays running (menu bar icon still visible)
 - [ ] Second overlay session launches cleanly after ESC (no residual state)
 - [ ] Settings window opens from menu bar, persists across multiple opens
