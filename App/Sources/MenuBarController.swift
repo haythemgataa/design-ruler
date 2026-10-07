@@ -60,7 +60,6 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         )
         measureItem.target = self
         measureItem.keyEquivalentModifierMask = mMods
-        measureItem.image = NSImage(systemSymbolName: "guidepoint.vertical.numbers", accessibilityDescription: nil)
 
         guidesItem = menu.addItem(
             withTitle: "Alignment Guides",
@@ -69,7 +68,6 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         )
         guidesItem.target = self
         guidesItem.keyEquivalentModifierMask = gMods
-        guidesItem.image = NSImage(systemSymbolName: "arrowtriangle.left.and.line.vertical.and.arrowtriangle.right.fill", accessibilityDescription: nil)
 
         menu.addItem(NSMenuItem.separator())
 
@@ -79,7 +77,6 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             keyEquivalent: ","
         )
         settingsItem.target = self
-        settingsItem.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: nil)
 
         // Unsigned beta builds can't update themselves: the item opens GitHub Releases instead
         let updateItem = menu.addItem(
@@ -88,7 +85,6 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             keyEquivalent: "r"
         )
         updateItem.target = self
-        updateItem.image = NSImage(systemSymbolName: "arrow.triangle.2.circlepath", accessibilityDescription: nil)
 
         menu.addItem(NSMenuItem.separator())
 
@@ -98,7 +94,6 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             keyEquivalent: "q"
         )
         quitItem.target = self
-        quitItem.image = NSImage(systemSymbolName: "power", accessibilityDescription: nil)
 
         statusItem.menu = menu
     }
