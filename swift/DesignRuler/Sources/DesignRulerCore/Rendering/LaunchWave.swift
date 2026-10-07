@@ -118,7 +118,7 @@ package final class LaunchWave {
         static let trailFade: CGFloat = 1.5    // fade exponent behind the hold
         static let frontGlow: CGFloat = 0.3
         static let haloSigma: CGFloat = 3      // pt, Gaussian halo around each mark
-        static let wash: CGFloat = 0.2         // shading across the band, between the dots
+        static let wash: CGFloat = 0.2         // shading across the band, between the marks
         static let ringWidth: CGFloat = 1      // pt, the line at the front
         static let fadeIn: CGFloat = 0.08      // share of the duration
     }
@@ -327,7 +327,8 @@ private enum Tile {
     }
 
     /// One-pixel lines on every cell edge; the first column and row are the major ones. Each pass is
-    /// composited as one layer, so crossings don't double up (like the prototype).
+    /// composited as one layer, so crossings within it don't double up; a major line stacks over the
+    /// minor ones it crosses (like the prototype).
     private static func drawLines(in ctx: CGContext, scale: CGFloat, sidePx: CGFloat, halo: Bool) {
         let cell = Look.spacing * scale
         for major in [false, true] {

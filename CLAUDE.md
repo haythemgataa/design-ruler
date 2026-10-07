@@ -595,7 +595,7 @@ prototype; the values live in `LaunchWave.Look`.
   render server runs every frame. Nested `CAReplicatorLayer`s repeat the tile from the screen's
   top-left: screen-sized bitmaps cost ~80ms of commit (copied to the render server) and ~110MB
 - Layers in a container under `contentLayer` (zooms with the screenshot, stays below overlay UI):
-  wash = radial `CAGradientLayer`; halo and dots = replicated tiles masked by radial gradients;
+  wash = radial `CAGradientLayer`; halo and marks = replicated tiles masked by radial gradients;
   ring = stroked `CAShapeLayer`. The container has `compositingFilter = difference` and a filled
   circle mask (half a pixel past the ring's outer edge, so it keeps the ring's antialiasing) that is
   the hard front. The mask path also carries zero-length subpaths at two opposite screen corners
@@ -1006,7 +1006,8 @@ Bugs encountered and fixed — avoid re-introducing these:
 - [ ] Hint bar slides (not jumps) when swapping top/bottom
 - [ ] Launch wave plays on every launch, from the cursor: dots in Measure, grid lines in Alignment
   Guides; other screens get it sweeping in from the cursor's side; no pop when it ends
-- [ ] Launch wave shows on light, dark and mid-tone backgrounds (dots and front line invert)
+- [ ] Launch wave shows on light, dark and mid-tone backgrounds (dots or grid lines, and the front
+  line, invert)
 - [ ] Launch wave doesn't freeze the overlay on the built-in display (cursor on each screen,
   hint bar on and off); the crosshair keeps tracking during it
 - [ ] Launch wave skipped with Reduce Motion; Z during the wave zooms it with the screenshot
