@@ -7,7 +7,10 @@ import QuartzCore
 /// Cursor management via CursorManager (resize ↔ pointingHand).
 package final class AlignmentGuidesWindow: OverlayWindow {
     private var guideLineManager: GuideLineManager!
-    private var cursorDirection: Direction = .vertical
+
+    /// Read from the manager rather than mirrored, so it can't disagree with the preview line
+    /// (a session may start horizontal).
+    private var cursorDirection: Direction { guideLineManager.direction }
 
     // Typed callback for multi-monitor activation
     package var onActivate: ((AlignmentGuidesWindow) -> Void)?
@@ -18,8 +21,10 @@ package final class AlignmentGuidesWindow: OverlayWindow {
     package var onTabPressed: (() -> Void)?
     package var onTabReleased: (() -> Void)?
 
-    /// Create a fullscreen alignment guides window for the given screen.
-    package static func create(for screen: NSScreen, screenshot: CGImage?, hideHintBar: Bool) -> AlignmentGuidesWindow {
+    /// Create a fullscreen alignment guides window for the given screen, in the session's
+    /// style and direction so the first frame (and the launch cursor) already match them.
+    package static func create(for screen: NSScreen, screenshot: CGImage?, hideHintBar: Bool,
+                               style: GuideLineStyle, direction: Direction) -> AlignmentGuidesWindow {
         let window = AlignmentGuidesWindow(
             contentRect: NSRect(origin: .zero, size: screen.frame.size),
             styleMask: .borderless,
@@ -29,6 +34,8 @@ package final class AlignmentGuidesWindow: OverlayWindow {
         )
         OverlayWindow.configureOverlay(window, for: screen)
         window.setupViews(screenFrame: screen.frame, screenshot: screenshot, hideHintBar: hideHintBar)
+        window.guideLineManager.setPreviewStyle(style)
+        window.guideLineManager.setDirection(direction)
         window.setupTrackingArea()
         return window
     }
@@ -89,7 +96,6 @@ package final class AlignmentGuidesWindow: OverlayWindow {
     package func performToggleDirection() {
         if hintBarView.superview != nil { hintBarView.pressKey(.tab) }
         guideLineManager.toggleDirection(windowPoint: lastCursorPosition)
-        cursorDirection = guideLineManager.direction
         let newCursor: NSCursor = cursorDirection == .vertical ? .resizeLeftRight : .resizeUpDown
         CursorManager.shared.updateResize(newCursor)
     }
@@ -311,7 +317,6 @@ package final class AlignmentGuidesWindow: OverlayWindow {
         guideLineManager.setPreviewStyle(currentStyle)
         guideLineManager.setDirection(currentDirection)
         guideLineManager.updateForZoom(zoomState)
-        cursorDirection = currentDirection
         let resizeCursor: NSCursor = cursorDirection == .vertical ? .resizeLeftRight : .resizeUpDown
         CursorManager.shared.updateResize(resizeCursor)
         guideLineManager.showPreview()

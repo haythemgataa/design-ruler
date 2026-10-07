@@ -91,11 +91,10 @@ Click the ruler icon in the menu bar to launch either command. The icon fills in
 Assign custom hotkeys to Measure and Alignment Guides in Settings. Hotkeys work from any application. Press the same hotkey while an overlay is active to dismiss it, or press the other command's hotkey to switch.
 
 ### Settings
-Open from the menu bar dropdown. Configure:
-- **General** — Launch at Login, Hide Hint Bar, Automatically Check for Updates
-- **Measure** — Border Corrections mode, Measure shortcut
-- **Alignment Guides** — Alignment Guides shortcut
-- **About** — Version info, GitHub link, manual update check
+Open from the menu bar dropdown. Three tabs:
+- **General** — version info and manual update check, Launch at Login, Show Hint Bar, Check for Updates Automatically, GitHub link
+- **Measure** — Measure shortcut, Count 1px Borders
+- **Alignment** — Alignment Guides shortcut, Remember Color and Direction
 
 ### Auto-Updates
 Design Ruler uses [Sparkle](https://sparkle-project.org) to check for updates automatically. You can also check manually from the menu bar.
@@ -117,20 +116,21 @@ Build from source with `ray build` or, **coming soon**, install from the [Raycas
 ## Preferences
 
 ### Standalone App (Settings Window)
-| Setting | Section | Options | Description |
+| Setting | Tab | Options | Description |
 |---|---|---|---|
 | Launch at Login | General | On / Off | Start Design Ruler when you log in |
-| Hide Hint Bar | General | On / Off | Hide the keyboard shortcut hint bar (both commands) |
-| Auto-check for Updates | General | On / Off | Sparkle automatic update checks |
-| Border Corrections | Measure | Smart / Include / None | How 1px borders are handled in measurements |
+| Show Hint Bar | General | On (default) / Off | Show the keyboard shortcut hint bar (both commands) |
+| Check for Updates Automatically | General | On / Off | Sparkle automatic update checks |
 | Measure Shortcut | Measure | Key combo | Global hotkey for Measure |
-| Alignment Guides Shortcut | Alignment Guides | Key combo | Global hotkey for Alignment Guides |
+| Count 1px Borders | Measure | Smart / Always / Never | Whether 1px borders count in measurements; Smart counts them or not, whichever fits the 4px grid. A green tick marks an edge where a border was counted |
+| Alignment Guides Shortcut | Alignment | Key combo | Global hotkey for Alignment Guides |
+| Remember Color and Direction | Alignment | On / Off (default) | Start each session with the guide color and direction you used last |
 
 ### Raycast Extension
 | Preference | Command | Options | Description |
 |---|---|---|---|
-| Hide Hint Bar | Both | On / Off | Hide the keyboard shortcut hint bar |
-| Corrections | Measure | Smart / Include / None | How 1px borders are handled in measurements |
+| Show Hint Bar | Both | On (default) / Off | Show the keyboard shortcut hint bar |
+| Count 1px Borders | Measure | Smart / Always / Never | Whether 1px borders count in measurements |
 
 ---
 
