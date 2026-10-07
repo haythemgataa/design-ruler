@@ -778,6 +778,11 @@ nothing captured). The Guides handler also saves `styleName`/`directionName` int
   (macOS 27 SDK only), and Measure's symbol (`guidepoint.vertical.numbers`) didn't exist before
   macOS 26. Check new SF Symbols against macOS 14 in
   `/System/Library/CoreServices/CoreGlyphs.bundle/Contents/Resources/name_availability.plist`
+- AppKit adds a gear to any item titled "Settings…" (or "Preferences…") by itself, whatever the SDK,
+  and it shifts that title out of line. Setting `image = nil` doesn't help (AppKit assigns it later)
+  and an empty image keeps the indent. `MenuBarController` sets `preferredImageVisibility` to
+  hidden (2) by name with KVC, guarded by `responds(to:)`, so the Xcode 26 release build compiles it
+  and macOS 27 hides the gear. macOS 26 has no such property
 - Decoupled from coordinators via callbacks (`onMeasure`, `onAlignmentGuides`, etc.)
 - `NSMenuDelegate`: `menuNeedsUpdate` refreshes shortcut display, `menuWillOpen`/`menuDidClose`
   disable/enable global hotkeys during menu tracking
@@ -786,8 +791,8 @@ nothing captured). The Guides handler also saves `styleName`/`directionName` int
 - Classic preferences toolbar tabs: General (`gearshape`), Measure (`ruler`), Alignment
   (`rectangle.split.3x1`). `SettingsTabViewController` (`NSTabViewController`,
   `tabStyle = .toolbar`) in a `[.titled, .closable]` window with `toolbarStyle = .preference`,
-  `titleVisibility = .hidden` (the selected tab still names the window) and the miniaturize/zoom
-  buttons hidden
+  a title row showing the selected tab's name (each hosting controller's `title`, passed on by the
+  tab controller) with the close button beside it, and the miniaturize/zoom buttons hidden
 - Each tab is an `NSHostingController` around a `SettingsPane`: `.grouped` Form, 480pt wide, at its
   ideal height (`fixedSize` vertical, scrolling disabled), pinned to the top while the window resizes
 - The window follows the selected tab: `fitWindowToSelectedTab` sizes it to the pane's `fittingSize`
@@ -1043,6 +1048,17 @@ Bugs encountered and fixed — avoid re-introducing these:
   `fittingSize` zero) and size the window from the pane's `fittingSize`
   (`SettingsTabViewController.fitWindowToSelectedTab`).
 
+- **`titleVisibility = .hidden` on the Settings window**: with a `.preference` toolbar it drops the
+  title row and centers the close button on the tabs (44pt down instead of 16pt). Keep the row: it
+  shows the selected tab's name.
+
+- **Leading padding on Settings Form footers**: built against the macOS 26+ SDK, grouped Form
+  footers already line up with the section header and the rows' titles, so extra padding pushes
+  them in. SwiftUI picks Form metrics by the SDK the binary was built with: a SwiftPM-built preview
+  binary is stamped SDK 14.0 and draws footers flush with the cards. Stamp the release SDK first
+  (`vtool -set-build-version macos 14.0 26.5 -replace`, then re-sign ad hoc) before judging layout
+  from such a binary.
+
 ---
 
 ## 19. Testing Checklist
@@ -1118,12 +1134,14 @@ Bugs encountered and fixed — avoid re-introducing these:
 - [ ] Menu bar icon appears on launch (no Dock icon, no Cmd+Tab entry)
 - [ ] Clicking menu bar icon shows dropdown with Measure, Alignment Guides, Settings, Quit
 - [ ] Clicking Measure/Guides in dropdown launches overlay
-- [ ] Menu bar dropdown items show no icons (macOS 14 through 27)
+- [ ] Menu bar dropdown items show no icons (macOS 14 through 27), Settings… included, with every
+  title aligned
 - [ ] ESC exits overlay but app stays running (menu bar icon still visible)
 - [ ] Second overlay session launches cleanly after ESC (no residual state)
 - [ ] Settings window opens from menu bar, persists across multiple opens
-- [ ] Settings shows General / Measure / Alignment toolbar tabs, selected tab tinted, title
-  bar with only the close button
+- [ ] Settings shows General / Measure / Alignment toolbar tabs, selected tab tinted, the selected
+  tab's name as the window title, and only the close button, at the top above the tabs
+- [ ] Section footers line up with the section headers and the rows' titles
 - [ ] Switching tabs resizes the window to the tab (animated, top edge fixed; instant with Reduce
   Motion), no tab clipped; opens at the right height with no jump
 - [ ] Changing Show Hint Bar/corrections in Settings takes effect on next session; Show Hint Bar is on

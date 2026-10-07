@@ -75,8 +75,8 @@ extension PaneHeader where Accessory == EmptyView {
     }
 }
 
-/// Secondary explanation under a section. Footers already end where the rows' controls do; the
-/// leading inset lines them up with the section header and the rows' titles.
+/// Secondary explanation under a section. The Form already lines footers up with the section
+/// header and the rows' titles (macOS 26+ SDK), so no padding of its own.
 struct SectionFooter: View {
     let text: Text
 
@@ -89,7 +89,6 @@ struct SectionFooter: View {
             .foregroundStyle(.secondary)
             .multilineTextAlignment(.leading)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.leading, 10)
     }
 }
 

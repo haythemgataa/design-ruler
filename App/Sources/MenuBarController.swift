@@ -77,6 +77,12 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             keyEquivalent: ","
         )
         settingsItem.target = self
+        // AppKit gives any "Settings…" item a gear, which also shifts its title out of line with the
+        // other items. preferredImageVisibility (macOS 27) hides it; set by name so the Xcode 26
+        // release build compiles it too. 2 is NSMenuItem.ImageVisibility.hidden
+        if settingsItem.responds(to: NSSelectorFromString("setPreferredImageVisibility:")) {
+            settingsItem.setValue(2, forKey: "preferredImageVisibility")
+        }
 
         // Unsigned beta builds can't update themselves: the item opens GitHub Releases instead
         let updateItem = menu.addItem(
