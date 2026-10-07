@@ -48,8 +48,11 @@ jobs:
           gh release download "$GITHUB_REF_NAME" \
             --pattern "*.dmg" \
             --dir "$RUNNER_TEMP"
-          # Signed releases ship Design-Ruler-X.Y.Z.dmg, unsigned ones Design-Ruler-X.Y.Z-unsigned.dmg
-          DMG_NAME=$(basename "$(ls "$RUNNER_TEMP"/*.dmg | head -1)")
+          # Signed releases ship Design-Ruler-X.Y.Z.dmg, unsigned ones Design-Ruler-X.Y.Z-unsigned.dmg;
+          # prefer the signed one if a release ever carries both
+          DMG_NAME="Design-Ruler-$VERSION.dmg"
+          [ -f "$RUNNER_TEMP/$DMG_NAME" ] || DMG_NAME="Design-Ruler-$VERSION-unsigned.dmg"
+          [ -f "$RUNNER_TEMP/$DMG_NAME" ] || { echo "::error::No Design Ruler DMG on this release"; exit 1; }
           echo "DMG_NAME=$DMG_NAME" >> $GITHUB_ENV
           echo "DOWNLOAD_URL=https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/$DMG_NAME" >> $GITHUB_ENV
 

@@ -41,14 +41,21 @@ jobs:
 
       - name: Choose signed or unsigned build
         run: |
-          if [ -n "$DEVELOPER_ID_CERT_BASE64" ] && [ -n "$DEVELOPER_ID_CERT_PASSWORD" ] && [ -n "$KEYCHAIN_PASSWORD" ] \
-             && [ -n "$APPLE_ID" ] && [ -n "$NOTARY_PASSWORD" ] && [ -n "$TEAM_ID" ]; then
+          # All six secrets sign, none builds unsigned, and anything in between is a setup mistake
+          SET=0
+          for name in DEVELOPER_ID_CERT_BASE64 DEVELOPER_ID_CERT_PASSWORD KEYCHAIN_PASSWORD APPLE_ID NOTARY_PASSWORD TEAM_ID; do
+            if [ -n "${!name}" ]; then SET=$((SET + 1)); fi
+          done
+          if [ "$SET" -eq 6 ]; then
             echo "SIGNED=true" >> $GITHUB_ENV
             echo "DMG_NAME=Design-Ruler-$VERSION.dmg" >> $GITHUB_ENV
-          else
+          elif [ "$SET" -eq 0 ]; then
             echo "SIGNED=false" >> $GITHUB_ENV
             echo "DMG_NAME=Design-Ruler-$VERSION-unsigned.dmg" >> $GITHUB_ENV
-            echo "::notice::Developer ID secrets are not set, so this release gets an unsigned DMG"
+            echo "::notice::No Developer ID secrets are set, so this release gets an unsigned DMG"
+          else
+            echo "::error::Only $SET of the 6 Developer ID secrets are set. Set all six to sign, or none for an unsigned release"
+            exit 1
           fi
 
       - name: Install tools
@@ -172,13 +179,18 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # Generated notes start at the previous app version: otherwise GitHub picks the newest tag
+          # it can reach, which can be a milestone tag like v1.3
+          PREV=$(git tag -l 'v*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | grep -vx "$GITHUB_REF_NAME" | head -1 || true)
+          START=()
+          if [ -n "$PREV" ]; then START=(--notes-start-tag "$PREV"); fi
           # --notes is prepended to the generated notes
           gh release create "$GITHUB_REF_NAME" \
             "$RUNNER_TEMP/$DMG_NAME" \
             --draft \
             --title "Design Ruler $VERSION" \
             --notes "$(cat "$NOTES")" \
-            --generate-notes
+            --generate-notes "${START[@]}"
 
       - name: Cleanup keychain
         if: always() && env.SIGNED == 'true'
