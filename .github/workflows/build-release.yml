@@ -153,6 +153,8 @@ jobs:
           xcrun stapler staple "$RUNNER_TEMP/$DMG_NAME"
 
       - name: Write release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           NOTES="$RUNNER_TEMP/notes.md"
           : > "$NOTES"
@@ -167,23 +169,33 @@ jobs:
              ```
              xattr -dr com.apple.quarantine "/Applications/Design Ruler.app"
              ```
-          3. Grant **Screen Recording** when asked. Each new unsigned build needs it granted again.
+          3. Grant **Screen Recording** when asked. Each unsigned build counts as a new app to macOS, so if an older version was installed, its entry no longer applies: in **System Settings → Privacy & Security → Screen Recording**, remove Design Ruler with **−**, then add it again with **+**.
 
           Design Ruler is in beta and unsigned builds can't update themselves: **Check GitHub for Updates** in the menu bar opens this page.
 
           EOF
           fi
+          # Changes since the previous app version. Starting from the previous vX.Y.Z tag: otherwise
+          # GitHub picks the newest tag it can reach, like the v1.3 milestone tag
+          PREV=$(git tag -l 'v*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | grep -vx "$GITHUB_REF_NAME" | head -1 || true)
+          ARGS=(-f tag_name="$GITHUB_REF_NAME")
+          if [ -n "$PREV" ]; then ARGS+=(-f previous_tag_name="$PREV"); fi
+          # One maintainer, so no author credits: "Title by @user in <url>" becomes "Title (#N)".
+          # Also drops New Contributors, and the compare link on a first release (it would start at v1.3)
+          gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" "${ARGS[@]}" --jq .body \
+            | sed -E 's| by @[^ ]+ in https://github\.com/[^ ]+/pull/([0-9]+)$| (#\1)|' \
+            | awk -v prev="$PREV" '
+                /^## New Contributors/ { skip = 1; next }
+                skip && /^\*\*Full Changelog\*\*/ { skip = 0 }
+                skip { next }
+                /^\*\*Full Changelog\*\*/ && prev == "" { next }
+                { print }' >> "$NOTES"
           echo "NOTES=$NOTES" >> $GITHUB_ENV
 
       - name: Create draft release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Generated notes start at the previous app version: otherwise GitHub picks the newest tag
-          # it can reach, which can be a milestone tag like v1.3
-          PREV=$(git tag -l 'v*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | grep -vx "$GITHUB_REF_NAME" | head -1 || true)
-          START=()
-          if [ -n "$PREV" ]; then START=(--notes-start-tag "$PREV"); fi
           # 0.x is the beta. Unsigned builds can't update themselves, so they're marked pre-release;
           # signed ones stay regular releases because Sparkle's feed (releases/latest) skips
           # pre-releases
@@ -191,13 +203,12 @@ jobs:
           case "$VERSION" in 0.*) TITLE="$TITLE Beta" ;; esac
           FLAGS=()
           if [ "$SIGNED" != "true" ]; then FLAGS=(--prerelease); fi
-          # --notes is prepended to the generated notes
           gh release create "$GITHUB_REF_NAME" \
             "$RUNNER_TEMP/$DMG_NAME" \
             --draft \
             --title "$TITLE" \
-            --notes "$(cat "$NOTES")" \
-            --generate-notes "${START[@]}" "${FLAGS[@]}"
+            --notes-file "$NOTES" \
+            "${FLAGS[@]}"
 
       - name: Cleanup keychain
         if: always() && env.SIGNED == 'true'
