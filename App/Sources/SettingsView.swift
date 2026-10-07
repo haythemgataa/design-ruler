@@ -23,9 +23,12 @@ struct SettingsView: View {
         _automaticallyChecksForUpdates = State(initialValue: updater.automaticallyChecksForUpdates)
     }
 
-    private var version: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
-    }
+    /// Footer under General in builds that can't update themselves, with a link to GitHub Releases.
+    private static let betaUpdatesNote: AttributedString = {
+        let markdown = "This beta can't update itself yet. Download new versions from "
+            + "[GitHub Releases](\(AppBuild.releasesURL.absoluteString))."
+        return (try? AttributedString(markdown: markdown)) ?? AttributedString(markdown)
+    }()
 
     private var correctionsDescription: String {
         switch corrections {
@@ -45,9 +48,14 @@ struct SettingsView: View {
                         .frame(width: 56, height: 56)
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Design Ruler")
-                            .font(.title2.weight(.semibold))
-                        Text("Version \(version)")
+                        HStack(spacing: 8) {
+                            Text("Design Ruler")
+                                .font(.title2.weight(.semibold))
+                            if AppBuild.isBeta {
+                                BetaBadge()
+                            }
+                        }
+                        Text("Version \(AppBuild.version)")
                             .foregroundStyle(.secondary)
                     }
 
@@ -56,12 +64,13 @@ struct SettingsView: View {
                     Button("Check for Updates\u{2026}") {
                         updater.checkForUpdates()
                     }
+                    .disabled(!AppBuild.canAutoUpdate)
                 }
                 .padding(.vertical, 4)
             }
 
             // --- General ---
-            Section("General") {
+            Section {
                 Toggle(isOn: $launchAtLogin) {
                     SettingLabel("Launch at Login", symbol: "power", color: .green,
                                  detail: "Keeps Design Ruler in the menu bar after you restart.")
@@ -82,12 +91,22 @@ struct SettingsView: View {
                     AppPreferences.shared.hideHintBar = newValue
                 }
 
-                Toggle(isOn: $automaticallyChecksForUpdates) {
+                Toggle(isOn: AppBuild.canAutoUpdate ? $automaticallyChecksForUpdates : .constant(false)) {
                     SettingLabel("Check for Updates Automatically", symbol: "arrow.triangle.2.circlepath", color: .blue,
                                  detail: "Looks for new versions in the background once a day.")
                 }
+                .disabled(!AppBuild.canAutoUpdate)
                 .onChange(of: automaticallyChecksForUpdates) { _, newValue in
                     updater.automaticallyChecksForUpdates = newValue
+                }
+            } header: {
+                Text("General")
+            } footer: {
+                if !AppBuild.canAutoUpdate {
+                    Text(Self.betaUpdatesNote)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
 
@@ -164,6 +183,18 @@ extension SettingsView {
         } label: {
             SettingLabel(title, symbol: symbol, color: color, warning: conflict.wrappedValue)
         }
+    }
+}
+
+/// Small orange capsule next to the app name while the version is 0.x.
+private struct BetaBadge: View {
+    var body: some View {
+        Text("Beta")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.orange)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 2)
+            .background(.orange.opacity(0.15), in: Capsule())
     }
 }
 

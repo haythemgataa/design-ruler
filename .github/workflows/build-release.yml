@@ -1,16 +1,20 @@
 name: Build & Release
 
+# A version tag builds the app and attaches the DMG to a draft release. With the Developer ID
+# secrets set, the app is signed and the DMG notarized; without them the release gets an ad-hoc
+# signed DMG ("-unsigned"), built like ci.yml's test DMG, with install notes.
+
 on:
   push:
     tags:
-      - 'v*'
+      - 'v[0-9]+.[0-9]+.[0-9]+'  # app versions only: milestone tags like v1.2 don't build
 
 permissions:
   contents: write
 
 jobs:
-  build-sign-notarize:
-    name: Build, Sign, Notarize & Package
+  build-and-release:
+    name: Build, Package & Draft Release
     # macOS 26 SDK (Xcode 26) required — see ci.yml
     runs-on: macos-26
 
@@ -35,10 +39,30 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "BUILD_NUMBER=$BUILD_NUMBER" >> $GITHUB_ENV
 
+      - name: Choose signed or unsigned build
+        run: |
+          # All six secrets sign, none builds unsigned, and anything in between is a setup mistake
+          SET=0
+          for name in DEVELOPER_ID_CERT_BASE64 DEVELOPER_ID_CERT_PASSWORD KEYCHAIN_PASSWORD APPLE_ID NOTARY_PASSWORD TEAM_ID; do
+            if [ -n "${!name}" ]; then SET=$((SET + 1)); fi
+          done
+          if [ "$SET" -eq 6 ]; then
+            echo "SIGNED=true" >> $GITHUB_ENV
+            echo "DMG_NAME=Design-Ruler-$VERSION.dmg" >> $GITHUB_ENV
+          elif [ "$SET" -eq 0 ]; then
+            echo "SIGNED=false" >> $GITHUB_ENV
+            echo "DMG_NAME=Design-Ruler-$VERSION-unsigned.dmg" >> $GITHUB_ENV
+            echo "::notice::No Developer ID secrets are set, so this release gets an unsigned DMG"
+          else
+            echo "::error::Only $SET of the 6 Developer ID secrets are set. Set all six to sign, or none for an unsigned release"
+            exit 1
+          fi
+
       - name: Install tools
         run: brew install create-dmg xcodegen
 
       - name: Import signing certificate
+        if: env.SIGNED == 'true'
         run: |
           echo -n "$DEVELOPER_ID_CERT_BASE64" | base64 --decode -o $RUNNER_TEMP/certificate.p12
           KEYCHAIN_PATH=$RUNNER_TEMP/signing.keychain-db
@@ -56,7 +80,8 @@ jobs:
       - name: Generate Xcode project
         run: cd App && xcodegen generate
 
-      - name: Archive
+      - name: Archive (signed)
+        if: env.SIGNED == 'true'
         run: |
           cd App
           xcodebuild archive \
@@ -71,41 +96,109 @@ jobs:
             DEVELOPMENT_TEAM="$TEAM_ID" \
             OTHER_CODE_SIGN_FLAGS="--timestamp --options runtime"
 
-      - name: Export
+      - name: Export (signed)
+        if: env.SIGNED == 'true'
         run: |
           cd App
           xcodebuild -exportArchive \
             -archivePath "$RUNNER_TEMP/DesignRuler.xcarchive" \
             -exportPath "$RUNNER_TEMP/export" \
             -exportOptionsPlist "ExportOptions.plist"
+          echo "APP_PATH=$RUNNER_TEMP/export/Design Ruler.app" >> $GITHUB_ENV
 
-      - name: Check embedded frameworks pass library validation
-        run: scripts/check-library-validation.sh "$RUNNER_TEMP/export/Design Ruler.app"
+      - name: Build (unsigned)
+        if: env.SIGNED != 'true'
+        run: |
+          cd App
+          xcodebuild build \
+            -project "Design Ruler.xcodeproj" \
+            -scheme "Design Ruler" \
+            -configuration Release \
+            -destination "generic/platform=macOS" \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            MARKETING_VERSION="$VERSION" \
+            CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM="" \
+            ENABLE_HARDENED_RUNTIME=NO
+          # Hardened runtime off: an ad-hoc app has no Team ID, so library validation would refuse
+          # the embedded Sparkle framework at launch (see ci.yml)
+          echo "APP_PATH=$RUNNER_TEMP/DerivedData/Build/Products/Release/Design Ruler.app" >> $GITHUB_ENV
+
+      - name: Verify app bundle
+        run: |
+          PLIST="$APP_PATH/Contents/Info.plist"
+          SHORT=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$PLIST")
+          BUILD=$(/usr/libexec/PlistBuddy -c "Print CFBundleVersion" "$PLIST")
+          echo "Built version $SHORT ($BUILD)"
+          test "$SHORT" = "$VERSION" || { echo "CFBundleShortVersionString $SHORT does not match the tag"; exit 1; }
+          test "$BUILD" = "$BUILD_NUMBER" || { echo "CFBundleVersion not stamped from build settings"; exit 1; }
+          codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+          scripts/check-library-validation.sh "$APP_PATH"
 
       - name: Create DMG
-        run: scripts/create-dmg.sh "$RUNNER_TEMP/export/Design Ruler.app" "$RUNNER_TEMP/Design-Ruler-$VERSION.dmg"
+        run: scripts/create-dmg.sh "$APP_PATH" "$RUNNER_TEMP/$DMG_NAME"
 
       - name: Notarize DMG
+        if: env.SIGNED == 'true'
         run: |
           # Credentials passed directly: a stored keychain profile would land in the default
           # keychain, which the search list above no longer includes.
-          xcrun notarytool submit "$RUNNER_TEMP/Design-Ruler-$VERSION.dmg" \
+          xcrun notarytool submit "$RUNNER_TEMP/$DMG_NAME" \
             --apple-id "$APPLE_ID" \
             --team-id "$TEAM_ID" \
             --password "$NOTARY_PASSWORD" \
             --wait
-          xcrun stapler staple "$RUNNER_TEMP/Design-Ruler-$VERSION.dmg"
+          xcrun stapler staple "$RUNNER_TEMP/$DMG_NAME"
+
+      - name: Write release notes
+        run: |
+          NOTES="$RUNNER_TEMP/notes.md"
+          : > "$NOTES"
+          if [ "$SIGNED" != "true" ]; then
+            cat > "$NOTES" <<'EOF'
+          ## Installing this build
+
+          This build isn't signed with a Developer ID or notarized, so macOS blocks it the first time you open it.
+
+          1. Open the DMG and drag **Design Ruler** to Applications.
+          2. Open it once. When macOS refuses, go to **System Settings → Privacy & Security** and click **Open Anyway**. Or run:
+             ```
+             xattr -dr com.apple.quarantine "/Applications/Design Ruler.app"
+             ```
+          3. Grant **Screen Recording** when asked. Each new unsigned build needs it granted again.
+
+          Design Ruler is in beta and unsigned builds can't update themselves: **Check GitHub for Updates** in the menu bar opens this page.
+
+          EOF
+          fi
+          echo "NOTES=$NOTES" >> $GITHUB_ENV
 
       - name: Create draft release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # Generated notes start at the previous app version: otherwise GitHub picks the newest tag
+          # it can reach, which can be a milestone tag like v1.3
+          PREV=$(git tag -l 'v*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | grep -vx "$GITHUB_REF_NAME" | head -1 || true)
+          START=()
+          if [ -n "$PREV" ]; then START=(--notes-start-tag "$PREV"); fi
+          # 0.x is the beta. Unsigned builds can't update themselves, so they're marked pre-release;
+          # signed ones stay regular releases because Sparkle's feed (releases/latest) skips
+          # pre-releases
+          TITLE="Design Ruler $VERSION"
+          case "$VERSION" in 0.*) TITLE="$TITLE Beta" ;; esac
+          FLAGS=()
+          if [ "$SIGNED" != "true" ]; then FLAGS=(--prerelease); fi
+          # --notes is prepended to the generated notes
           gh release create "$GITHUB_REF_NAME" \
-            "$RUNNER_TEMP/Design-Ruler-$VERSION.dmg" \
+            "$RUNNER_TEMP/$DMG_NAME" \
             --draft \
-            --title "Design Ruler $VERSION" \
-            --generate-notes
+            --title "$TITLE" \
+            --notes "$(cat "$NOTES")" \
+            --generate-notes "${START[@]}" "${FLAGS[@]}"
 
       - name: Cleanup keychain
-        if: always()
+        if: always() && env.SIGNED == 'true'
         run: security delete-keychain $RUNNER_TEMP/signing.keychain-db 2>/dev/null || true

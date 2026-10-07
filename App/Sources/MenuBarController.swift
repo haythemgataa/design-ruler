@@ -81,8 +81,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         settingsItem.target = self
         settingsItem.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: nil)
 
+        // Unsigned beta builds can't update themselves: the item opens GitHub Releases instead
         let updateItem = menu.addItem(
-            withTitle: "Check for Updates\u{2026}",
+            withTitle: AppBuild.canAutoUpdate ? "Check for Updates\u{2026}" : "Check GitHub for Updates\u{2026}",
             action: #selector(checkForUpdates),
             keyEquivalent: "r"
         )
