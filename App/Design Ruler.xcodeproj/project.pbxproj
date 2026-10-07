@@ -18,6 +18,7 @@
 		BFC3485E1372FF94BABA9DE0 /* HotkeyController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BC7DBCD53F37054366E0C88 /* HotkeyController.swift */; };
 		C2BE808A7C9F9E3AAEF639DC /* HotkeyNames.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD314E724D02BF2C617BAC2A /* HotkeyNames.swift */; };
 		C44F43EAD7A4AC58D2C961AC /* MenuBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE9C771BF5E79418EAC8B52D /* MenuBarController.swift */; };
+		FBB3113CF96437ACDA518030 /* AppBuild.swift in Sources */ = {isa = PBXBuildFile; fileRef = B52D4DDE6FEA07D444DA1D11 /* AppBuild.swift */; };
 		FF507CAD04EC8B8A0F27CA58 /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C501D2220A1160A846E23063 /* SettingsWindowController.swift */; };
 /* End PBXBuildFile section */
 
@@ -29,6 +30,7 @@
 		8E2A2FC6A019669DE4932532 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		AF668E1EE53EFBB40921CA92 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		B137A9B4A6F51A0A83C8F073 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		B52D4DDE6FEA07D444DA1D11 /* AppBuild.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppBuild.swift; sourceTree = "<group>"; };
 		B8083D7E1A97B454FC557B93 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		C501D2220A1160A846E23063 /* SettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
 		CDC1A43CCD6F114100681FC1 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
@@ -71,6 +73,7 @@
 		A91DD6835439210DEA39A9ED /* Sources */ = {
 			isa = PBXGroup;
 			children = (
+				B52D4DDE6FEA07D444DA1D11 /* AppBuild.swift */,
 				AF668E1EE53EFBB40921CA92 /* AppDelegate.swift */,
 				352435AF79AA05A40B976755 /* AppPreferences.swift */,
 				8E2A2FC6A019669DE4932532 /* Assets.xcassets */,
@@ -168,6 +171,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FBB3113CF96437ACDA518030 /* AppBuild.swift in Sources */,
 				0CE41A90E9AAA51468BE08E5 /* AppDelegate.swift in Sources */,
 				449BBFE30F0F0227E8F55CFB /* AppPreferences.swift in Sources */,
 				BFC3485E1372FF94BABA9DE0 /* HotkeyController.swift in Sources */,

@@ -169,7 +169,7 @@ jobs:
              ```
           3. Grant **Screen Recording** when asked. Each new unsigned build needs it granted again.
 
-          Check for Updates in the app won't find unsigned releases: download new versions from this page.
+          Design Ruler is in beta and unsigned builds can't update themselves: **Check GitHub for Updates** in the menu bar opens this page.
 
           EOF
           fi
@@ -184,13 +184,20 @@ jobs:
           PREV=$(git tag -l 'v*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | grep -vx "$GITHUB_REF_NAME" | head -1 || true)
           START=()
           if [ -n "$PREV" ]; then START=(--notes-start-tag "$PREV"); fi
+          # 0.x is the beta. Unsigned builds can't update themselves, so they're marked pre-release;
+          # signed ones stay regular releases because Sparkle's feed (releases/latest) skips
+          # pre-releases
+          TITLE="Design Ruler $VERSION"
+          case "$VERSION" in 0.*) TITLE="$TITLE Beta" ;; esac
+          FLAGS=()
+          if [ "$SIGNED" != "true" ]; then FLAGS=(--prerelease); fi
           # --notes is prepended to the generated notes
           gh release create "$GITHUB_REF_NAME" \
             "$RUNNER_TEMP/$DMG_NAME" \
             --draft \
-            --title "Design Ruler $VERSION" \
+            --title "$TITLE" \
             --notes "$(cat "$NOTES")" \
-            --generate-notes "${START[@]}"
+            --generate-notes "${START[@]}" "${FLAGS[@]}"
 
       - name: Cleanup keychain
         if: always() && env.SIGNED == 'true'

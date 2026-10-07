@@ -38,6 +38,7 @@ Standalone App (App/)
   │   ├─ HotkeyController.swift    — session-aware global hotkey dispatch
   │   ├─ HotkeyNames.swift         — KeyboardShortcuts.Name extensions (.measure, .alignmentGuides)
   │   ├─ AppPreferences.swift      — @Observable singleton over UserDefaults
+  │   ├─ AppBuild.swift            — version, beta flag, canAutoUpdate (Developer ID Team ID present)
   │   ├─ SettingsView.swift        — SwiftUI Form (header, General, Measure, Shortcuts, footer)
   │   ├─ SettingsWindowController.swift — NSWindow lifecycle (3-branch reuse)
   │   ├─ DesignRuler.entitlements  — Hardened Runtime (empty dict)
@@ -736,7 +737,9 @@ nothing captured).
 
 ### Menu Bar (MenuBarController)
 - `NSStatusItem` with "ruler" SF Symbol (template mode for dark/light)
-- Dropdown: Measure, Alignment Guides, separator, Settings..., Check for Updates..., separator, Quit
+- Dropdown: Measure, Alignment Guides, separator, Settings..., Check for Updates..., separator, Quit.
+  In builds that can't update themselves the update item reads "Check GitHub for Updates…" and
+  opens GitHub Releases
 - `setActive(true/false)` swaps icon to "ruler.fill" / "ruler"
 - `anySessionActive` guard before `setActive(true)` prevents stuck icon
 - Decoupled from coordinators via callbacks (`onMeasure`, `onAlignmentGuides`, etc.)
@@ -744,17 +747,23 @@ nothing captured).
   disable/enable global hotkeys during menu tracking
 
 ### Settings (SettingsView + SettingsWindowController)
-- SwiftUI Form with `.grouped` style, System Settings look: header (icon, version, Check for
-  Updates), General (Launch at Login, Hide Hint Bar, auto-update toggle), Measure (Border
-  Corrections menu), Keyboard Shortcuts (both recorders + footer), footer (copyright, GitHub)
+- SwiftUI Form with `.grouped` style, System Settings look: header (icon, name with a Beta badge
+  for 0.x versions, version, Check for Updates), General (Launch at Login, Hide Hint Bar,
+  auto-update toggle), Measure (Border Corrections menu), Keyboard Shortcuts (both recorders +
+  footer), footer (copyright, GitHub)
+- Builds that can't update themselves (`AppBuild.canAutoUpdate` false: no Team ID, i.e. the
+  unsigned beta) disable Check for Updates and the auto-update toggle, and General's footer links
+  to GitHub Releases
 - Every row uses `SettingLabel`: colored SF Symbol tile, title, one-line explanation.
   Border Corrections' explanation follows the selected mode; shortcut conflicts replace the
   explanation with an orange warning
 - `AppPreferences` is `@Observable` singleton with computed properties over `UserDefaults`
 - Preferences read inside overlay-launch closures (at invocation time, not capture time)
 - Launch at Login: `SMAppService.mainApp.register()`/`.unregister()`, `.onAppear` re-syncs
-- Sparkle: `SPUStandardUpdaterController(startingUpdater: true)` created in
-  `applicationDidFinishLaunching`, auto-check toggle, Check for Updates button
+- Sparkle: `SPUStandardUpdaterController(startingUpdater: AppBuild.canAutoUpdate)` created in
+  `applicationDidFinishLaunching`, auto-check toggle, Check for Updates button. Only a
+  Developer ID release (Team ID present) starts it: ad-hoc builds would fail Sparkle's signature
+  check and have no appcast. Ship the Sparkle key together with the Developer ID secrets
 - Version: `Info.plist` reads `$(MARKETING_VERSION)` / `$(CURRENT_PROJECT_VERSION)`;
   CI sets them from the tag and `git rev-list --count HEAD`
 - SettingsWindowController: 3-branch reuse (visible → bring to front, hidden → re-center + show, nil → create new)
@@ -801,8 +810,10 @@ nothing captured).
   1. Merge to `main`, then `git tag v0.X.Y && git push origin v0.X.Y`
   2. `build-release.yml` creates a **draft** release with the DMG (notarized, or unsigned while
      the Developer ID secrets are missing) — download and check it
-  3. Publish the draft with "Set as the latest release" on. Do NOT mark it pre-release:
-     `releases/latest/download/appcast.xml` skips pre-releases, so the Sparkle feed would 404
+  3. Publish the draft. 0.x releases are titled "Design Ruler X.Y.Z Beta"; unsigned ones arrive
+     marked pre-release (they can't update themselves anyway). Never mark a signed release
+     pre-release: `releases/latest/download/appcast.xml` skips pre-releases, so the Sparkle feed
+     would 404
   4. `update-appcast.yml` attaches `appcast.xml` to the published release
   - Failed run: delete the draft and the tag (`git push --delete origin v0.X.Y`), fix, re-tag
 
@@ -1008,7 +1019,10 @@ Bugs encountered and fixed — avoid re-introducing these:
 - [ ] Changing hideHintBar/corrections in Settings takes effect on next session
 - [ ] Launch at Login toggle syncs with System Settings Login Items
 - [ ] Reopening Settings shows correct Launch at Login state
-- [ ] Check for Updates menu item present and does not crash
+- [ ] Check for Updates menu item present and does not crash; in an unsigned build it reads
+  "Check GitHub for Updates…" and opens GitHub Releases
+- [ ] Settings shows a Beta badge for 0.x; in an unsigned build Check for Updates and the
+  auto-update toggle are disabled and the General footer links to GitHub Releases
 - [ ] Shortcut recorder in Settings accepts key combinations
 - [ ] Assigned hotkey fires from any external app (Figma, Finder, etc.)
 - [ ] Same hotkey while overlay active toggles it off

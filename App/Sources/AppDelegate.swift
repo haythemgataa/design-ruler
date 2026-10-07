@@ -50,9 +50,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverDelegat
         MeasureCoordinator.shared.runMode = .standalone
         AlignmentGuidesCoordinator.shared.runMode = .standalone
 
-        // Start Sparkle at launch so scheduled update checks run without opening Settings
+        // Start Sparkle at launch so scheduled update checks run without opening Settings. Unsigned
+        // beta builds can't update themselves, so their updater never starts (see AppBuild)
         updaterController = SPUStandardUpdaterController(
-            startingUpdater: true,
+            startingUpdater: AppBuild.canAutoUpdate,
             updaterDelegate: nil,
             userDriverDelegate: self
         )
@@ -81,7 +82,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverDelegat
             AlignmentGuidesCoordinator.shared.run(hideHintBar: AppPreferences.shared.hideHintBar)
         }
         menuBarController.onCheckForUpdates = { [weak self] in
-            self?.updaterController.checkForUpdates(nil)
+            if AppBuild.canAutoUpdate {
+                self?.updaterController.checkForUpdates(nil)
+            } else {
+                NSWorkspace.shared.open(AppBuild.releasesURL)
+            }
         }
         menuBarController.onOpenSettings = { [weak self] in
             guard let self else { return }
