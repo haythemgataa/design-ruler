@@ -794,14 +794,17 @@ nothing captured).
   - `build-release.yml`: a `vX.Y.Z` tag (three numbers: milestone tags like `v1.2` don't
     match) → draft release. With all six Developer ID secrets: archive, sign, notarize, staple,
     `Design-Ruler-X.Y.Z.dmg`. Without them: the ci.yml-style ad-hoc build (hardened runtime off),
-    `Design-Ruler-X.Y.Z-unsigned.dmg`, and install notes prepended to the generated release notes.
+    `Design-Ruler-X.Y.Z-unsigned.dmg`, and install notes ahead of the change list.
     Both paths check the bundle's version and build number, `codesign --verify` and library
-    validation
+    validation. The change list comes from GitHub's generate-notes API, starting at the previous
+    `vX.Y.Z` tag, rewritten to "Title (#N)" (no author credits, no New Contributors; no compare
+    link on a first release)
   - `update-appcast.yml`: release-publish → EdDSA sign whichever DMG the release has →
     appcast.xml → upload. Skips itself (with a notice) while `SPARKLE_PRIVATE_KEY` isn't set
 - Unsigned test DMGs: macOS blocks them on first open — Privacy & Security → Open Anyway, or
   `xattr -dr com.apple.quarantine "/Applications/Design Ruler.app"`. Screen Recording must be
-  re-granted per build (ad-hoc signature changes every build)
+  re-granted per build (ad-hoc signature changes every build): the old entry in Privacy & Security
+  → Screen Recording no longer matches, so remove it with − and add the app again with +
 - GitHub Secrets, all optional: `DEVELOPER_ID_CERT_BASE64`, `DEVELOPER_ID_CERT_PASSWORD`,
   `KEYCHAIN_PASSWORD`, `APPLE_ID`, `NOTARY_PASSWORD`, `TEAM_ID` (signed releases) and
   `SPARKLE_PRIVATE_KEY` (appcast). None are set yet, so releases are unsigned and Check for
