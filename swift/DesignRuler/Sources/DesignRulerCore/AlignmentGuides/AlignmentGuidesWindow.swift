@@ -108,6 +108,8 @@ package final class AlignmentGuidesWindow: OverlayWindow {
 
     // MARK: - Overridable Hooks
 
+    override package var launchWaveStyle: LaunchWave.Style { .lines }
+
     override package func handleActivation() {
         onActivate?(self)
     }

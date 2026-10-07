@@ -65,7 +65,7 @@ Shared Swift (swift/DesignRuler/)
   │   ├─ Rendering/
   │   │   ├─ PillRenderer.swift         — shared pill factories, font, paths, text, shadows
   │   │   ├─ HintBarView.swift          — glass hint bar, slide animation, expand/collapse
-  │   │   ├─ LaunchRipple.swift         — Metal launch ripple (inline shader, CAMetalLayer)
+  │   │   ├─ LaunchWave.swift           — launch animation: grid wave from the cursor, dots (Measure) / lines (Guides)
   │   │   └─ HintBarContent.swift       — SwiftUI keycap layouts, HintBarTextStyle
   │   ├─ AlignmentGuides/
   │   │   ├─ AlignmentGuidesCoordinator.swift — open class, OverlayCoordinator subclass
@@ -216,8 +216,8 @@ Creating fullscreen windows steals focus — title bars gray out. Fix:
 // 5. setActivationPolicy(.accessory)
 // 6. Cleanup old windows
 // 7. createWindow() per captured screen — subclass factory; wireCallbacks() — subclass wiring
-// 8. Show all windows
-// 9. makeKey cursor screen, showInitialState(), playLaunchRipple() on every window
+// 8. Show all windows, playLaunchWave() on each
+// 9. makeKey cursor screen, showInitialState()
 // 10. Signal handler, inactivity timer, app.run()
 ```
 
@@ -583,33 +583,35 @@ viewport: pan-out (`peekPan` 0.2s) → hold (`peekHold` 0.6s) → return
 travels with the content. Return phase runs from a cancellable
 `DispatchWorkItem`; `isPeekAnimating` guards pan updates.
 
-### Launch Ripple (LaunchRipple)
-On launch a frosted, refracting ripple spreads from the hint bar's center (`hintBarView.frame.midY`;
-48pt above the bottom on screens without a bar) across every screen over `DesignTokens.Animation.launchRipple` (1s,
-easeOut cubic). Parameters were tuned in a browser WebGL prototype and live as constants in
-`LaunchRippleRenderer`.
-- Metal fragment shader compiled at runtime from an inline source string (no `.metal` /
-  `.metallib` resources: Raycast ships only the binary). `prepare()` starts the compile at the top
-  of `run()` so it overlaps screen capture (~35ms); the pipeline is cached for later sessions
-- Per window, the screenshot is loaded off-main into a mipmapped texture (`MTKTextureLoader`);
-  the blur samples mips so large radii stay smooth
-- Drawn into a non-opaque `CAMetalLayer` added as a sublayer of `contentLayer`, so it zooms and
-  pans with the screenshot and stays below all overlay UI. Outside the ring the shader returns
-  transparent and the screenshot shows through. Driven by `NSView.displayLink` capped at 60fps
-- Drawn at point resolution (half-size drawable on Retina, ¼ the fragments); `baseLod` makes
-  the shader sample the matching mip so the refraction doesn't alias. 8-tap mip-sampled blur
-- At most `maximumDrawableCount - 1` drawables awaiting presentation (counted until each
-  drawable's presented handler fires, not GPU completion: a finished command buffer doesn't free
-  its drawable). A tick is skipped instead of blocking the main thread in `nextDrawable()`, which
-  waits up to 1s for a free drawable (a residual wait of a few ms is possible)
-- The shader is the identity at t = 0 and t = 1, and an opacity ramp (in over 8%, out over the
-  last 12%) covers the handoffs, so switching back to the plain screenshot is invisible. The ramp
-  is premultiplied alpha in the shader, never a layer animation (see section 18). The layer is
-  removed when done
-- Tuning constants live in the shader source; only resolution, origin, progress (linear and
-  eased), base mip level and opacity are uniforms
-- Skipped if the shader or texture isn't ready within 0.25s of launch, and with Reduce Motion
-- Cancelled on exit
+### Launch Wave (LaunchWave)
+On launch a wave of grid marks spreads from the cursor over `DesignTokens.Animation.launchWave` (1.5s,
+easeOut cubic), with a soft halo near the front, a light wash across the band and a 1pt line at the
+front, all under the crosshair's difference blend. `OverlayWindow.launchWaveStyle` picks the marks:
+Measure keeps `.dots` (1.5pt dots every 12pt, every 8th a 3pt major), Alignment Guides overrides
+with `.lines` (one-pixel grid lines on the same 12pt grid, every 8th brighter). Tuned in a browser
+prototype; the values live in `LaunchWave.Look`.
+- Core Animation only, nothing on the main thread per frame and nothing screen-sized to draw or upload:
+  `start()` draws one 96pt tile of 8×8 marks (and one of their halos), ~2-3ms per screen, then the
+  render server runs every frame. Nested `CAReplicatorLayer`s repeat the tile from the screen's
+  top-left: screen-sized bitmaps cost ~80ms of commit (copied to the render server) and ~110MB
+- Layers in a container under `contentLayer` (zooms with the screenshot, stays below overlay UI):
+  wash = radial `CAGradientLayer`; halo and marks = replicated tiles masked by radial gradients;
+  ring = stroked `CAShapeLayer`. The container has `compositingFilter = difference` and a filled
+  circle mask (half a pixel past the ring's outer edge, so it keeps the ring's antialiasing) that is
+  the hard front. The mask path also carries zero-length subpaths at two opposite screen corners
+  so its bounding box is screen-sized from the first frame (section 18)
+- The band moves by keyframing the gradients' `locations` and the circles' `path` at 60fps with
+  the easing baked in, so every keyframe differs from the last (section 18). The timeline starts
+  once the front has left the origin (`startProgress`): before that every stop sits clamped at 0
+  and the locations would hold still. The fade-in is its own short opacity animation
+- `CAGradientLayer` draws in 256 steps (radius/256 per step, 10-20pt across a screen), so the
+  gradients only shape the smooth falloff; the front edge and line are vector shapes
+- Band geometry per screen: band width = 40% of (distance from the cursor to the screen's farthest
+  corner − distance from the cursor to the screen). The cursor's screen starts at the cursor; other screens get the cursor's
+  position in their coordinates (off-screen) and the wave sweeps in from that side
+- Removed by the completion block of the transaction that adds every animation (set before any
+  is added: the block only waits for animations added after it); cancelled on exit; skipped with
+  Reduce Motion
 - Never moves the screenshot itself: measurements stay exact during the animation
 
 ### Fade-In Pattern
@@ -913,13 +915,33 @@ Bugs encountered and fixed — avoid re-introducing these:
 - **Constant-value Core Animation in a fullscreen overlay (macOS 27)**: while an animation in the
   window's layer tree is attached but not changing, e.g. the middle of a `[0, 1, 1, 0]` keyframe or
   one with a future `beginTime`, the built-in ProMotion display shows no new frames from that
-  window until the value changes again. The launch ripple's opacity keyframe did this: every
-  drawable stayed held, `nextDrawable()` blocked the main thread ~300-700ms, and the whole overlay
-  froze on every launch. Completed animations kept with `fillMode = .forwards` are fine, as are
+  window until the value changes again. The old Metal launch ripple's opacity keyframe did this:
+  every drawable stayed held, `nextDrawable()` blocked the main thread ~300-700ms, and the whole
+  overlay froze on every launch. Completed animations kept with `fillMode = .forwards` are fine, as are
   holds in other windows. Keep every overlay animation changing for its whole duration (drive
   holds with timers, as peek does). Only lone animations were tested: delayed starts that overlap
   a changing animation (`ColorCircleIndicator`'s backwards-filled stagger, `SelectionOverlay`'s
   delayed fade inside the shake group) are unverified.
+
+- **CATransaction completion block set after the animations**: the block only waits for animations
+  added after `setCompletionBlock`. The first launch wave added its keyframes in helpers before
+  `begin()`/`setCompletionBlock`, so the block fired when the 0.12s fade-in ended and removed the
+  wave 0.2s into its 1.5s run. Begin the transaction and set the block before adding anything.
+
+- **Screen-sized bitmaps as layer contents at launch**: `CGContext.makeImage` images are copied
+  to the render server at commit. Two Retina screens of dot bitmaps (~110MB) grew the first commit
+  from ~5ms to ~85ms and delayed the overlay's first frame by 100-150ms. Repeat a small tile with
+  `CAReplicatorLayer` instead.
+
+- **A masked group whose mask grows**: the render server sizes a masked or filtered group's
+  offscreen to the mask's bounding box and reallocates it as the mask grows. The wave's growing
+  circle mask dropped 1-2 frames ~0.25s in (when the circle reached the screen edges) on two
+  Retina screens. Zero-length subpaths at opposite screen corners make the path's bounding box
+  screen-sized from frame 1 without filling anything (mid-wave drops 57% → 19% of sessions).
+
+- **Fine detail in a CAGradientLayer**: the ramp is drawn in 256 steps over the gradient's full
+  length, so a hard stop or a 1pt band smears over length/256 (15px at a 4000px radius). Use a
+  `CAShapeLayer` (or a mask) for edges and thin lines; keep gradients for smooth falloffs.
 
 ---
 
@@ -982,10 +1004,13 @@ Bugs encountered and fixed — avoid re-introducing these:
 - [ ] Pill shows "0000 × 0000" on launch, fades in (design ruler)
 - [ ] Pill animates smoothly when flipping sides near edges
 - [ ] Hint bar slides (not jumps) when swapping top/bottom
-- [ ] Launch ripple plays from the hint bar on every screen, no pop when it ends
-- [ ] Launch ripple doesn't freeze the overlay on the built-in display (cursor on each screen,
+- [ ] Launch wave plays on every launch, from the cursor: dots in Measure, grid lines in Alignment
+  Guides; other screens get it sweeping in from the cursor's side; no pop when it ends
+- [ ] Launch wave shows on light, dark and mid-tone backgrounds (dots or grid lines, and the front
+  line, invert)
+- [ ] Launch wave doesn't freeze the overlay on the built-in display (cursor on each screen,
   hint bar on and off); the crosshair keeps tracking during it
-- [ ] Launch ripple skipped with Reduce Motion; Z during the ripple zooms it with the screenshot
+- [ ] Launch wave skipped with Reduce Motion; Z during the wave zooms it with the screenshot
 - [ ] macOS 14/15: collapsed hint bar panels slide in from the expanded bar's edges
 
 ### Standalone App
