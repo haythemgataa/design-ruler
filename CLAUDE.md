@@ -236,9 +236,11 @@ Creating fullscreen windows steals focus — title bars gray out. Fix:
 // 10. Signal handler, inactivity timer, app.run()
 ```
 
-`ScreenCapture.captureScreens(_:)` runs one `SCShareableContent` query and captures
-every display concurrently in a detached task, waiting at most 5s for the whole batch.
-There is no warmup capture: it only doubled the work.
+`ScreenCapture.captureScreens(_:)` captures every screen concurrently in a detached task, waiting
+at most 5s for the whole batch. On macOS 15.2+ it captures each screen's rect with
+`SCScreenshotManager.captureImage(in:)`, which matches `screencapture`: window shadows and the menu
+bar's backdrop included, cursor left out. macOS 14 to 15.1 fall back to a display filter (one
+`SCShareableContent` query), which drops them. There is no warmup capture: it only doubled the work.
 
 The cursor screen gets the hint bar; other screens get `hideHintBar: true`.
 
@@ -1138,6 +1140,13 @@ Bugs encountered and fixed — avoid re-introducing these:
   `SelectionManager` rounded (`Int(round(width))`), so the same button read 80 on hover and 81
   dragged around. Both truncate; keep any new size pill the same.
 
+- **Display-filter screenshots drop window shadows**: `SCContentFilter(display:…)` with
+  `SCScreenshotManager.captureImage(contentFilter:configuration:)` leaves out window shadows and
+  the menu bar's backdrop on macOS 26/27, although `ignoreShadowsDisplay` defaults to false, so the
+  frozen overlay showed windows without shadows. `captureImage(in:)` (macOS 15.2+) matches
+  `screencapture` pixel for pixel, still without the cursor, and is faster (~60ms vs ~170ms cold).
+  Edges now include shadows too: dragging around a window snaps to its shadow, as on screen.
+
 - **Session starting state applied only in `activate()`**: `OverlayCoordinator.run()` calls
   `showInitialState()` on the cursor window and never `activateWindow` on it, so state synced only
   on activation leaves that window on the defaults while the other screens match. Pass it into the
@@ -1191,6 +1200,7 @@ Bugs encountered and fixed — avoid re-introducing these:
 - [ ] Launches on the screen where cursor is (not always main)
 - [ ] No visible focus steal (capture-before-window works)
 - [ ] Screenshot is crisp (Retina)
+- [ ] Window shadows and the menu bar look the same in the overlay as on screen (macOS 15.2+)
 - [ ] Crosshair visible on both light and dark backgrounds
 - [ ] Lines extend to edges or screen boundaries in all 4 directions
 - [ ] Cross-foot marks only at detected edges
