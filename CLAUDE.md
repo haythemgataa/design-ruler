@@ -868,7 +868,8 @@ nothing captured). The Guides handler also saves `styleName`/`directionName` int
     Both paths check the bundle's version and build number, `codesign --verify` and library
     validation. The change list comes from GitHub's generate-notes API, starting at the previous
     `vX.Y.Z` tag, rewritten to "Title (#N)" (no author credits, no New Contributors; no compare
-    link on a first release)
+    link on a first release) and sorted: features, then fixes, then the rest, by the PR title's
+    conventional-commit prefix (`feat`, `fix`), merge order within each group
   - `update-appcast.yml`: release-publish → EdDSA sign whichever DMG the release has →
     appcast.xml → upload. Skips itself (with a notice) while `SPARKLE_PRIVATE_KEY` isn't set
 - Unsigned test DMGs: macOS blocks them on first open — Privacy & Security → Open Anyway, or

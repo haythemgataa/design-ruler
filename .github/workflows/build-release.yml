@@ -189,7 +189,21 @@ jobs:
                 skip && /^\*\*Full Changelog\*\*/ { skip = 0 }
                 skip { next }
                 /^\*\*Full Changelog\*\*/ && prev == "" { next }
-                { print }' >> "$NOTES"
+                { print }' \
+            | awk '
+                # Features first, then fixes, then the rest, each group in merge order. Grouped by
+                # the PR title: "feat:" / "feat(scope):" (or a plain "Feat "), same for fix
+                function flush(  g) { for (g = 1; g <= 3; g++) printf "%s", group[g]; delete group; n = 0 }
+                /^\* / {
+                  title = tolower(substr($0, 3))
+                  if (title ~ /^feat[(:! ]/) g = 1
+                  else if (title ~ /^fix[(:! ]/) g = 2
+                  else g = 3
+                  group[g] = group[g] $0 "\n"; n++; next
+                }
+                n { flush() }
+                { print }
+                END { if (n) flush() }' >> "$NOTES"
           echo "NOTES=$NOTES" >> $GITHUB_ENV
 
       - name: Create draft release
