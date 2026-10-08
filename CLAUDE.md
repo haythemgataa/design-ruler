@@ -280,7 +280,9 @@ let scale = CGFloat(pixelWidth) / screenFrame.width  // 2.0 on Retina
 
 ### Edge Skipping (Arrow Keys)
 Skip counts per direction. Arrow key increments, shift+arrow decrements,
-mouse move resets all to 0.
+mouse move resets all to 0. Both stop at the ends (they return nil, so nothing updates):
+an arrow once the line runs to the screen edge (no edge before or after the press, compared
+on what's shown since Smart mode's two scans can disagree), shift+arrow at the nearest edge.
 
 **Stabilization algorithm**:
 ```
@@ -405,6 +407,7 @@ When an arrow-key skip lands on an edge outside the zoomed viewport,
 - `peekGeneration` is bumped on every peek and cancel; the return item and its
   completion only act if the generation still matches
 - Visibility test uses a 20px margin at the viewport edges
+- Past the last edge the line runs to the screen edge, and the peek reveals that
 - No-op at 1x
 
 ---
@@ -514,7 +517,8 @@ process with `NSApp.terminate`, so nothing returns to TypeScript.
 - **Launch**: captures all screens, fullscreen overlays appear, cursor hidden,
   CAShapeLayer crosshair renders, pill fades in at cursor with "0000 × 0000"
 - **Mouse move**: crosshair follows cursor, edges detected, W×H updates.
-- **Arrow keys**: skip to next edge in that direction
+- **Arrow keys**: skip to next edge in that direction, stopping once the line reaches the
+  screen edge
 - **Shift+arrow**: un-skip (bring edge closer)
 - **Mouse move**: resets all skip counts
 - **Drag**: select region with snap-to-edges (minimum 4x4px, shake on too-small)
@@ -1239,6 +1243,8 @@ Bugs encountered and fixed — avoid re-introducing these:
 - [ ] Cross-foot marks only at detected edges
 - [ ] W×H pill correct, flips at screen edges
 - [ ] Arrow keys skip edges; shift+arrow reverses
+- [ ] Past the last edge, more arrow presses do nothing, and one shift+arrow brings the last
+  edge back
 - [ ] Mouse move resets skip counts
 - [ ] Drag-to-select snaps to edges, minimum 4x4px enforced
 - [ ] Dragging around a bordered button shows the same W × H as hovering inside it (Smart / Always)
@@ -1251,7 +1257,8 @@ Bugs encountered and fixed — avoid re-introducing these:
 - [ ] Zoomed pixels are crisp (nearest-neighbor, not blurred)
 - [ ] W×H measurements stay correct at 2x and 4x
 - [ ] Drag-to-select and hover-to-remove work while zoomed
-- [ ] Arrow-key skip to an off-viewport edge peek-pans, holds, returns
+- [ ] Arrow-key skip to an off-viewport edge peek-pans, holds, returns; the skip that runs
+  the line to the screen edge peeks at the screen edge
 - [ ] Mouse move during a peek cancels it cleanly
 - [ ] ESC exits silently
 
