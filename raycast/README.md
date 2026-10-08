@@ -11,9 +11,14 @@ Design Ruler reads the screen, so Raycast needs the Screen Recording permission:
 
 Until then, the commands show a message pointing to that setting instead of the overlay.
 
-## Measure
+## <img src="media/measure-icon.png" width="32" valign="middle" alt=""> Measure
 
 Hover anything to see the distance to its edges in all four directions, with a live W × H. Drag to measure an area: the selection snaps to the edges it finds.
+
+<p align="center">
+  <img src="media/measure-01.png" width="48%" alt="Hover to measure anything: the crosshair on a button reads W 32 × H 32">
+  <img src="media/measure-02.png" width="48%" alt="Drag to measure areas: selections around a search field and a button group read 197 × 32 and 57 × 32">
+</p>
 
 | Key | Action |
 |---|---|
@@ -24,9 +29,14 @@ Hover anything to see the distance to its edges in all four directions, with a l
 | Z | Zoom 1x → 2x → 4x |
 | Esc | Exit |
 
-## Alignment Guides
+## <img src="media/alignment-guides-icon.png" width="32" valign="middle" alt=""> Alignment Guides
 
 Click to place vertical or horizontal guides. Each one shows its exact X or Y position while you place it.
+
+<p align="center">
+  <img src="media/alignment-guides-01.png" width="48%" alt="Line things up: vertical and horizontal guides in different colors along a sidebar, with the color picker">
+  <img src="media/alignment-guides-02.png" width="48%" alt="Know where every guide sits: a horizontal guide along two buttons with its Y 761 position pill">
+</p>
 
 | Key | Action |
 |---|---|
