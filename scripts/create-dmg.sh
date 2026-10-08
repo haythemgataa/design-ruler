@@ -14,7 +14,9 @@ trap 'rm -rf "$WORK"' EXIT
 mkdir -p "$WORK/staging"
 ditto "$APP" "$WORK/staging/Design Ruler.app"
 
-# 1200x800 art for a 600x400 window: tag it 144 DPI so Finder draws it at 600x400pt
+# 1200x864 art for a 600x432 window: tag it 144 DPI so Finder draws it at 600x432pt.
+# The window size includes the title bar (32pt on macOS 27, varies by version), so the content
+# area is ~600x400 with the icons centered in it; the bottom of the art is bleed.
 cp "$REPO_ROOT/scripts/assets/dmg-background.png" "$WORK/background.png"
 sips -s dpiWidth 144 -s dpiHeight 144 "$WORK/background.png" >/dev/null
 
@@ -31,7 +33,7 @@ create-dmg \
   --volicon "$VOLICON" \
   --background "$WORK/background.png" \
   --window-pos 200 120 \
-  --window-size 600 400 \
+  --window-size 600 432 \
   --icon-size 128 \
   --icon "Design Ruler.app" 150 200 \
   --app-drop-link 450 200 \
