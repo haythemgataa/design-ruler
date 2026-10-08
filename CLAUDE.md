@@ -334,11 +334,12 @@ Zoom introduces a third space on top of AppKit/CG (see section 4):
 - **window space** — where things actually appear on screen right now.
   Depends on the current zoom level and pan offset.
 
-`ZoomState.swift` provides the four mapping functions:
+`ZoomState.swift` provides the mapping functions:
 ```swift
 windowPointToCapturePoint(_:zoomState:screenSize:)  // window → capture
 capturePointToWindowPoint(_:zoomState:)             // capture → window
 panOffsetForZoom(cursorWindowPoint:currentZoom:newLevel:screenSize:)
+panOffsetForMove(from:to:zoomState:screenSize:)     // pan for a mouse move
 clampPanOffset(_:zoomLevel:screenSize:)
 ```
 
@@ -374,10 +375,19 @@ Key repeats are ignored.
 
 ### Pan (`updateZoomPan`)
 Called on every mouse move, BEFORE the subclass's `handleMouseMoved` (after the
-`cancelPanAnimations` hook, where Measure cancels an in-flight peek). Solves for
-the pan offset that maps the cursor's window point to the same capture point it
-would have at 1x — i.e. 1:1 cursor tracking. Guarded by `isZoomed`,
-`!isAnimatingZoom`, `!isPeekAnimating`.
+`cancelPanAnimations` hook, where Measure cancels an in-flight peek), with the
+previous cursor (`lastCursorPosition`) and the new one. Guarded by `isZoomed`,
+`!isAnimatingZoom`, `!isPeekAnimating`. `panOffsetForMove` gives 1:1 cursor tracking:
+the cursor's window point maps to the capture point it would be over at 1x, so the
+screen's edges reach the capture's edges.
+
+Measure's drag holds the view still (`mouseDragged` doesn't pan), so the selection
+follows the cursor on screen; panning would grow it zoom × faster than the cursor.
+That leaves the view out of step. Drag events record the cursor with
+`trackCursorWithoutPanning(to:)`, and the next moves close the gap in proportion to
+the distance moved toward the screen edge the cursor heads for, per axis: no jump,
+the content never moves with the cursor, and the view is back in step at the edge.
+In step, `panOffsetForMove` is exactly 1:1 tracking.
 
 ### Reset
 `resetZoom()` snaps back to 1x with identity transform, then calls `zoomDidChange()`
@@ -398,8 +408,10 @@ When an arrow-key skip lands on an edge outside the zoomed viewport,
 - pan-out `peekPan` (0.2s) → hold `peekHold` (0.6s) → return `peekReturn` (0.2s)
 - The crosshair layer gets a counter-translation so it visually travels with
   the content instead of staying pinned to the cursor
-- A `DispatchWorkItem` drives the return phase; mouse movement or Z cancels it
-  via `cancelPeek()` (user is taking over), which restores `peekHomePan`
+- A `DispatchWorkItem` drives the return phase; mouse movement, a click or Z cancels
+  it via `cancelPeek()` (user is taking over), which restores `peekHomePan`. A click
+  must cancel before it maps the cursor (`mouseDown`): the crosshair travels with the
+  peeked content, away from the hidden cursor
 - `peekHomePan` holds the cursor-tracking pan while a peek is in flight; a second
   arrow press measures from it, not from the peeked pan
 - `peekGeneration` is bumped on every peek and cancel; the return item and its
@@ -517,7 +529,8 @@ process with `NSApp.terminate`, so nothing returns to TypeScript.
 - **Arrow keys**: skip to next edge in that direction
 - **Shift+arrow**: un-skip (bring edge closer)
 - **Mouse move**: resets all skip counts
-- **Drag**: select region with snap-to-edges (minimum 4x4px, shake on too-small)
+- **Drag**: select region with snap-to-edges (minimum 4x4px, shake on too-small). While
+  zoomed the view holds still during the drag and eases back into step as the mouse moves on
 - **Hover selection**: pointing hand cursor, click to remove
 - **Z**: cycle zoom 1x → 2x → 4x → 1x (cursor-anchored)
 - **Arrow keys while zoomed**: peek pan reveals off-viewport edges, then returns
@@ -1096,6 +1109,18 @@ Bugs encountered and fixed — avoid re-introducing these:
   after the mouse stops. Cancel pan-blocking animations (peek) in
   `cancelPanAnimations`, not in `handleMouseMoved`, or the pan update bails.
 
+- **Snapping the pan back after a zoomed drag**: the drag holds the view still, and
+  `updateZoomPan` used to solve the 1:1 pan from the cursor alone, so the first move after
+  releasing jumped the screen by (zoom − 1) × the drag (900px for a 300pt drag at 4x).
+  Drags also never updated `lastCursorPosition`, so Z right after a drag zoomed around the
+  point the drag began. Record drag positions (`trackCursorWithoutPanning`) and pan from
+  the previous cursor and pan (`panOffsetForMove`), which eases back into step.
+
+- **A click mapped with a peek's pan**: during a peek the crosshair moves with the content,
+  away from the hidden cursor. `mouseDown` used the peeked pan, so a drag began the peek's
+  distance from the crosshair, and the peek's return then panned the view mid-drag.
+  `mouseDown` cancels the peek and applies the home pan first.
+
 - **Letter shortcuts by keyCode**: keyCode 6 is Z only on QWERTY (W on AZERTY, Y on
   QWERTZ). Match letters by `charactersIgnoringModifiers`, falling back to the keyCode
   only for layouts without Latin letters.
@@ -1251,6 +1276,10 @@ Bugs encountered and fixed — avoid re-introducing these:
 - [ ] Zoomed pixels are crisp (nearest-neighbor, not blurred)
 - [ ] W×H measurements stay correct at 2x and 4x
 - [ ] Drag-to-select and hover-to-remove work while zoomed
+- [ ] Zoomed drag: the view holds still while dragging, and the first move after release
+  doesn't jump the screen; moving to a screen edge still reaches the screenshot's edge
+- [ ] Z right after a zoomed drag zooms around the cursor, not where the drag began
+- [ ] Dragging during a peek starts the selection at the crosshair, and nothing pans mid-drag
 - [ ] Arrow-key skip to an off-viewport edge peek-pans, holds, returns
 - [ ] Mouse move during a peek cancels it cleanly
 - [ ] ESC exits silently
