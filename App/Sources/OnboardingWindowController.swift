@@ -1,5 +1,4 @@
 import AppKit
-import KeyboardShortcuts
 import SwiftUI
 
 /// What the onboarding window shows and where the user is in it.
@@ -17,7 +16,7 @@ final class OnboardingModel {
     private(set) var hasPermission: Bool
     private(set) var hasRequestedPermission: Bool
     /// The command whose shortcut changed last, and when: the menu bar artwork highlights it.
-    private(set) var lastShortcutChange: (name: KeyboardShortcuts.Name, date: Date)?
+    private(set) var lastShortcutChange: (command: Command, date: Date)?
 
     var onFinish: () -> Void = {}
 
@@ -72,8 +71,8 @@ final class OnboardingModel {
         if granted != hasPermission { hasPermission = granted }
     }
 
-    func shortcutChanged(_ name: KeyboardShortcuts.Name) {
-        lastShortcutChange = (name, Date())
+    func shortcutChanged(_ command: Command) {
+        lastShortcutChange = (command, Date())
     }
 
     /// macOS applies a new Screen Recording permission to an app only once it reopens. Waits for

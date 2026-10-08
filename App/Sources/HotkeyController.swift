@@ -10,18 +10,12 @@ final class HotkeyController {
     var onLaunchAlignmentGuides: (() -> Void)?
     var onSetActive: ((Bool) -> Void)?
 
-    enum Command {
-        case measure
-        case alignmentGuides
-    }
-
     @MainActor  // KeyboardShortcuts 3 is main-actor isolated
     func registerHandlers() {
-        KeyboardShortcuts.onKeyUp(for: .measure) { [weak self] in
-            self?.handleHotkey(command: .measure)
-        }
-        KeyboardShortcuts.onKeyUp(for: .alignmentGuides) { [weak self] in
-            self?.handleHotkey(command: .alignmentGuides)
+        for command in Command.allCases {
+            KeyboardShortcuts.onKeyUp(for: command.shortcutName) { [weak self] in
+                self?.handleHotkey(command: command)
+            }
         }
     }
 

@@ -334,14 +334,14 @@ private struct Pointer: View {
 /// The top of a screen: the menu bar with Design Ruler's menu open, showing the shortcuts as the
 /// user records them. The command whose shortcut just changed lights up.
 struct MenuBarArtwork: View {
-    let lastChange: (name: KeyboardShortcuts.Name, date: Date)?
+    let lastChange: (command: Command, date: Date)?
 
     private static let screen = CGRect(x: 60, y: 60, width: 360, height: 204)
     private static let menuBarHeight: CGFloat = 24
     /// The status item's left edge, which the menu lines up with.
     private static let itemX: CGFloat = 176
 
-    @State private var highlighted: KeyboardShortcuts.Name?
+    @State private var highlighted: Command?
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -360,7 +360,7 @@ struct MenuBarArtwork: View {
         .frame(width: OnboardingLayout.width, height: OnboardingLayout.artworkHeight)
         .task(id: lastChange?.date) {
             guard let lastChange else { return }
-            withAnimation(.easeOut(duration: 0.15)) { highlighted = lastChange.name }
+            withAnimation(.easeOut(duration: 0.15)) { highlighted = lastChange.command }
             try? await Task.sleep(for: .seconds(1.2))
             withAnimation(.easeOut(duration: 0.4)) { highlighted = nil }
         }
@@ -406,8 +406,8 @@ struct MenuBarArtwork: View {
 
     private var menu: some View {
         VStack(alignment: .leading, spacing: 0) {
-            item("Measure", shortcut: .measure)
-            item("Alignment Guides", shortcut: .alignmentGuides)
+            item(.measure)
+            item(.alignmentGuides)
             Divider().padding(.horizontal, 10).padding(.vertical, 4)
             item("Settings\u{2026}", keys: "\u{2318},")
         }
@@ -418,8 +418,9 @@ struct MenuBarArtwork: View {
         .shadow(color: .black.opacity(0.1), radius: 12, y: 6)
     }
 
-    private func item(_ title: String, shortcut name: KeyboardShortcuts.Name) -> some View {
-        item(title, keys: KeyboardShortcuts.getShortcut(for: name)?.description ?? "", isHighlighted: highlighted == name)
+    private func item(_ command: Command) -> some View {
+        item(command.title, keys: KeyboardShortcuts.getShortcut(for: command.shortcutName)?.description ?? "",
+             isHighlighted: highlighted == command)
     }
 
     private func item(_ title: String, keys: String, isHighlighted: Bool = false) -> some View {

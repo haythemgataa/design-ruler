@@ -36,7 +36,7 @@ Standalone App (App/)
   │   ├─ AppDelegate.swift         — wires MenuBar, Settings, Onboarding, Hotkeys, Coordinators; launchMeasure/launchAlignmentGuides
   │   ├─ MenuBarController.swift   — NSStatusItem, dropdown, icon state, callbacks
   │   ├─ HotkeyController.swift    — session-aware global hotkey dispatch
-  │   ├─ HotkeyNames.swift         — KeyboardShortcuts.Name extensions (.measure, .alignmentGuides)
+  │   ├─ HotkeyNames.swift         — KeyboardShortcuts.Name extensions + Command (title, icon, shortcut name, other)
   │   ├─ AppPreferences.swift      — @Observable singleton over UserDefaults
   │   ├─ AppBuild.swift            — version, build, beta flag, canAutoUpdate (Developer ID Team ID present)
   │   ├─ SettingsView.swift        — the 3 tab views: General (with the app's version and updates), Measure, Alignment
@@ -826,9 +826,10 @@ nothing captured). The Guides handler also saves `styleName`/`directionName` int
   unsigned beta) disable Check for Updates and the auto-update toggle, and the toggles' footer links
   to GitHub Releases
 - Every row uses `SettingLabel`: title and a one-line explanation, no icon.
-  Count 1px Borders' explanation follows the selected mode. `ShortcutRow` rejects the other
-  command's shortcut (read from KeyboardShortcuts, so it works across the Measure and Alignment tabs)
-  and replaces the explanation with an orange warning
+  Count 1px Borders' explanation follows the selected mode. `ShortcutRow(command:)` wraps
+  `ShortcutRecorder`, which rejects the other command's shortcut (read from KeyboardShortcuts, so it
+  works across the Measure and Alignment tabs and in onboarding); the row replaces its explanation
+  with an orange warning
 - `AppPreferences` is `@Observable` singleton with computed properties over `UserDefaults`
 - Preferences read in `AppDelegate.launchMeasure()` / `launchAlignmentGuides()` (at invocation
   time, not capture time), shared by the menu bar and hotkey callbacks
@@ -895,7 +896,9 @@ nothing captured). The Guides handler also saves `styleName`/`directionName` int
 ### Global Hotkeys (HotkeyController)
 - `KeyboardShortcuts` 3.1.0 (Carbon Event Manager — not CGEventTap). Its API is `@MainActor`
   (`HotkeyController.registerHandlers()` is marked so; `MenuBarController` uses `assumeIsolated`)
-- `HotkeyNames`: `.measure` and `.alignmentGuides` (no defaults — user assigns)
+- `HotkeyNames`: `.measure` and `.alignmentGuides` (no defaults — user assigns), and `Command`: each
+  command's title, icon, shortcut name and the other command. The menu bar, hotkeys, Settings and
+  onboarding all read it, so the pair can't drift (a mismatched pair breaks the conflict check)
 - Three dispatch paths:
   1. **Toggle-off**: same hotkey while overlay active → `handleExit()`
   2. **Cross-switch**: different hotkey → exit current, `DispatchQueue.main.async` relaunch

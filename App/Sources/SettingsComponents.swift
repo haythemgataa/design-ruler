@@ -119,20 +119,18 @@ struct SettingLabel: View {
     }
 }
 
-/// Shortcut recorder row, showing a conflict (see ShortcutRecorder) in place of its explanation.
+/// A command's shortcut recorder row, showing a conflict (see ShortcutRecorder) in place of its
+/// explanation.
 struct ShortcutRow: View {
-    let detail: String
-    let name: KeyboardShortcuts.Name
-    let other: KeyboardShortcuts.Name
-    let otherTitle: String
+    let command: Command
 
     @State private var conflict: String?
 
     var body: some View {
         LabeledContent {
-            ShortcutRecorder(name: name, other: other, otherTitle: otherTitle, conflict: $conflict)
+            ShortcutRecorder(command: command, conflict: $conflict)
         } label: {
-            SettingLabel("Keyboard Shortcut", detail: detail, warning: conflict)
+            SettingLabel("Keyboard Shortcut", detail: "Opens \(command.title) from any app.", warning: conflict)
         }
     }
 }
@@ -140,17 +138,15 @@ struct ShortcutRow: View {
 /// Shortcut recorder that rejects a shortcut already used by the other command. It reads the other
 /// one from KeyboardShortcuts, so this works with the recorders in different tabs and windows.
 struct ShortcutRecorder: View {
-    let name: KeyboardShortcuts.Name
-    let other: KeyboardShortcuts.Name
-    let otherTitle: String
+    let command: Command
     @Binding var conflict: String?
     var onChange: () -> Void = {}
 
     var body: some View {
-        KeyboardShortcuts.Recorder(for: name) { newShortcut in
-            if let newShortcut, newShortcut == KeyboardShortcuts.getShortcut(for: other) {
-                KeyboardShortcuts.setShortcut(nil, for: name)
-                conflict = "Already assigned to \(otherTitle)"
+        KeyboardShortcuts.Recorder(for: command.shortcutName) { newShortcut in
+            if let newShortcut, newShortcut == KeyboardShortcuts.getShortcut(for: command.other.shortcutName) {
+                KeyboardShortcuts.setShortcut(nil, for: command.shortcutName)
+                conflict = "Already assigned to \(command.other.title)"
             } else if newShortcut != nil {  // setShortcut(nil) re-fires onChange with nil; keep the warning
                 conflict = nil
             }

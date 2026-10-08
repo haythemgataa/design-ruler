@@ -35,6 +35,12 @@ final class AppPreferences {
         set { UserDefaults.standard.set(newValue, forKey: "guideDirection") }
     }
 
+    /// Set on the first launch, which also turns on Launch at Login.
+    var hasLaunchedBefore: Bool {
+        get { UserDefaults.standard.bool(forKey: "hasLaunchedBefore") }
+        set { UserDefaults.standard.set(newValue, forKey: "hasLaunchedBefore") }
+    }
+
     /// The onboarding window was finished, or closed once Screen Recording was on. Nil until the
     /// first launch of a version with onboarding decides whether it's needed.
     var hasCompletedOnboarding: Bool? {

@@ -1,4 +1,3 @@
-import KeyboardShortcuts
 import SwiftUI
 
 /// The onboarding window's content: artwork on a dotted canvas up top (OnboardingArtwork), a title
@@ -108,19 +107,16 @@ struct OnboardingView: View {
         switch model.page {
         case .welcome:
             VStack(alignment: .leading, spacing: 12) {
-                Feature(icon: "MeasureIcon", title: "Measure", detail: "See the size of anything.")
-                Feature(icon: "AlignmentGuidesIcon", title: "Alignment Guides", detail: "Check that things line up.")
+                Feature(command: .measure, detail: "See the size of anything.")
+                Feature(command: .alignmentGuides, detail: "Check that things line up.")
             }
         case .permission:
             PermissionStatus(model: model)
         case .shortcuts:
             VStack(spacing: 0) {
-                OnboardingShortcutRow(icon: "MeasureIcon", title: "Measure", name: .measure,
-                                      other: .alignmentGuides, otherTitle: "Alignment Guides",
-                                      onChange: model.shortcutChanged)
+                OnboardingShortcutRow(command: .measure, onChange: model.shortcutChanged)
                 Divider().padding(.leading, 54)
-                OnboardingShortcutRow(icon: "AlignmentGuidesIcon", title: "Alignment Guides", name: .alignmentGuides,
-                                      other: .measure, otherTitle: "Measure", onChange: model.shortcutChanged)
+                OnboardingShortcutRow(command: .alignmentGuides, onChange: model.shortcutChanged)
             }
             .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
             .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.primary.opacity(0.07)))
@@ -178,15 +174,14 @@ enum OnboardingLayout {
 
 /// A command on the welcome page: its icon, name and what it's for.
 private struct Feature: View {
-    let icon: String
-    let title: String
+    let command: Command
     let detail: String
 
     var body: some View {
         HStack(spacing: 12) {
-            AssetIcon(icon, size: 40)
+            AssetIcon(command.icon, size: 40)
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
+                Text(command.title)
                     .font(.headline)
                 Text(detail)
                     .font(.callout)
@@ -234,21 +229,17 @@ private struct PermissionStatus: View {
 
 /// A command's shortcut recorder on the shortcuts page, with a conflict warning under its name.
 private struct OnboardingShortcutRow: View {
-    let icon: String
-    let title: String
-    let name: KeyboardShortcuts.Name
-    let other: KeyboardShortcuts.Name
-    let otherTitle: String
-    let onChange: (KeyboardShortcuts.Name) -> Void
+    let command: Command
+    let onChange: (Command) -> Void
 
     @State private var conflict: String?
 
     var body: some View {
         HStack(spacing: 12) {
-            AssetIcon(icon, size: 28)
-            SettingLabel(title, warning: conflict)
+            AssetIcon(command.icon, size: 28)
+            SettingLabel(command.title, warning: conflict)
             Spacer(minLength: 12)
-            ShortcutRecorder(name: name, other: other, otherTitle: otherTitle, conflict: $conflict) { onChange(name) }
+            ShortcutRecorder(command: command, conflict: $conflict) { onChange(command) }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)

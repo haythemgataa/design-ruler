@@ -60,9 +60,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverDelegat
         )
 
         // First launch: enable launch at login by default
-        let isFirstLaunch = !UserDefaults.standard.bool(forKey: "hasLaunchedBefore")
+        let prefs = AppPreferences.shared
+        let isFirstLaunch = !prefs.hasLaunchedBefore
         if isFirstLaunch {
-            UserDefaults.standard.set(true, forKey: "hasLaunchedBefore")
+            prefs.hasLaunchedBefore = true
             try? SMAppService.mainApp.register()
         }
 
@@ -120,7 +121,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverDelegat
         // Onboarding until it's finished. Decided once: an install from before it existed that can
         // already record the screen is set up. Never again after that, or reopening the app for the
         // permission (not a first launch, permission on) would end onboarding before its last page
-        let prefs = AppPreferences.shared
         if prefs.hasCompletedOnboarding == nil {
             prefs.hasCompletedOnboarding = !isFirstLaunch && CGPreflightScreenCaptureAccess()
         }
