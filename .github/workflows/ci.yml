@@ -80,11 +80,14 @@ jobs:
             -configuration Release \
             -destination "generic/platform=macOS" \
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            -disableAutomaticPackageResolution \
             CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGN_STYLE=Manual \
             DEVELOPMENT_TEAM="" \
             ENABLE_HARDENED_RUNTIME=NO
+          # Builds the versions pinned in the project's Package.resolved (xcshareddata/swiftpm) and
+          # fails if that file is missing or out of date, instead of resolving newer ones.
           # Hardened runtime off: an ad-hoc app has no Team ID, so library validation can't match it
           # to any embedded framework (Sparkle) and dyld aborts at launch. Only notarization needs
           # hardened runtime; release builds keep it and are signed with the Developer ID team.
