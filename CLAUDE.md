@@ -58,7 +58,9 @@ Raycast Extension (raycast/) — everything the Raycast Store gets, and nothing 
   ├─ src/measure.ts               → import { inspect } from "swift:../swift/DesignRuler"
   ├─ src/alignment-guides.ts      → import { alignmentGuides } from "swift:../swift/DesignRuler"
   ├─ assets/                       — extension and command icons (512px, @dark variants)
-  ├─ README.md                     — the Store page: setup (Screen Recording), keys, preferences
+  ├─ media/                        — README images: the 4 screenshots (dark), heading icons
+  ├─ metadata/                     — Store screenshots (2000×1250)
+  ├─ README.md                     — the Store page: setup (Screen Recording), screenshots, keys, preferences
   ├─ CHANGELOG.md                  — Store changelog, `## [Title] - {PR_MERGE_DATE}`
   └─ swift/DesignRuler/            — shared Swift package (below)
 
@@ -989,9 +991,16 @@ no screens, nothing captured). The Guides handler also saves `styleName`/`direct
 ### Raycast Store (raycast/)
 - Everything runs from `raycast/` (Node 22.22.2 or later): `npm run build`, `npm run lint`, then
   `npm run publish`, which opens a pull request on raycast/extensions with the folder's contents
-- Store screenshots go in `raycast/metadata/`: 3 to 6 PNGs, 2000×1250, one background for all
-- Each update adds a `raycast/CHANGELOG.md` entry; `raycast/README.md` is the Store page, and the
-  Store shows the `metadata/` screenshots, so it needs no images
+- Store screenshots go in `raycast/metadata/` (`design-ruler-N.png`): PNGs, 2000×1250, one
+  background for all. Two, one per command: Raycast recommends 3 (allows up to 6), but there's
+  nothing more to show
+- Each update adds a `raycast/CHANGELOG.md` entry; `raycast/README.md` is the Store page
+- README images live in `raycast/media/` (Raycast's rule): the root README's 4 screenshots, dark
+  variants only, two per row at `width="48%"`, and the command icons in the `##` headings. The Store
+  page is always dark, keeps `width`, `align` and `valign` but drops `style`, and shows `@dark` icons
+- The heading icons are the `@dark` icons at 64px with 28px of transparent space on top, shown at
+  `width="32" valign="middle"`: that space cancels the 20px bottom margin the Store gives every image,
+  which otherwise lifts the icon ~8px above the heading text. On GitHub (no margin) they sit ~10px low
 - Changes made on raycast/extensions by others come back with `npx ray pull-contributions`
 
 ---
@@ -1209,6 +1218,12 @@ Bugs encountered and fixed — avoid re-introducing these:
   binary is stamped SDK 14.0 and draws footers flush with the cards. Stamp the release SDK first
   (`vtool -set-build-version macos 14.0 26.5 -replace`, then re-sign ad hoc) before judging layout
   from such a binary.
+
+- **`<picture>` dark variants in the Store README**: raycast.com rewrites an `<img src>` to the file
+  on GitHub but leaves `<source srcset>` alone, so a relative srcset resolves against the Store page
+  and 404s, and the browser doesn't fall back to the `<img>`: the image goes blank. Use plain
+  `<img>` tags in `raycast/README.md`. To judge its layout, render it inside raycast.com's own
+  stylesheets (the page's `markdown-next` container); GitHub's styles differ.
 
 ---
 
