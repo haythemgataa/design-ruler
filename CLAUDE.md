@@ -841,7 +841,8 @@ nothing captured). The Guides handler also saves `styleName`/`directionName` int
 - SettingsWindowController: 3-branch reuse (visible → bring to front, hidden → re-center + show, nil → create new)
 
 ### Global Hotkeys (HotkeyController)
-- `KeyboardShortcuts` 2.4.0 (Carbon Event Manager — not CGEventTap)
+- `KeyboardShortcuts` 3.1.0 (Carbon Event Manager — not CGEventTap). Its API is `@MainActor`
+  (`HotkeyController.registerHandlers()` is marked so; `MenuBarController` uses `assumeIsolated`)
 - `HotkeyNames`: `.measure` and `.alignmentGuides` (no defaults — user assigns)
 - Three dispatch paths:
   1. **Toggle-off**: same hotkey while overlay active → `handleExit()`
@@ -1052,6 +1053,11 @@ Bugs encountered and fixed — avoid re-introducing these:
 - **`titleVisibility = .hidden` on the Settings window**: with a `.preference` toolbar it drops the
   title row and centers the close button on the tabs (44pt down instead of 16pt). Keep the row: it
   shows the selected tab's name.
+
+- **KeyboardShortcuts before 3.1.0 on macOS 26/27**: the recorder focuses ("Press Shortcut") but
+  records nothing. Its key monitor token was held weakly and released at the end of the event-loop
+  turn, before any key press (sindresorhus/KeyboardShortcuts#241). Affects the Settings recorders
+  in 0.2.2 and earlier. Keep `project.yml` at `from: "3.1.0"` or later.
 
 - **Leading padding on Settings Form footers**: built against the macOS 26+ SDK, grouped Form
   footers already line up with the section header and the rows' titles, so extra padding pushes

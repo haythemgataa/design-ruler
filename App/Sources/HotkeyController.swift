@@ -15,6 +15,7 @@ final class HotkeyController {
         case alignmentGuides
     }
 
+    @MainActor  // KeyboardShortcuts 3 is main-actor isolated
     func registerHandlers() {
         KeyboardShortcuts.onKeyUp(for: .measure) { [weak self] in
             self?.handleHotkey(command: .measure)
