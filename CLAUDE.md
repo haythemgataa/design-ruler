@@ -464,6 +464,10 @@ default (Measure) mode and that view type doesn't follow `state.mode`, so
 |------|------|---------|-------|-------------|
 | showHintBar | checkbox | true | both commands | Show the keyboard shortcut hint bar (Swift bridge passes `hideHintBar: !showHintBar`) |
 | corrections | dropdown | smart | measure only | "Count 1px Borders": Smart / Always / Never (values smart, include, none) |
+| remembersGuideStyle | checkbox | false | alignment-guides only | Remember Color and Direction: start Guides with the color and direction the last session ended with |
+
+Checkboxes have a `label` and no `title`: Raycast shows a checkbox's `title` as a section header above
+its own row, which repeated the label.
 
 ### Standalone App (UserDefaults via AppPreferences)
 | Key | Type | Default | Description |
@@ -480,7 +484,10 @@ default (Measure) mode and that view type doesn't follow `state.mode`, so
 | Alignment Guides shortcut | KeyboardShortcuts | unassigned | Global hotkey for Alignment Guides (Alignment tab) |
 | Auto-check for updates | Sparkle | on | Sparkle automaticallyChecksForUpdates (General tab, Check for Updates in its header) |
 
-Remember Color and Direction is standalone-only: Raycast Guides always start dynamic + vertical.
+Remember Color and Direction in Raycast: the Swift bridge saves the color and direction each session
+ended with to `last-guide-style.plist` in `environment.supportPath` (the TS passes it), even while
+Remember is off, and reads it back when Remember is on. Swift saves it because Raycast mode ends the
+process with `NSApp.terminate`, so nothing returns to TypeScript.
 
 ---
 
@@ -502,7 +509,7 @@ Remember Color and Direction is standalone-only: Raycast Guides always start dyn
 
 ### Alignment Guides
 - **Launch**: captures all screens, fullscreen overlays, preview line follows cursor.
-  Starts dynamic + vertical; the standalone app with Remember Color and Direction on starts with
+  Starts dynamic + vertical; with Remember Color and Direction on (app or Raycast) it starts with
   the color and direction the last session ended with (preview, resize cursor, pill, every screen)
 - **Tab**: toggle preview direction (vertical ↔ horizontal)
 - **Spacebar**: cycle color (dynamic → red → green → orange → blue)
@@ -716,7 +723,7 @@ await inspect(showHintBar ?? true, corrections ?? "smart");
 
 // alignment-guides.ts
 import { alignmentGuides } from "swift:../swift/DesignRuler";
-await alignmentGuides(showHintBar ?? true);
+await alignmentGuides(showHintBar ?? true, remembersGuideStyle ?? false, environment.supportPath);
 ```
 
 ```swift
@@ -725,8 +732,9 @@ await alignmentGuides(showHintBar ?? true);
     MeasureCoordinator.shared.run(hideHintBar: !showHintBar, corrections: corrections)
 }
 ```
-`RaycastBridge/AlignmentGuides.swift` calls the base `run(hideHintBar:)`, so Raycast Guides keep
-the dynamic/vertical starting state.
+`RaycastBridge/AlignmentGuides.swift` reads the last color and direction from
+`supportPath/last-guide-style.plist` when `remembersGuideStyle` is on, passes them (or
+dynamic/vertical) to `run(hideHintBar:style:direction:)`, and saves the ended ones in `onSessionEnd`.
 
 ### Standalone App Bridge (AppDelegate → DesignRulerCore)
 ```swift
@@ -770,10 +778,10 @@ Session guards prevent overlapping invocations:
 - `OverlayCoordinator.anySessionActive` — cross-coordinator static guard
 - `CursorManager.shared.restore()` runs at the start of every new session
 
-`onSessionEnd` callback fires at the end of `handleExit()` (covers ESC,
-inactivity timer, SIGTERM) and from `abortStartup()` (permission abort, no screens,
-nothing captured). The Guides handler also saves `styleName`/`directionName` into
-`guideStyle`/`guideDirection`, whether or not Remember is on.
+`onSessionEnd` callback fires in `handleExit()` (covers ESC, inactivity timer, SIGTERM), before
+Raycast mode's `NSApp.terminate` (which never returns), and from `abortStartup()` (permission abort,
+no screens, nothing captured). The Guides handler also saves `styleName`/`directionName` into
+`guideStyle`/`guideDirection`, whether or not Remember is on (the Raycast bridge saves them too).
 
 ### Menu Bar (MenuBarController)
 - `NSStatusItem` with the `MenuBarIcon` asset as a template image (adapts to dark/light)
@@ -1181,7 +1189,8 @@ Bugs encountered and fixed — avoid re-introducing these:
 - [ ] Z zooms; placed lines stay pinned to the same pixels at 2x and 4x
 - [ ] Hover threshold still feels like 5px while zoomed
 - [ ] ESC exits silently
-- [ ] Raycast: every session starts dynamic + vertical (unaffected by the standalone Remember setting)
+- [ ] Raycast, Remember off: every session starts dynamic + vertical; on: starts with the last
+  session's color and direction (unaffected by the standalone app's setting)
 
 ### Shared
 - [ ] Multi-monitor: windows on all screens, cursor activates correct one

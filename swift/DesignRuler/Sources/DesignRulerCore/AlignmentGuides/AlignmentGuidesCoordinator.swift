@@ -10,8 +10,8 @@ open class AlignmentGuidesCoordinator: OverlayCoordinator {
     package private(set) var currentStyle: GuideLineStyle = .dynamic
     private var currentDirection: Direction = .vertical
 
-    /// What the next session starts with. Only the standalone app changes these (to resume the
-    /// last session's); the Raycast bridge calls the base `run(hideHintBar:)` and keeps the defaults.
+    /// What the next session starts with. `run(hideHintBar:style:direction:)` sets them (the app and
+    /// the Raycast bridge resume the last session's); the base `run(hideHintBar:)` keeps the defaults.
     private var startingStyle: GuideLineStyle = .dynamic
     private var startingDirection: Direction = .vertical
 
@@ -26,7 +26,7 @@ open class AlignmentGuidesCoordinator: OverlayCoordinator {
         startingStyle = GuideLineStyle(rawValue: style) ?? .dynamic
         startingDirection = Direction(rawValue: direction) ?? .vertical
         // Also current now: a startup that aborts before resetCommandState() (no permission) still
-        // fires onSessionEnd, and the app saves styleName then; it must not save the type defaults
+        // fires onSessionEnd, and the bridges save styleName then; it must not save the type defaults
         // over a remembered color. A running session keeps its own: run() rejects this call.
         if !isSessionActive {
             currentStyle = startingStyle

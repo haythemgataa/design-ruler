@@ -237,6 +237,7 @@ open class OverlayCoordinator {
         }
         activeWindow = nil
         cursorWindow = nil
+        onSessionEnd?()                             // before terminate, which never returns
         if runMode == .raycast {
             for window in windows {
                 window.close()
@@ -246,7 +247,6 @@ open class OverlayCoordinator {
         }
         // Standalone: windows stay in array (hidden via orderOut) to keep them retained
         // through the autorelease pool drain. The next run() call cleans them up.
-        onSessionEnd?()
     }
 
     /// Handle first mouse move: set flag, collapse hint bar after minimum display duration.

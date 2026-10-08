@@ -149,6 +149,7 @@ Signed releases update themselves with [Sparkle](https://sparkle-project.org), a
 |---|---|---|---|
 | Show Hint Bar | Both | On (default) / Off | Show the keyboard shortcut hint bar |
 | Count 1px Borders | Measure | Smart / Always / Never | Whether 1px borders count in measurements |
+| Remember Color and Direction | Alignment Guides | On / Off (default) | Start each session with the guide color and direction you used last |
 
 ---
 

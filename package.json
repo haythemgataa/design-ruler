@@ -24,10 +24,9 @@
         {
           "name": "showHintBar",
           "type": "checkbox",
-          "title": "Show Hint Bar",
+          "label": "Show Hint Bar",
           "description": "Show the keyboard shortcuts at the bottom of the overlay",
           "default": true,
-          "label": "Show hint bar",
           "required": false
         },
         {
@@ -55,10 +54,17 @@
         {
           "name": "showHintBar",
           "type": "checkbox",
-          "title": "Show Hint Bar",
+          "label": "Show Hint Bar",
           "description": "Show the keyboard shortcuts at the bottom of the overlay",
           "default": true,
-          "label": "Show hint bar",
+          "required": false
+        },
+        {
+          "name": "remembersGuideStyle",
+          "type": "checkbox",
+          "label": "Remember Color and Direction",
+          "description": "Start with the color and direction you used last, instead of Dynamic and vertical",
+          "default": false,
           "required": false
         }
       ]
