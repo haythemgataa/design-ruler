@@ -44,7 +44,7 @@
 		CDC1A43CCD6F114100681FC1 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		CE9C771BF5E79418EAC8B52D /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
 		DD314E724D02BF2C617BAC2A /* HotkeyNames.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyNames.swift; sourceTree = "<group>"; };
-		E6F7EFD7C2E0F48BCDDA50F8 /* DesignRuler */ = {isa = PBXFileReference; lastKnownFileType = folder; name = DesignRuler; path = ../swift/DesignRuler; sourceTree = SOURCE_ROOT; };
+		E6F7EFD7C2E0F48BCDDA50F8 /* DesignRuler */ = {isa = PBXFileReference; lastKnownFileType = folder; name = DesignRuler; path = ../raycast/swift/DesignRuler; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -156,7 +156,7 @@
 			packageReferences = (
 				05E08EC924B7A864877F7E1C /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */,
 				2806B03A1FFD8823E9AB399E /* XCRemoteSwiftPackageReference "Sparkle" */,
-				BA4E496132F60A94FD1AAAEB /* XCLocalSwiftPackageReference "../swift/DesignRuler" */,
+				28CBAF0E792A1864BD9C5505 /* XCLocalSwiftPackageReference "../raycast/swift/DesignRuler" */,
 			);
 			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
@@ -396,9 +396,9 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		BA4E496132F60A94FD1AAAEB /* XCLocalSwiftPackageReference "../swift/DesignRuler" */ = {
+		28CBAF0E792A1864BD9C5505 /* XCLocalSwiftPackageReference "../raycast/swift/DesignRuler" */ = {
 			isa = XCLocalSwiftPackageReference;
-			relativePath = ../swift/DesignRuler;
+			relativePath = ../raycast/swift/DesignRuler;
 		};
 /* End XCLocalSwiftPackageReference section */
 
