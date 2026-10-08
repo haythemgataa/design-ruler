@@ -6,7 +6,7 @@ options:
 
 packages:
   DesignRuler:
-    path: ../swift/DesignRuler
+    path: ../raycast/swift/DesignRuler
   Sparkle:
     url: https://github.com/sparkle-project/Sparkle
     from: "2.6.0"

@@ -39,16 +39,18 @@ Not in the [Raycast Store](https://www.raycast.com/store) yet. With Raycast and 
 
 ```bash
 git clone https://github.com/haythemgataa/design-ruler.git
-cd design-ruler
+cd design-ruler/raycast
 npm install
 npm run dev   # builds the Swift package and loads Measure / Alignment Guides into Raycast
 ```
+
+Raycast needs the Screen Recording permission: turn it on in **System Settings → Privacy & Security → Screen Recording**.
 
 ---
 
 ## Commands
 
-### <picture><source media="(prefers-color-scheme: dark)" srcset="assets/measure-icon@dark.png"><img src="assets/measure-icon.png" width="20" valign="middle" alt=""></picture> Measure
+### <picture><source media="(prefers-color-scheme: dark)" srcset="raycast/assets/measure-icon@dark.png"><img src="raycast/assets/measure-icon.png" width="20" valign="middle" alt=""></picture> Measure
 
 Freeze your screen and measure pixel distances between any two edges — instantly.
 
@@ -67,7 +69,7 @@ Freeze your screen and measure pixel distances between any two edges — instant
 - **Count 1px borders** — Smart (default) counts them or not, whichever fits the 4px grid; or Always / Never. A green tick marks an edge where a border was counted
 - **Zoom-aware** — edge detection, crosshair, and selections stay accurate at 2x and 4x; arrow-key skipping peek-pans to reveal edges outside the zoomed viewport
 
-### <picture><source media="(prefers-color-scheme: dark)" srcset="assets/alignment-guides-icon@dark.png"><img src="assets/alignment-guides-icon.png" width="20" valign="middle" alt=""></picture> Alignment Guides
+### <picture><source media="(prefers-color-scheme: dark)" srcset="raycast/assets/alignment-guides-icon@dark.png"><img src="raycast/assets/alignment-guides-icon.png" width="20" valign="middle" alt=""></picture> Alignment Guides
 
 Place horizontal and vertical guide lines anywhere on screen to check element alignment.
 
@@ -155,7 +157,7 @@ Signed releases update themselves with [Sparkle](https://sparkle-project.org), a
 
 ## Keyboard Reference
 
-### <picture><source media="(prefers-color-scheme: dark)" srcset="assets/measure-icon@dark.png"><img src="assets/measure-icon.png" width="16" valign="middle" alt=""></picture> Measure
+### <picture><source media="(prefers-color-scheme: dark)" srcset="raycast/assets/measure-icon@dark.png"><img src="raycast/assets/measure-icon.png" width="16" valign="middle" alt=""></picture> Measure
 
 | Key | Action |
 |---|---|
@@ -166,7 +168,7 @@ Signed releases update themselves with [Sparkle](https://sparkle-project.org), a
 | Z | Cycle zoom (1x → 2x → 4x → 1x) |
 | ESC | Exit |
 
-### <picture><source media="(prefers-color-scheme: dark)" srcset="assets/alignment-guides-icon@dark.png"><img src="assets/alignment-guides-icon.png" width="16" valign="middle" alt=""></picture> Alignment Guides
+### <picture><source media="(prefers-color-scheme: dark)" srcset="raycast/assets/alignment-guides-icon@dark.png"><img src="raycast/assets/alignment-guides-icon.png" width="16" valign="middle" alt=""></picture> Alignment Guides
 
 | Key | Action |
 |---|---|
@@ -196,11 +198,12 @@ Debug builds are ad-hoc signed, so macOS may ask for Screen Recording permission
 
 ### Raycast Extension
 ```bash
+cd raycast
 npm install
 npm run dev   # builds the Swift package and loads Measure / Alignment Guides into Raycast
 ```
 
-Both targets share the same Swift overlay code via the `DesignRulerCore` SPM library.
+Both targets share the same Swift overlay code via the `DesignRulerCore` SPM library in `raycast/swift/DesignRuler`. It lives in the extension's folder because the Raycast Store builds it from there.
 
 ### Test Builds
 Every push to `main` and every pull request builds an unsigned test DMG. Download it from the workflow run's **Artifacts** section under [Actions → CI](https://github.com/haythemgataa/design-ruler/actions/workflows/ci.yml). macOS blocks unsigned apps on first open: use **System Settings → Privacy & Security → Open Anyway**, or run `xattr -dr com.apple.quarantine "/Applications/Design Ruler.app"`. Screen Recording permission has to be granted again for each new test build: if an older build was installed, remove Design Ruler from **System Settings → Privacy & Security → Screen Recording** with **−**, then add it again with **+**.

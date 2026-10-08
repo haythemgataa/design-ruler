@@ -24,21 +24,21 @@
             "type": "swift",
             "request": "launch",
             "args": [],
-            "cwd": "${workspaceFolder:design-ruler}/swift/DesignRuler",
-            "name": "Debug DesignRuler (swift/DesignRuler)",
+            "cwd": "${workspaceFolder:design-ruler}/raycast/swift/DesignRuler",
+            "name": "Debug DesignRuler (raycast/swift/DesignRuler)",
             "target": "DesignRuler",
             "configuration": "debug",
-            "preLaunchTask": "swift: Build Debug DesignRuler (swift/DesignRuler)"
+            "preLaunchTask": "swift: Build Debug DesignRuler (raycast/swift/DesignRuler)"
         },
         {
             "type": "swift",
             "request": "launch",
             "args": [],
-            "cwd": "${workspaceFolder:design-ruler}/swift/DesignRuler",
-            "name": "Release DesignRuler (swift/DesignRuler)",
+            "cwd": "${workspaceFolder:design-ruler}/raycast/swift/DesignRuler",
+            "name": "Release DesignRuler (raycast/swift/DesignRuler)",
             "target": "DesignRuler",
             "configuration": "release",
-            "preLaunchTask": "swift: Build Release DesignRuler (swift/DesignRuler)"
+            "preLaunchTask": "swift: Build Release DesignRuler (raycast/swift/DesignRuler)"
         }
     ]
 }

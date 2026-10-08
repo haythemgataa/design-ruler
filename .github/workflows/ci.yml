@@ -22,6 +22,9 @@ jobs:
   lint:
     name: Lint Raycast extension
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: raycast
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,6 +34,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: raycast/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -62,7 +66,7 @@ jobs:
         run: brew install create-dmg xcodegen
 
       - name: Build Swift package (Raycast extension binary)
-        run: swift build --package-path swift/DesignRuler
+        run: swift build --package-path raycast/swift/DesignRuler
 
       - name: Generate Xcode project
         run: cd App && xcodegen generate
