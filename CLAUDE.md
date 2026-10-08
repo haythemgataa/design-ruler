@@ -995,6 +995,9 @@ no screens, nothing captured). The Guides handler also saves `styleName`/`direct
   background for all. Two, one per command: Raycast recommends 3 (allows up to 6), but there's
   nothing more to show
 - Each update adds a `raycast/CHANGELOG.md` entry; `raycast/README.md` is the Store page
+- Commands read preferences with the types Raycast generates from `package.json` into
+  `raycast-env.d.ts` (`getPreferenceValues<Preferences.Measure>()`), never a hand-written interface:
+  the Store review requires it, and a copy drifts (`corrections` was typed `string`)
 - README images live in `raycast/media/` (Raycast's rule): the root README's 4 screenshots, dark
   variants only, two per row at `width="48%"`, and the command icons in the `##` headings. The Store
   page is always dark, keeps `width`, `align` and `valign` but drops `style`, and shows `@dark` icons
