@@ -52,6 +52,11 @@ npm run dev   # builds the Swift package and loads Measure / Alignment Guides in
 
 Freeze your screen and measure pixel distances between any two edges — instantly.
 
+<p align="center">
+  <img src="docs/screenshots/measure-01.png" width="49%" alt="Hover to measure anything: the crosshair on a button reads W 96 × H 32">
+  <img src="docs/screenshots/measure-02.png" width="49%" alt="Drag to measure areas: selections around a search field and a button read 197 × 32 and 57 × 32">
+</p>
+
 - **Fullscreen overlay** with a frozen screenshot as background — no visual disruption
 - **Automatic edge detection** scans outward from your cursor in all 4 directions
 - **Live W × H pill** updates as you move, showing exact pixel dimensions
@@ -61,15 +66,15 @@ Freeze your screen and measure pixel distances between any two edges — instant
 - **Hover a selection** and click to remove it
 - **Count 1px borders** — Smart (default) counts them or not, whichever fits the 4px grid; or Always / Never. A green tick marks an edge where a border was counted
 - **Zoom-aware** — edge detection, crosshair, and selections stay accurate at 2x and 4x; arrow-key skipping peek-pans to reveal edges outside the zoomed viewport
-  
-<p align="center" width="100%">
-<video src="https://github.com/user-attachments/assets/495fdfdc-8c26-474a-af04-cce9f36c5d46" width="80%" controls></video>
-</p>
-
 
 ### <picture><source media="(prefers-color-scheme: dark)" srcset="assets/alignment-guides-icon@dark.png"><img src="assets/alignment-guides-icon.png" width="20" valign="middle" alt=""></picture> Alignment Guides
 
 Place horizontal and vertical guide lines anywhere on screen to check element alignment.
+
+<p align="center">
+  <img src="docs/screenshots/alignment-guides-01.png" width="49%" alt="Line things up: vertical and horizontal guides in different colors along a sidebar, with the color picker">
+  <img src="docs/screenshots/alignment-guides-02.png" width="49%" alt="Know where every guide sits: a horizontal guide along two buttons with its Y 812 position pill">
+</p>
 
 - **Fullscreen overlay** — click anywhere to place a guide line
 - **Tab** toggles between vertical and horizontal guide orientation
@@ -77,14 +82,8 @@ Place horizontal and vertical guide lines anywhere on screen to check element al
 - **Color circle indicator** shows the current color and fades after ~1 second
 - **Hover a placed line** to enter remove mode — it turns red and dashed with a "Remove" pill
 - **Click a hovered line** to remove it (shrink-to-point animation)
-- **Position pill** on each placed line shows its exact X or Y coordinate
+- **Position pill** on the line you're placing shows its exact X or Y coordinate
 - **Zoom-aware** — guide lines are stored in capture space, so they stay pinned to the same pixels at 2x and 4x
-  
-<p align="center" width="100%">
-<video src="https://github.com/user-attachments/assets/1052e99a-e633-4fbf-b3c7-0907aec84019" width="80%" controls></video>
-</p>
-
-
 
 ---
 
