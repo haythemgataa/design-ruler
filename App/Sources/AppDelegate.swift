@@ -9,6 +9,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverDelegat
     private var menuBarController: MenuBarController!
     private var hotkeyController: HotkeyController!
     private var settingsWindowController: SettingsWindowController!
+    private let onboardingWindowController = OnboardingWindowController()
     private var updaterController: SPUStandardUpdaterController!
 
     // MARK: - SPUStandardUserDriverDelegate
@@ -59,7 +60,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverDelegat
         )
 
         // First launch: enable launch at login by default
-        if !UserDefaults.standard.bool(forKey: "hasLaunchedBefore") {
+        let isFirstLaunch = !UserDefaults.standard.bool(forKey: "hasLaunchedBefore")
+        if isFirstLaunch {
             UserDefaults.standard.set(true, forKey: "hasLaunchedBefore")
             try? SMAppService.mainApp.register()
         }
@@ -114,13 +116,33 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverDelegat
             self?.menuBarController.setActive(false)
             self?.hotkeyController.sessionEnded()
         }
+
+        // Onboarding until it's finished. Decided once: an install from before it existed that can
+        // already record the screen is set up. Never again after that, or reopening the app for the
+        // permission (not a first launch, permission on) would end onboarding before its last page
+        let prefs = AppPreferences.shared
+        if prefs.hasCompletedOnboarding == nil {
+            prefs.hasCompletedOnboarding = !isFirstLaunch && CGPreflightScreenCaptureAccess()
+        }
+        if prefs.hasCompletedOnboarding == false {
+            onboardingWindowController.show(.onboarding)
+        }
     }
 
     // MARK: - Overlay Launch
 
+    /// Overlays need Screen Recording. Without it, the onboarding window shows how to turn it on
+    /// (onboarding's own page while it's open) instead of an overlay that can't start.
+    private func canRecordScreen() -> Bool {
+        if CGPreflightScreenCaptureAccess() { return true }
+        onboardingWindowController.show(.permission)
+        return false
+    }
+
     /// Shared by the menu bar and the global hotkey. Preferences are read here, at invocation
     /// time, so changes made in Settings apply to the next session
     private func launchMeasure() {
+        guard canRecordScreen() else { return }
         hotkeyController.sessionStarted(command: .measure)
         let prefs = AppPreferences.shared
         MeasureCoordinator.shared.run(hideHintBar: !prefs.showHintBar, corrections: prefs.corrections)
@@ -128,6 +150,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverDelegat
 
     /// Starts with the remembered color and direction when Remember is on, else dynamic and vertical
     private func launchAlignmentGuides() {
+        guard canRecordScreen() else { return }
         hotkeyController.sessionStarted(command: .alignmentGuides)
         let prefs = AppPreferences.shared
         let remembers = prefs.remembersGuideStyle

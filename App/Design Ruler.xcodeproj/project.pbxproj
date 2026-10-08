@@ -19,6 +19,9 @@
 		BFC3485E1372FF94BABA9DE0 /* HotkeyController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BC7DBCD53F37054366E0C88 /* HotkeyController.swift */; };
 		C2BE808A7C9F9E3AAEF639DC /* HotkeyNames.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD314E724D02BF2C617BAC2A /* HotkeyNames.swift */; };
 		C44F43EAD7A4AC58D2C961AC /* MenuBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE9C771BF5E79418EAC8B52D /* MenuBarController.swift */; };
+		DD5BF9720E618B6E1CA51109 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69BC9F828AA8B2F9A11ECADF /* OnboardingView.swift */; };
+		F48DCFD123DD87094BBAA929 /* OnboardingWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 945AA6DF2798408A4790871F /* OnboardingWindowController.swift */; };
+		F8F09DB9BFC2E0D721035459 /* OnboardingArtwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EAD05E6BCD23D4C481F876E /* OnboardingArtwork.swift */; };
 		FBB3113CF96437ACDA518030 /* AppBuild.swift in Sources */ = {isa = PBXBuildFile; fileRef = B52D4DDE6FEA07D444DA1D11 /* AppBuild.swift */; };
 		FF507CAD04EC8B8A0F27CA58 /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C501D2220A1160A846E23063 /* SettingsWindowController.swift */; };
 /* End PBXBuildFile section */
@@ -29,7 +32,10 @@
 		32C8586BFA43577435EB5941 /* SettingsComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsComponents.swift; sourceTree = "<group>"; };
 		352435AF79AA05A40B976755 /* AppPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppPreferences.swift; sourceTree = "<group>"; };
 		4DCB7EBB6B2A29A63383C2A5 /* Design Ruler.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Design Ruler.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		4EAD05E6BCD23D4C481F876E /* OnboardingArtwork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingArtwork.swift; sourceTree = "<group>"; };
+		69BC9F828AA8B2F9A11ECADF /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		8E2A2FC6A019669DE4932532 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		945AA6DF2798408A4790871F /* OnboardingWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingWindowController.swift; sourceTree = "<group>"; };
 		AF668E1EE53EFBB40921CA92 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		B137A9B4A6F51A0A83C8F073 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		B52D4DDE6FEA07D444DA1D11 /* AppBuild.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppBuild.swift; sourceTree = "<group>"; };
@@ -85,6 +91,9 @@
 				B137A9B4A6F51A0A83C8F073 /* Info.plist */,
 				CDC1A43CCD6F114100681FC1 /* main.swift */,
 				CE9C771BF5E79418EAC8B52D /* MenuBarController.swift */,
+				4EAD05E6BCD23D4C481F876E /* OnboardingArtwork.swift */,
+				69BC9F828AA8B2F9A11ECADF /* OnboardingView.swift */,
+				945AA6DF2798408A4790871F /* OnboardingWindowController.swift */,
 				32C8586BFA43577435EB5941 /* SettingsComponents.swift */,
 				B8083D7E1A97B454FC557B93 /* SettingsView.swift */,
 				C501D2220A1160A846E23063 /* SettingsWindowController.swift */,
@@ -180,6 +189,9 @@
 				BFC3485E1372FF94BABA9DE0 /* HotkeyController.swift in Sources */,
 				C2BE808A7C9F9E3AAEF639DC /* HotkeyNames.swift in Sources */,
 				C44F43EAD7A4AC58D2C961AC /* MenuBarController.swift in Sources */,
+				F8F09DB9BFC2E0D721035459 /* OnboardingArtwork.swift in Sources */,
+				DD5BF9720E618B6E1CA51109 /* OnboardingView.swift in Sources */,
+				F48DCFD123DD87094BBAA929 /* OnboardingWindowController.swift in Sources */,
 				3DAF574B259C24B28D484593 /* SettingsComponents.swift in Sources */,
 				2167655925FD6A042128F581 /* SettingsView.swift in Sources */,
 				FF507CAD04EC8B8A0F27CA58 /* SettingsWindowController.swift in Sources */,
