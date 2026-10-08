@@ -375,6 +375,17 @@ package final class MeasureWindow: OverlayWindow {
     override package func mouseDown(with event: NSEvent) {
         onActivity?()
         let windowPoint = event.locationInWindow
+        trackCursorWithoutPanning(to: windowPoint)
+
+        // Take over from a peek, as a mouse move does. The crosshair travels with the peeked
+        // content, away from the hidden cursor: mapped with the peeked pan, the click would land
+        // that far from the crosshair, and the peek's return would pan the view mid-drag.
+        if isPeekAnimating {
+            cancelPeek()
+            CATransaction.instant {
+                contentLayer?.transform = zoomState.contentTransform
+            }
+        }
         let cp = capturePoint(from: windowPoint)
 
         // Reset stale drag state — if mouseUp was never delivered (e.g., system stole the event),
@@ -414,6 +425,9 @@ package final class MeasureWindow: OverlayWindow {
 
     override package func mouseDragged(with event: NSEvent) {
         onActivity?()
+        // The view holds still while dragging, so the selection follows the cursor on screen
+        // (panning would grow it zoom x faster than the cursor). The next move eases back in step
+        trackCursorWithoutPanning(to: event.locationInWindow)
         if !isDragging { return }
         let windowPoint = event.locationInWindow
         selectionManager.updateDrag(to: capturePoint(from: windowPoint))
@@ -421,6 +435,7 @@ package final class MeasureWindow: OverlayWindow {
 
     override package func mouseUp(with event: NSEvent) {
         onActivity?()
+        trackCursorWithoutPanning(to: event.locationInWindow)
         if !isDragging { return }
         isDragging = false
 
