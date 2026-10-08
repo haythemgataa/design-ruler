@@ -29,9 +29,9 @@
    ```bash
    xattr -dr com.apple.quarantine "/Applications/Design Ruler.app"
    ```
-3. Grant **Screen Recording** when asked. Each new beta build needs it again: if an older build was installed, remove Design Ruler from **System Settings → Privacy & Security → Screen Recording** with **−**, then add it again with **+**.
+3. A short welcome walks you through **Screen Recording** and keyboard shortcuts. Each new beta build needs Screen Recording again: if an older build was installed, remove Design Ruler from **System Settings → Privacy & Security → Screen Recording** with **−**, then add it again with **+**.
 
-Design Ruler lives in the menu bar, with no Dock icon or Cmd+Tab entry. Assign keyboard shortcuts in **Settings**. The beta can't update itself yet: **Check GitHub for Updates** in the menu bar opens the releases page.
+Design Ruler lives in the menu bar, with no Dock icon or Cmd+Tab entry. Change keyboard shortcuts in **Settings**. The beta can't update itself yet: **Check GitHub for Updates** in the menu bar opens the releases page.
 
 ### Raycast Extension
 

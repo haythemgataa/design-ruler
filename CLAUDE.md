@@ -33,15 +33,18 @@ auto-updates), and DMG distribution via GitHub Releases.
 Standalone App (App/)
   ├─ Sources/
   │   ├─ main.swift                — 4-line entry point (NSApplication.shared.run())
-  │   ├─ AppDelegate.swift         — wires MenuBar, Settings, Hotkeys, Coordinators; launchMeasure/launchAlignmentGuides
+  │   ├─ AppDelegate.swift         — wires MenuBar, Settings, Onboarding, Hotkeys, Coordinators; launchMeasure/launchAlignmentGuides
   │   ├─ MenuBarController.swift   — NSStatusItem, dropdown, icon state, callbacks
   │   ├─ HotkeyController.swift    — session-aware global hotkey dispatch
-  │   ├─ HotkeyNames.swift         — KeyboardShortcuts.Name extensions (.measure, .alignmentGuides)
+  │   ├─ HotkeyNames.swift         — KeyboardShortcuts.Name extensions + Command (title, icon, shortcut name, other)
   │   ├─ AppPreferences.swift      — @Observable singleton over UserDefaults
   │   ├─ AppBuild.swift            — version, build, beta flag, canAutoUpdate (Developer ID Team ID present)
   │   ├─ SettingsView.swift        — the 3 tab views: General (with the app's version and updates), Measure, Alignment
-  │   ├─ SettingsComponents.swift  — SettingsPane (tab wrapper), PaneHeader, SettingLabel, ShortcutRow, SectionFooter, BetaBadge
+  │   ├─ SettingsComponents.swift  — SettingsPane (tab wrapper), PaneHeader, SettingLabel, ShortcutRow/ShortcutRecorder, SectionFooter, BetaBadge, AssetIcon
   │   ├─ SettingsWindowController.swift — toolbar-tab window (3-branch reuse), SettingsTabViewController (per-tab resize)
+  │   ├─ OnboardingWindowController.swift — OnboardingModel (pages, permission state) + first-launch window, relaunch
+  │   ├─ OnboardingView.swift      — page layout: artwork, title, message, controls, page dots + primary button
+  │   ├─ OnboardingArtwork.swift   — DotGrid (ripple), Welcome / Permission / MenuBar artwork, MeasurePill
   │   ├─ DesignRuler.entitlements  — Hardened Runtime (empty dict)
   │   └─ Info.plist                — LSUIElement, Sparkle keys, bundle metadata
   ├─ ExportOptions.plist           — Developer ID export for xcodebuild -exportArchive
@@ -470,6 +473,8 @@ default (Measure) mode and that view type doesn't follow `state.mode`, so
 | remembersGuideStyle | Bool | false | Remember Color and Direction: start Guides with `guideStyle`/`guideDirection` (Alignment tab) |
 | guideStyle | String | "dynamic" | Color the last Guides session ended with (`GuideLineStyle` raw value). Saved even while Remember is off |
 | guideDirection | String | "vertical" | Direction the last Guides session ended with: vertical, horizontal. Saved even while Remember is off |
+| hasCompletedOnboarding | Bool? | nil | Onboarding finished, or closed once Screen Recording was on. Nil until the first launch with onboarding decides: true for an install from before it that can already record the screen, else false. Decided once only: a relaunch for the permission isn't a first launch and has it on |
+| hasRequestedScreenRecording | Bool | false | Onboarding asked for Screen Recording: after a relaunch (to apply it) it resumes on that page |
 | Launch at Login | SMAppService | on | Registered on first launch (`hasLaunchedBefore`); toggle via SMAppService.mainApp (General tab) |
 | Measure shortcut | KeyboardShortcuts | unassigned | Global hotkey for Measure (Measure tab) |
 | Alignment Guides shortcut | KeyboardShortcuts | unassigned | Global hotkey for Alignment Guides (Alignment tab) |
@@ -729,14 +734,17 @@ the dynamic/vertical starting state.
 MeasureCoordinator.shared.runMode = .standalone
 AlignmentGuidesCoordinator.shared.runMode = .standalone
 
-// Menu bar and hotkey callbacks both call these; preferences are read at invocation time
+// Menu bar and hotkey callbacks both call these; preferences are read at invocation time.
+// Without Screen Recording they show the onboarding window's Screen Recording page instead
 private func launchMeasure() {
+    guard canRecordScreen() else { return }
     hotkeyController.sessionStarted(command: .measure)
     let prefs = AppPreferences.shared
     MeasureCoordinator.shared.run(hideHintBar: !prefs.showHintBar, corrections: prefs.corrections)
 }
 
 private func launchAlignmentGuides() {
+    guard canRecordScreen() else { return }
     hotkeyController.sessionStarted(command: .alignmentGuides)
     let prefs = AppPreferences.shared
     let remembers = prefs.remembersGuideStyle
@@ -804,7 +812,8 @@ nothing captured). The Guides handler also saves `styleName`/`directionName` int
 - Every tab opens with a `PaneHeader` card: a 32pt icon, title, a line or two about it, and an
   optional trailing control. The icons are the `DesignRulerIcon` / `MeasureIcon` /
   `AlignmentGuidesIcon` image sets in `Assets.xcassets`, the Raycast icons at 256px with a
-  dark-appearance variant (the `@dark` files), so they follow light/dark. The app icon in General is
+  dark-appearance variant (the `@dark` files), so they follow light/dark. Drawn with `AssetIcon`
+  (Settings and onboarding), never a resized `Image` (section 18). The app icon in General is
   `DesignRulerIcon`, not `NSApp.applicationIconImage` (which has no dark variant)
 - General: header (name with a Beta badge for 0.x versions, "Version X (build)", Check for
   Updates…), Launch at Login, Show Hint Bar, auto-update toggle, footer (copyright, View on GitHub)
@@ -817,9 +826,10 @@ nothing captured). The Guides handler also saves `styleName`/`directionName` int
   unsigned beta) disable Check for Updates and the auto-update toggle, and the toggles' footer links
   to GitHub Releases
 - Every row uses `SettingLabel`: title and a one-line explanation, no icon.
-  Count 1px Borders' explanation follows the selected mode. `ShortcutRow` rejects the other
-  command's shortcut (read from KeyboardShortcuts, so it works across the Measure and Alignment tabs)
-  and replaces the explanation with an orange warning
+  Count 1px Borders' explanation follows the selected mode. `ShortcutRow(command:)` wraps
+  `ShortcutRecorder`, which rejects the other command's shortcut (read from KeyboardShortcuts, so it
+  works across the Measure and Alignment tabs and in onboarding); the row replaces its explanation
+  with an orange warning
 - `AppPreferences` is `@Observable` singleton with computed properties over `UserDefaults`
 - Preferences read in `AppDelegate.launchMeasure()` / `launchAlignmentGuides()` (at invocation
   time, not capture time), shared by the menu bar and hotkey callbacks
@@ -836,13 +846,60 @@ nothing captured). The Guides handler also saves `styleName`/`directionName` int
   `applicationDidFinishLaunching`, auto-check toggle, Check for Updates button. Only a
   Developer ID release (Team ID present) starts it: ad-hoc builds would fail Sparkle's signature
   check and have no appcast. Ship the Sparkle key together with the Developer ID secrets
-- Version: `Info.plist` reads `$(MARKETING_VERSION)` / `$(CURRENT_PROJECT_VERSION)`;
-  CI sets them from the tag and `git rev-list --count HEAD`
+- Version: `Info.plist` reads `$(MARKETING_VERSION)` / `$(CURRENT_PROJECT_VERSION)`. Releases set
+  the version from the tag; local and CI test builds show `project.yml`'s `MARKETING_VERSION`, the
+  next release. CI sets the build number from `git rev-list --count HEAD`
 - SettingsWindowController: 3-branch reuse (visible → bring to front, hidden → re-center + show, nil → create new)
 
+### Onboarding (OnboardingWindowController + OnboardingView + OnboardingArtwork)
+- Shown at launch while `hasCompletedOnboarding` is false (see the preferences table for nil). The menu bar, hotkeys and Sparkle start as usual
+  alongside it (no limited mode): an overlay launched without Screen Recording shows its page instead
+- 480×548 window, `[.titled, .closable, .fullSizeContentView]`, transparent title bar, hidden title,
+  close button only, movable by its background. The hosting controller has `sizingOptions = []` and
+  the window sets its content size: the default options add the title bar to the SwiftUI frame
+- Pages (`OnboardingModel.Page`), each: artwork in a 480×264 area on a 12pt dot grid, title, message,
+  controls, then page dots and one primary button (Return):
+  1. **Welcome** — the app icon measured and lined up as the overlay does it: a dashed selection is
+     dragged out past it, snaps to its edges (solid) and the "96 × 96" pill slides down 4pt; then a
+     blue vertical guide slides in from the left and an orange horizontal one drops from the top, each
+     with its position pill counting (`MovingGuide` is `Animatable`) until placed, when the pill fades
+     (placed lines have none). Lines sit on whole points over the selection's stroke, outside the
+     icon (a half-point offset blurs them at 1x). ~4s; installer-style pills, leading zeros dimmed.
+     Below the text, Measure and Alignment Guides stacked, each a 40pt icon, name and one line
+  2. **Screen Recording** — a mock System Settings list whose Design Ruler switch follows the real
+     permission, with a pointer nudging toward it. Open System Settings calls
+     `CGRequestScreenCaptureAccess()`, which prompts and adds the app to the list only while it isn't
+     in it (first time, or after its entry was removed); if no prompt takes the focus within 0.6s
+     (`NSApp.isActive`), it opens the Screen Recording pane. After asking: "Switched it on? Quit &
+     Reopen" (relaunch), plus, in builds that can't update themselves, "remove it with −, then click
+     Open System Settings again" for a stale entry. Granted: green tick, Continue
+  3. **Shortcuts** — the top of a screen with Design Ruler's menu open, showing the shortcuts as
+     they're recorded (the changed row lights up for 1.2s). Two `ShortcutRecorder` rows. Done
+- Pages a fresh start skips: Screen Recording, if it was already allowed before ever asking. Resume:
+  if it was asked (the app was reopened for the permission to apply), start on that page
+- `.permission` mode (`show(.permission)`): the Screen Recording page alone, no dots, Done once granted.
+  If onboarding is open, `show(.permission)` brings it front and leaves the welcome page for it
+- Permission is polled every second (0.5s tolerance) while the window is open, which also covers
+  coming back from System Settings; turning on sends a green ripple across the dots from the switch.
+  The welcome page opens with a blue one
+- `DotGrid` draws its ~900 dots once; a ripple adds a TimelineView + Canvas that draws only the lit
+  dots, grouped into 8 strengths (a handful of fills per frame), and goes away when it ends. Reduce
+  Motion skips ripples, the welcome sequence and the pointer's nudge, and makes page changes cross-fades
+- The Screen Recording pointer is the system arrow (`NSCursor.arrow.image`, placed by its hot spot);
+  it leaves the view tree once the permission is on, which ends its `repeatForever` nudge
+- Page change: the old page fades out in 0.12s, the new one springs in 0.1s later (no overlapping text)
+- Relaunch: `/bin/sh` waits for this PID to exit, then `open`s the bundle, so two instances never
+  run side by side; then `NSApp.terminate`
+- Closing: counts as done once Screen Recording is on (shortcuts are optional, Settings has them);
+  closing without it shows onboarding again next launch. Window and model are released on the next
+  turn (the close can come from a button inside the window)
+
 ### Global Hotkeys (HotkeyController)
-- `KeyboardShortcuts` 2.4.0 (Carbon Event Manager — not CGEventTap)
-- `HotkeyNames`: `.measure` and `.alignmentGuides` (no defaults — user assigns)
+- `KeyboardShortcuts` 3.1.0 (Carbon Event Manager — not CGEventTap). Its API is `@MainActor`
+  (`HotkeyController.registerHandlers()` is marked so; `MenuBarController` uses `assumeIsolated`)
+- `HotkeyNames`: `.measure` and `.alignmentGuides` (no defaults — user assigns), and `Command`: each
+  command's title, icon, shortcut name and the other command. The menu bar, hotkeys, Settings and
+  onboarding all read it, so the pair can't drift (a mismatched pair breaks the conflict check)
 - Three dispatch paths:
   1. **Toggle-off**: same hotkey while overlay active → `handleExit()`
   2. **Cross-switch**: different hotkey → exit current, `DispatchQueue.main.async` relaunch
@@ -881,8 +938,8 @@ nothing captured). The Guides handler also saves `styleName`/`directionName` int
   `SPARKLE_PRIVATE_KEY` (appcast). None are set yet, so releases are unsigned and Check for
   Updates finds nothing
 - Sparkle feed: `SUFeedURL` → GitHub releases latest download, `SUPublicEDKey` for EdDSA verification
-- Cutting a release (0.x while in beta; the tag sets the version, `project.yml`'s
-  `MARKETING_VERSION` is only the local default):
+- Cutting a release (0.x while in beta; the tag sets the release's version, `project.yml`'s
+  `MARKETING_VERSION` is what local and CI test builds show):
   1. Merge to `main`, then `git tag v0.X.Y && git push origin v0.X.Y`
   2. `build-release.yml` creates a **draft** release with the DMG (notarized, or unsigned while
      the Developer ID secrets are missing) — download and check it
@@ -891,6 +948,8 @@ nothing captured). The Guides handler also saves `styleName`/`directionName` int
      pre-release: `releases/latest/download/appcast.xml` skips pre-releases, so the Sparkle feed
      would 404
   4. `update-appcast.yml` attaches `appcast.xml` to the published release
+  5. Bump `MARKETING_VERSION` in `project.yml` to the next version and run `xcodegen generate`, so
+     test builds don't show the version just released
   - Failed run: delete the draft and the tag (`git push --delete origin v0.X.Y`), fix, re-tag
 
 ---
@@ -1053,6 +1112,29 @@ Bugs encountered and fixed — avoid re-introducing these:
   title row and centers the close button on the tabs (44pt down instead of 16pt). Keep the row: it
   shows the selected tab's name.
 
+- **KeyboardShortcuts before 3.1.0 on macOS 26/27**: the recorder focuses ("Press Shortcut") but
+  records nothing. Its key monitor token was held weakly and released at the end of the event-loop
+  turn, before any key press (sindresorhus/KeyboardShortcuts#241). Affects the Settings recorders
+  in 0.2.2 and earlier. Keep `project.yml` at `from: "3.1.0"` or later.
+
+- **Two copies with the same bundle ID**: System Settings' Screen Recording "Quit & Reopen" reopens
+  the app by bundle ID, and LaunchServices picks the highest version, e.g. an installed release over
+  a DerivedData build. Test permission relaunches with the build installed in /Applications (or
+  stamped with a higher version), and `lsregister -u` other copies.
+
+- **Shrinking the 256px icons with a resized `Image`**: the GPU scales them without averaging, so at
+  24-40pt (4-10x smaller) the icons' fine background grid breaks up into dots, worst at 1x;
+  `.interpolation(.high)` doesn't change it. `AssetIcon` draws each icon once at its exact pixel size
+  with Core Graphics' high-quality interpolation (as good as a box-filtered export), per display
+  scale and light/dark, and caches it. No per-size exports needed.
+
+- **Previewing a Screen Recording flow from a shell**: an app binary started directly from a
+  terminal (or an agent's shell) has that process as its TCC "responsible process", so it inherits
+  the terminal's Screen Recording grant: `CGPreflightScreenCaptureAccess()` returns true and
+  onboarding auto-completes. Launch previews through LaunchServices (`open -n --env K=V App.app`),
+  under another bundle ID with `hasLaunchedBefore` preset so they don't touch the real app's
+  defaults or register a login item.
+
 - **Leading padding on Settings Form footers**: built against the macOS 26+ SDK, grouped Form
   footers already line up with the section header and the rows' titles, so extra padding pushes
   them in. SwiftUI picks Form metrics by the SDK the binary was built with: a SwiftPM-built preview
@@ -1117,7 +1199,8 @@ Bugs encountered and fixed — avoid re-introducing these:
 - [ ] 10-minute inactivity auto-exit works
 - [ ] SIGTERM restores cursor state cleanly
 - [ ] Standalone: `kill <pid>` quits the app during a session and between sessions
-- [ ] Without Screen Recording permission, no black overlay appears (session ends)
+- [ ] Without Screen Recording permission, no black overlay appears (session ends; the standalone
+  app shows the onboarding window's Screen Recording page)
 - [ ] macOS 14/15: Alignment Guides collapsed hint bar shows Tab/Space keycaps, not arrows
 - [ ] Pill shows "0000 × 0000" on launch, fades in (design ruler)
 - [ ] Pill animates smoothly when flipping sides near edges
@@ -1130,6 +1213,27 @@ Bugs encountered and fixed — avoid re-introducing these:
   hint bar on and off); the crosshair keeps tracking during it
 - [ ] Launch wave skipped with Reduce Motion; Z during the wave zooms it with the screenshot
 - [ ] macOS 14/15: collapsed hint bar panels slide in from the expanded bar's edges
+
+### Onboarding (standalone)
+- [ ] Fresh install (`defaults delete cv.haythem.designruler`, `tccutil reset ScreenCapture
+  cv.haythem.designruler`): welcome window opens front and centered, blue ripple from the icon,
+  guides and pills animate in; Return presses the primary button
+- [ ] Open System Settings: first click shows the system prompt and adds Design Ruler to the list;
+  later clicks open Screen Recording directly; "Switched it on? Quit & Reopen" appears after the first
+- [ ] Stale entry (new beta build): remove it with −, click Open System Settings: the prompt appears
+  again and Design Ruler is back in the list
+- [ ] Turning it on: switch flips, green ripple, tick, Continue (or Quit & Reopen from macOS's prompt:
+  the app comes back on the Screen Recording page, switch on)
+- [ ] Quit & Reopen (ours or macOS's) relaunches once (one menu bar icon), back on the Screen
+  Recording page with the switch on, then on to shortcuts
+- [ ] Shortcuts page: no recorder focused on arrival; recording one shows it in the menu mock and lights
+  its row; the other command's shortcut is rejected with an orange warning; Done closes, never reopens
+- [ ] Closing early: without Screen Recording it returns next launch; with it, it doesn't
+- [ ] Menu bar Measure without Screen Recording: onboarding open → jumps to its Screen Recording page;
+  after onboarding → the Screen Recording page alone, Done once granted
+- [ ] Existing install that can already record: no onboarding after updating
+- [ ] Already allowed before ever asking: welcome → shortcuts (two dots)
+- [ ] Dark mode: artwork, dark icon variants, menu mock; Reduce Motion: no ripples, cross-fades only
 
 ### Standalone App
 - [ ] Menu bar icon appears on launch (no Dock icon, no Cmd+Tab entry)

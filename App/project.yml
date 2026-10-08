@@ -12,7 +12,7 @@ packages:
     from: "2.6.0"
   KeyboardShortcuts:
     url: https://github.com/sindresorhus/KeyboardShortcuts
-    from: "2.4.0"
+    from: "3.1.0"
 
 targets:
   "Design Ruler":
@@ -50,7 +50,7 @@ targets:
         ENABLE_HARDENED_RUNTIME: YES
         CODE_SIGN_ENTITLEMENTS: Sources/DesignRuler.entitlements
         CURRENT_PROJECT_VERSION: "1"
-        MARKETING_VERSION: "0.1.0"
+        MARKETING_VERSION: "0.2.3"
       configs:
         Debug:
           CODE_SIGN_IDENTITY: "-"

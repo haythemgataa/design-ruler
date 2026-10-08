@@ -1,4 +1,3 @@
-import KeyboardShortcuts
 import ServiceManagement
 import Sparkle
 import SwiftUI
@@ -127,18 +126,17 @@ struct MeasureSettingsView: View {
     var body: some View {
         SettingsPane {
             Section {
-                PaneHeader(icon: "MeasureIcon",
+                PaneHeader(icon: Command.measure.icon,
                            description: "Point at anything on screen to see its width and height. Edges are "
                                + "detected from the pixels around the cursor.") {
-                    Text("Measure")
+                    Text(Command.measure.title)
                 }
             }
 
             Section {
-                ShortcutRow(detail: "Opens Measure from any app.",
-                            name: .measure, other: .alignmentGuides, otherTitle: "Alignment Guides")
+                ShortcutRow(command: .measure)
             } footer: {
-                SectionFooter("Press it again to close the overlay, or the Alignment Guides shortcut to switch.")
+                SectionFooter("Press it again to close the overlay, or the \(Command.measure.other.title) shortcut to switch.")
             }
 
             Section {
@@ -168,18 +166,17 @@ struct AlignmentSettingsView: View {
     var body: some View {
         SettingsPane {
             Section {
-                PaneHeader(icon: "AlignmentGuidesIcon",
+                PaneHeader(icon: Command.alignmentGuides.icon,
                            description: "Place vertical and horizontal lines across the screen to check "
                                + "that elements line up.") {
-                    Text("Alignment Guides")
+                    Text(Command.alignmentGuides.title)
                 }
             }
 
             Section {
-                ShortcutRow(detail: "Opens Alignment Guides from any app.",
-                            name: .alignmentGuides, other: .measure, otherTitle: "Measure")
+                ShortcutRow(command: .alignmentGuides)
             } footer: {
-                SectionFooter("Press it again to close the overlay, or the Measure shortcut to switch.")
+                SectionFooter("Press it again to close the overlay, or the \(Command.alignmentGuides.other.title) shortcut to switch.")
             }
 
             Section("Guides") {

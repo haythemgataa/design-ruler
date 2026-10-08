@@ -34,4 +34,23 @@ final class AppPreferences {
         get { UserDefaults.standard.string(forKey: "guideDirection") ?? "vertical" }
         set { UserDefaults.standard.set(newValue, forKey: "guideDirection") }
     }
+
+    /// Set on the first launch, which also turns on Launch at Login.
+    var hasLaunchedBefore: Bool {
+        get { UserDefaults.standard.bool(forKey: "hasLaunchedBefore") }
+        set { UserDefaults.standard.set(newValue, forKey: "hasLaunchedBefore") }
+    }
+
+    /// The onboarding window was finished, or closed once Screen Recording was on. Nil until the
+    /// first launch of a version with onboarding decides whether it's needed.
+    var hasCompletedOnboarding: Bool? {
+        get { UserDefaults.standard.object(forKey: "hasCompletedOnboarding") as? Bool }
+        set { UserDefaults.standard.set(newValue, forKey: "hasCompletedOnboarding") }
+    }
+
+    /// Onboarding asked for Screen Recording: after a relaunch it picks up on that page.
+    var hasRequestedScreenRecording: Bool {
+        get { UserDefaults.standard.bool(forKey: "hasRequestedScreenRecording") }
+        set { UserDefaults.standard.set(newValue, forKey: "hasRequestedScreenRecording") }
+    }
 }

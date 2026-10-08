@@ -54,7 +54,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         let (gKey, gMods) = MainActor.assumeIsolated { Self.shortcutParts(for: .alignmentGuides) }
 
         measureItem = menu.addItem(
-            withTitle: "Measure",
+            withTitle: Command.measure.title,
             action: #selector(launchMeasure),
             keyEquivalent: mKey
         )
@@ -62,7 +62,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         measureItem.keyEquivalentModifierMask = mMods
 
         guidesItem = menu.addItem(
-            withTitle: "Alignment Guides",
+            withTitle: Command.alignmentGuides.title,
             action: #selector(launchAlignmentGuides),
             keyEquivalent: gKey
         )
@@ -121,8 +121,8 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     ]
 
     @MainActor
-    private static func shortcutParts(for name: KeyboardShortcuts.Name) -> (String, NSEvent.ModifierFlags) {
-        guard let shortcut = KeyboardShortcuts.getShortcut(for: name) else {
+    private static func shortcutParts(for command: Command) -> (String, NSEvent.ModifierFlags) {
+        guard let shortcut = KeyboardShortcuts.getShortcut(for: command.shortcutName) else {
             return ("", [])
         }
         if let key = shortcut.nsMenuItemKeyEquivalent {
@@ -135,20 +135,18 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     @MainActor
-    private static func applyShortcut(to item: NSMenuItem, for name: KeyboardShortcuts.Name) {
-        let (key, mods) = shortcutParts(for: name)
+    private static func applyShortcut(to item: NSMenuItem, for command: Command) {
+        let (key, mods) = shortcutParts(for: command)
         item.keyEquivalent = key
         item.keyEquivalentModifierMask = mods
     }
 
     func menuWillOpen(_ menu: NSMenu) {
-        KeyboardShortcuts.disable(.measure)
-        KeyboardShortcuts.disable(.alignmentGuides)
+        KeyboardShortcuts.disable(Command.allCases.map(\.shortcutName))
     }
 
     func menuDidClose(_ menu: NSMenu) {
-        KeyboardShortcuts.enable(.measure)
-        KeyboardShortcuts.enable(.alignmentGuides)
+        KeyboardShortcuts.enable(Command.allCases.map(\.shortcutName))
     }
 
     @objc private func launchMeasure() {
