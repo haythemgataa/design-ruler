@@ -846,8 +846,9 @@ nothing captured). The Guides handler also saves `styleName`/`directionName` int
   `applicationDidFinishLaunching`, auto-check toggle, Check for Updates button. Only a
   Developer ID release (Team ID present) starts it: ad-hoc builds would fail Sparkle's signature
   check and have no appcast. Ship the Sparkle key together with the Developer ID secrets
-- Version: `Info.plist` reads `$(MARKETING_VERSION)` / `$(CURRENT_PROJECT_VERSION)`;
-  CI sets them from the tag and `git rev-list --count HEAD`
+- Version: `Info.plist` reads `$(MARKETING_VERSION)` / `$(CURRENT_PROJECT_VERSION)`. Releases set
+  the version from the tag; local and CI test builds show `project.yml`'s `MARKETING_VERSION`, the
+  next release. CI sets the build number from `git rev-list --count HEAD`
 - SettingsWindowController: 3-branch reuse (visible → bring to front, hidden → re-center + show, nil → create new)
 
 ### Onboarding (OnboardingWindowController + OnboardingView + OnboardingArtwork)
@@ -937,8 +938,8 @@ nothing captured). The Guides handler also saves `styleName`/`directionName` int
   `SPARKLE_PRIVATE_KEY` (appcast). None are set yet, so releases are unsigned and Check for
   Updates finds nothing
 - Sparkle feed: `SUFeedURL` → GitHub releases latest download, `SUPublicEDKey` for EdDSA verification
-- Cutting a release (0.x while in beta; the tag sets the version, `project.yml`'s
-  `MARKETING_VERSION` is only the local default):
+- Cutting a release (0.x while in beta; the tag sets the release's version, `project.yml`'s
+  `MARKETING_VERSION` is what local and CI test builds show):
   1. Merge to `main`, then `git tag v0.X.Y && git push origin v0.X.Y`
   2. `build-release.yml` creates a **draft** release with the DMG (notarized, or unsigned while
      the Developer ID secrets are missing) — download and check it
@@ -947,6 +948,8 @@ nothing captured). The Guides handler also saves `styleName`/`directionName` int
      pre-release: `releases/latest/download/appcast.xml` skips pre-releases, so the Sparkle feed
      would 404
   4. `update-appcast.yml` attaches `appcast.xml` to the published release
+  5. Bump `MARKETING_VERSION` in `project.yml` to the next version and run `xcodegen generate`, so
+     test builds don't show the version just released
   - Failed run: delete the draft and the tag (`git push --delete origin v0.X.Y`), fix, re-tag
 
 ---
