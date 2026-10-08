@@ -53,8 +53,8 @@ npm run dev   # builds the Swift package and loads Measure / Alignment Guides in
 Freeze your screen and measure pixel distances between any two edges — instantly.
 
 <p align="center">
-  <img src="docs/screenshots/measure-01.png" width="49%" alt="Hover to measure anything: the crosshair on a button reads W 96 × H 32">
-  <img src="docs/screenshots/measure-02.png" width="49%" alt="Drag to measure areas: selections around a search field and a button read 197 × 32 and 57 × 32">
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/measure-01-dark.png"><img src="docs/screenshots/measure-01.png" width="49%" alt="Hover to measure anything: the crosshair on a button reads W 32 × H 32"></picture>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/measure-02-dark.png"><img src="docs/screenshots/measure-02.png" width="49%" alt="Drag to measure areas: selections around a search field and a button group read 197 × 32 and 57 × 32"></picture>
 </p>
 
 - **Fullscreen overlay** with a frozen screenshot as background — no visual disruption
@@ -72,8 +72,8 @@ Freeze your screen and measure pixel distances between any two edges — instant
 Place horizontal and vertical guide lines anywhere on screen to check element alignment.
 
 <p align="center">
-  <img src="docs/screenshots/alignment-guides-01.png" width="49%" alt="Line things up: vertical and horizontal guides in different colors along a sidebar, with the color picker">
-  <img src="docs/screenshots/alignment-guides-02.png" width="49%" alt="Know where every guide sits: a horizontal guide along two buttons with its Y 812 position pill">
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/alignment-guides-01-dark.png"><img src="docs/screenshots/alignment-guides-01.png" width="49%" alt="Line things up: vertical and horizontal guides in different colors along a sidebar, with the color picker"></picture>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/alignment-guides-02-dark.png"><img src="docs/screenshots/alignment-guides-02.png" width="49%" alt="Know where every guide sits: a horizontal guide along two buttons with its Y 761 position pill"></picture>
 </p>
 
 - **Fullscreen overlay** — click anywhere to place a guide line
