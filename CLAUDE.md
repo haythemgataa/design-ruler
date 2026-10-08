@@ -1276,12 +1276,12 @@ Bugs encountered and fixed — avoid re-introducing these:
 - [ ] Zoomed pixels are crisp (nearest-neighbor, not blurred)
 - [ ] W×H measurements stay correct at 2x and 4x
 - [ ] Drag-to-select and hover-to-remove work while zoomed
+- [ ] Arrow-key skip to an off-viewport edge peek-pans, holds, returns
+- [ ] Mouse move during a peek cancels it cleanly
 - [ ] Zoomed drag: the view holds still while dragging, and the first move after release
   doesn't jump the screen; moving to a screen edge still reaches the screenshot's edge
 - [ ] Z right after a zoomed drag zooms around the cursor, not where the drag began
 - [ ] Dragging during a peek starts the selection at the crosshair, and nothing pans mid-drag
-- [ ] Arrow-key skip to an off-viewport edge peek-pans, holds, returns
-- [ ] Mouse move during a peek cancels it cleanly
 - [ ] ESC exits silently
 
 ### Alignment Guides
