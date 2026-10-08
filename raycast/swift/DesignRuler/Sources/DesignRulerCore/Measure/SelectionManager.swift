@@ -67,8 +67,10 @@ package final class SelectionManager {
         // At 1x, capture-space == window-local. At zoom, capture-space IS the unzoomed window-local
         // coords, which is exactly what snapSelection needs (it internally converts to screen AppKit).
         if let snapped = edgeDetector.snapSelection(windowRect: dragRect, screenBounds: screenBounds) {
-            let w = Int(round(snapped.width))
-            let h = Int(round(snapped.height))
+            // Truncate like the crosshair pill. On Retina a size can end in .5: a browser draws an
+            // 80.4px button as 161 device pixels. Rounding showed 81 where hovering it showed 80
+            let w = Int(snapped.width)
+            let h = Int(snapped.height)
             sel.animateSnap(to: snapped, w: w, h: h, zoomState: zoomState)
             selections.append(sel)
             return true
