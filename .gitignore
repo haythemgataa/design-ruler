@@ -19,3 +19,7 @@ App/DerivedData/
 
 # misc
 .DS_Store
+
+# local tooling
+.planning/
+.vscode/
