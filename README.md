@@ -11,7 +11,38 @@
   Design Ruler gives you two fullscreen overlay tools for inspecting UI: one for measuring pixel distances with automatic edge detection, and one for placing alignment guides anywhere on screen. Zoom to 4x to work pixel by pixel. Works across all monitors.
 
   Available as a **standalone menu bar app** or a **Raycast extension**.
+
+  <a href="https://github.com/haythemgataa/design-ruler/releases"><img src="https://img.shields.io/github/v/release/haythemgataa/design-ruler?include_prereleases&label=download" alt="Download"></a>
+  <img src="https://img.shields.io/badge/macOS-14%2B-lightgrey" alt="macOS 14+">
 </div>
+
+---
+
+## Download & Install
+
+### Standalone App
+
+**[Download the latest DMG](https://github.com/haythemgataa/design-ruler/releases)** from GitHub Releases. Requires macOS 14 Sonoma or later.
+
+1. Open the DMG and drag **Design Ruler** to Applications.
+2. Open it. The beta isn't signed with a Developer ID yet, so macOS blocks it the first time: go to **System Settings → Privacy & Security** and click **Open Anyway**, or run:
+   ```bash
+   xattr -dr com.apple.quarantine "/Applications/Design Ruler.app"
+   ```
+3. Grant **Screen Recording** when asked. Each new beta build needs it again: if an older build was installed, remove Design Ruler from **System Settings → Privacy & Security → Screen Recording** with **−**, then add it again with **+**.
+
+Design Ruler lives in the menu bar, with no Dock icon or Cmd+Tab entry. Assign keyboard shortcuts in **Settings**. The beta can't update itself yet: **Check GitHub for Updates** in the menu bar opens the releases page.
+
+### Raycast Extension
+
+Not in the [Raycast Store](https://www.raycast.com/store) yet. With Raycast installed, build it from source:
+
+```bash
+git clone https://github.com/haythemgataa/design-ruler.git
+cd design-ruler
+npm install
+npm run dev   # builds the Swift package and loads Measure / Alignment Guides into Raycast
+```
 
 ---
 
@@ -28,7 +59,7 @@ Freeze your screen and measure pixel distances between any two edges — instant
 - **Arrow keys** skip to the next detected edge; **Shift + Arrow** brings it back
 - **Drag to select a region** — snaps to detected edges, shakes if too small
 - **Hover a selection** and click to remove it
-- **Smart 1px border corrections** — configurable: smart (default), include, or none
+- **Count 1px borders** — Smart (default) counts them or not, whichever fits the 4px grid; or Always / Never. A green tick marks an edge where a border was counted
 - **Zoom-aware** — edge detection, crosshair, and selections stay accurate at 2x and 4x; arrow-key skipping peek-pans to reveal edges outside the zoomed viewport
   
 <p align="center" width="100%">
@@ -85,52 +116,40 @@ Press **Z** in either command to magnify the frozen screenshot. Available in bot
 ## Standalone App Features
 
 ### Menu Bar
-Click the ruler icon in the menu bar to launch either command. The icon fills in while an overlay is active.
+Click the Design Ruler icon in the menu bar to launch either command, open Settings, or check for updates. Assigned keyboard shortcuts show next to each command.
 
 ### Global Keyboard Shortcuts
 Assign custom hotkeys to Measure and Alignment Guides in Settings. Hotkeys work from any application. Press the same hotkey while an overlay is active to dismiss it, or press the other command's hotkey to switch.
 
 ### Settings
-Open from the menu bar dropdown. Configure:
-- **General** — Launch at Login, Hide Hint Bar, Automatically Check for Updates
-- **Measure** — Border Corrections mode, Measure shortcut
-- **Alignment Guides** — Alignment Guides shortcut
-- **About** — Version info, GitHub link, manual update check
+Open from the menu bar dropdown. Three tabs:
+- **General** — version info and manual update check, Launch at Login, Show Hint Bar, Check for Updates Automatically, GitHub link
+- **Measure** — Measure shortcut, Count 1px Borders
+- **Alignment** — Alignment Guides shortcut, Remember Color and Direction
 
-### Auto-Updates
-Design Ruler uses [Sparkle](https://sparkle-project.org) to check for updates automatically. You can also check manually from the menu bar.
-
----
-
-## Install
-
-### Standalone App
-
-Download the latest DMG from [GitHub Releases](https://github.com/haythemgataa/design-ruler/releases), open it, and drag Design Ruler to Applications. The app lives in your menu bar — no Dock icon, no Cmd+Tab entry.
-
-### Raycast Extension
-
-Build from source with `ray build` or, **coming soon**, install from the [Raycast Store](https://www.raycast.com/store).
+### Updates
+Signed releases update themselves with [Sparkle](https://sparkle-project.org), automatically or from **Check for Updates…** in the menu bar. The current beta builds are unsigned and can't: **Check GitHub for Updates…** opens the releases page instead.
 
 ---
 
 ## Preferences
 
 ### Standalone App (Settings Window)
-| Setting | Section | Options | Description |
+| Setting | Tab | Options | Description |
 |---|---|---|---|
 | Launch at Login | General | On / Off | Start Design Ruler when you log in |
-| Hide Hint Bar | General | On / Off | Hide the keyboard shortcut hint bar (both commands) |
-| Auto-check for Updates | General | On / Off | Sparkle automatic update checks |
-| Border Corrections | Measure | Smart / Include / None | How 1px borders are handled in measurements |
+| Show Hint Bar | General | On (default) / Off | Show the keyboard shortcut hint bar (both commands) |
+| Check for Updates Automatically | General | On / Off | Sparkle automatic update checks |
 | Measure Shortcut | Measure | Key combo | Global hotkey for Measure |
-| Alignment Guides Shortcut | Alignment Guides | Key combo | Global hotkey for Alignment Guides |
+| Count 1px Borders | Measure | Smart / Always / Never | Whether 1px borders count in measurements; Smart counts them or not, whichever fits the 4px grid. A green tick marks an edge where a border was counted |
+| Alignment Guides Shortcut | Alignment | Key combo | Global hotkey for Alignment Guides |
+| Remember Color and Direction | Alignment | On / Off (default) | Start each session with the guide color and direction you used last |
 
 ### Raycast Extension
 | Preference | Command | Options | Description |
 |---|---|---|---|
-| Hide Hint Bar | Both | On / Off | Hide the keyboard shortcut hint bar |
-| Corrections | Measure | Smart / Include / None | How 1px borders are handled in measurements |
+| Show Hint Bar | Both | On (default) / Off | Show the keyboard shortcut hint bar |
+| Count 1px Borders | Measure | Smart / Always / Never | Whether 1px borders count in measurements |
 
 ---
 
@@ -184,4 +203,4 @@ npm run dev   # builds the Swift package and loads Measure / Alignment Guides in
 Both targets share the same Swift overlay code via the `DesignRulerCore` SPM library.
 
 ### Test Builds
-Every push to `main` and every pull request builds an unsigned test DMG. Download it from the workflow run's **Artifacts** section under [Actions → CI](https://github.com/haythemgataa/design-ruler/actions/workflows/ci.yml). macOS blocks unsigned apps on first open: use **System Settings → Privacy & Security → Open Anyway**, or run `xattr -dr com.apple.quarantine "/Applications/Design Ruler.app"`. Screen Recording permission has to be granted again for each new test build.
+Every push to `main` and every pull request builds an unsigned test DMG. Download it from the workflow run's **Artifacts** section under [Actions → CI](https://github.com/haythemgataa/design-ruler/actions/workflows/ci.yml). macOS blocks unsigned apps on first open: use **System Settings → Privacy & Security → Open Anyway**, or run `xattr -dr com.apple.quarantine "/Applications/Design Ruler.app"`. Screen Recording permission has to be granted again for each new test build: if an older build was installed, remove Design Ruler from **System Settings → Privacy & Security → Screen Recording** with **−**, then add it again with **+**.

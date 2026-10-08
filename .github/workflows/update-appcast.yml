@@ -1,5 +1,8 @@
 name: Update Appcast
 
+# Publishing a release signs its DMG for Sparkle and attaches appcast.xml. Skipped until the
+# SPARKLE_PRIVATE_KEY secret exists: without it Sparkle can't verify an update.
+
 on:
   release:
     types: [published]
@@ -16,31 +19,45 @@ jobs:
       SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
 
     steps:
+      - name: Check for the Sparkle key
+        run: |
+          if [ -z "$SPARKLE_PRIVATE_KEY" ]; then
+            echo "SKIP=true" >> $GITHUB_ENV
+            echo "::notice::SPARKLE_PRIVATE_KEY is not set, so this release gets no appcast"
+          fi
+
       - name: Checkout
+        if: env.SKIP != 'true'
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Extract release info
+        if: env.SKIP != 'true'
         run: |
           VERSION=${GITHUB_REF_NAME#v}
           BUILD_NUMBER=$(git rev-list --count HEAD)
-          DMG_NAME="Design-Ruler-$VERSION.dmg"
-          DOWNLOAD_URL="https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/$DMG_NAME"
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "BUILD_NUMBER=$BUILD_NUMBER" >> $GITHUB_ENV
-          echo "DMG_NAME=$DMG_NAME" >> $GITHUB_ENV
-          echo "DOWNLOAD_URL=$DOWNLOAD_URL" >> $GITHUB_ENV
 
       - name: Download DMG from release
+        if: env.SKIP != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release download "$GITHUB_REF_NAME" \
             --pattern "*.dmg" \
             --dir "$RUNNER_TEMP"
+          # Signed releases ship Design-Ruler-X.Y.Z.dmg, unsigned ones Design-Ruler-X.Y.Z-unsigned.dmg;
+          # prefer the signed one if a release ever carries both
+          DMG_NAME="Design-Ruler-$VERSION.dmg"
+          [ -f "$RUNNER_TEMP/$DMG_NAME" ] || DMG_NAME="Design-Ruler-$VERSION-unsigned.dmg"
+          [ -f "$RUNNER_TEMP/$DMG_NAME" ] || { echo "::error::No Design Ruler DMG on this release"; exit 1; }
+          echo "DMG_NAME=$DMG_NAME" >> $GITHUB_ENV
+          echo "DOWNLOAD_URL=https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/$DMG_NAME" >> $GITHUB_ENV
 
       - name: Download Sparkle tools
+        if: env.SKIP != 'true'
         run: |
           curl -fsSL "https://github.com/sparkle-project/Sparkle/releases/download/2.8.1/Sparkle-2.8.1.tar.xz" \
             -o /tmp/Sparkle.tar.xz
@@ -48,6 +65,7 @@ jobs:
           tar xf /tmp/Sparkle.tar.xz -C /tmp/sparkle-tools
 
       - name: Generate EdDSA signature
+        if: env.SKIP != 'true'
         run: |
           SIGN_OUTPUT=$(echo "$SPARKLE_PRIVATE_KEY" | /tmp/sparkle-tools/bin/sign_update --ed-key-file - "$RUNNER_TEMP/$DMG_NAME")
           ED_SIGNATURE=$(echo "$SIGN_OUTPUT" | sed -n 's/.*sparkle:edSignature="\([^"]*\)".*/\1/p')
@@ -56,6 +74,7 @@ jobs:
           echo "FILE_LENGTH=$FILE_LENGTH" >> $GITHUB_ENV
 
       - name: Generate appcast.xml
+        if: env.SKIP != 'true'
         run: |
           export VERSION BUILD_NUMBER ED_SIGNATURE FILE_LENGTH DOWNLOAD_URL
           export REPO_URL="https://github.com/$GITHUB_REPOSITORY"
@@ -63,6 +82,7 @@ jobs:
           scripts/generate-appcast.sh "$RUNNER_TEMP/appcast.xml"
 
       - name: Upload appcast.xml to release
+        if: env.SKIP != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

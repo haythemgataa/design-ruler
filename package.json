@@ -22,25 +22,25 @@
       "mode": "no-view",
       "preferences": [
         {
-          "name": "hideHintBar",
+          "name": "showHintBar",
           "type": "checkbox",
-          "title": "Hide Hint Bar",
-          "description": "Hide the keyboard shortcut hint bar",
-          "default": false,
-          "label": "Hide hint bar",
+          "title": "Show Hint Bar",
+          "description": "Show the keyboard shortcuts at the bottom of the overlay",
+          "default": true,
+          "label": "Show hint bar",
           "required": false
         },
         {
           "name": "corrections",
           "type": "dropdown",
-          "title": "Corrections",
-          "description": "How to handle 1px borders in measurements",
+          "title": "Count 1px Borders",
+          "description": "Whether 1px borders count in measurements. Smart counts them or not, whichever fits the 4px grid",
           "default": "smart",
           "required": false,
           "data": [
             { "title": "Smart", "value": "smart" },
-            { "title": "Include 1px Borders", "value": "include" },
-            { "title": "No Corrections", "value": "none" }
+            { "title": "Always", "value": "include" },
+            { "title": "Never", "value": "none" }
           ]
         }
       ]
@@ -53,12 +53,12 @@
       "mode": "no-view",
       "preferences": [
         {
-          "name": "hideHintBar",
+          "name": "showHintBar",
           "type": "checkbox",
-          "title": "Hide Hint Bar",
-          "description": "Hide the keyboard shortcut hint bar",
-          "default": false,
-          "label": "Hide hint bar",
+          "title": "Show Hint Bar",
+          "description": "Show the keyboard shortcuts at the bottom of the overlay",
+          "default": true,
+          "label": "Show hint bar",
           "required": false
         }
       ]

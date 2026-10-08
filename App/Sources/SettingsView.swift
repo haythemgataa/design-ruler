@@ -3,68 +3,50 @@ import ServiceManagement
 import Sparkle
 import SwiftUI
 
-struct SettingsView: View {
-    static let width: CGFloat = 520
+// The Settings window's tabs. SettingsWindowController puts each one in a toolbar tab.
 
+struct GeneralSettingsView: View {
     let updater: SPUUpdater
 
-    @State private var launchAtLogin: Bool
-    @State private var hideHintBar: Bool
-    @State private var corrections: String
+    @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var showHintBar = AppPreferences.shared.showHintBar
     @State private var automaticallyChecksForUpdates: Bool
-    @State private var measureConflict: String?
-    @State private var guidesConflict: String?
+    @Environment(\.controlActiveState) private var controlActiveState
 
     init(updater: SPUUpdater) {
         self.updater = updater
-        _launchAtLogin = State(initialValue: SMAppService.mainApp.status == .enabled)
-        _hideHintBar = State(initialValue: AppPreferences.shared.hideHintBar)
-        _corrections = State(initialValue: AppPreferences.shared.corrections)
         _automaticallyChecksForUpdates = State(initialValue: updater.automaticallyChecksForUpdates)
     }
 
-    private var version: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
-    }
-
-    private var correctionsDescription: String {
-        switch corrections {
-        case "include": return "Always counts 1px borders as part of the measured element."
-        case "none": return "Reports edges exactly as detected, with no adjustments."
-        default: return "Counts a 1px border only when that lands the size on the 4px grid."
-        }
-    }
+    /// Footer in builds that can't update themselves, with a link to GitHub Releases.
+    private static let betaUpdatesNote: AttributedString = {
+        let markdown = "This beta can't update itself yet. Download new versions from "
+            + "[GitHub Releases](\(AppBuild.releasesURL.absoluteString))."
+        return (try? AttributedString(markdown: markdown)) ?? AttributedString(markdown)
+    }()
 
     var body: some View {
-        Form {
-            // --- Header ---
+        SettingsPane {
+            // --- App ---
             Section {
-                HStack(spacing: 14) {
-                    Image(nsImage: NSApp.applicationIconImage)
-                        .resizable()
-                        .frame(width: 56, height: 56)
-
-                    VStack(alignment: .leading, spacing: 2) {
+                PaneHeader(icon: "DesignRulerIcon", description: "Version \(AppBuild.version) (\(AppBuild.build))") {
+                    HStack(spacing: 8) {
                         Text("Design Ruler")
-                            .font(.title2.weight(.semibold))
-                        Text("Version \(version)")
-                            .foregroundStyle(.secondary)
+                        if AppBuild.isBeta {
+                            BetaBadge()
+                        }
                     }
-
-                    Spacer()
-
+                } accessory: {
                     Button("Check for Updates\u{2026}") {
                         updater.checkForUpdates()
                     }
+                    .disabled(!AppBuild.canAutoUpdate)
                 }
-                .padding(.vertical, 4)
             }
 
-            // --- General ---
-            Section("General") {
+            Section {
                 Toggle(isOn: $launchAtLogin) {
-                    SettingLabel("Launch at Login", symbol: "power", color: .green,
-                                 detail: "Keeps Design Ruler in the menu bar after you restart.")
+                    SettingLabel("Launch at Login", detail: "Keeps Design Ruler in the menu bar after you restart.")
                 }
                 .onChange(of: launchAtLogin) { _, newValue in
                     if newValue {
@@ -74,135 +56,139 @@ struct SettingsView: View {
                     }
                 }
 
-                Toggle(isOn: $hideHintBar) {
-                    SettingLabel("Hide Hint Bar", symbol: "keyboard", color: .gray,
-                                 detail: "Hides the keyboard shortcut bar at the bottom of the overlay.")
+                Toggle(isOn: $showHintBar) {
+                    SettingLabel("Show Hint Bar", detail: "Shows the keyboard shortcuts at the bottom of the overlay.")
                 }
-                .onChange(of: hideHintBar) { _, newValue in
-                    AppPreferences.shared.hideHintBar = newValue
+                .onChange(of: showHintBar) { _, newValue in
+                    AppPreferences.shared.showHintBar = newValue
                 }
 
-                Toggle(isOn: $automaticallyChecksForUpdates) {
-                    SettingLabel("Check for Updates Automatically", symbol: "arrow.triangle.2.circlepath", color: .blue,
+                Toggle(isOn: AppBuild.canAutoUpdate ? $automaticallyChecksForUpdates : .constant(false)) {
+                    SettingLabel("Check for Updates Automatically",
                                  detail: "Looks for new versions in the background once a day.")
                 }
+                .disabled(!AppBuild.canAutoUpdate)
                 .onChange(of: automaticallyChecksForUpdates) { _, newValue in
                     updater.automaticallyChecksForUpdates = newValue
                 }
+            } footer: {
+                VStack(spacing: 28) {
+                    if !AppBuild.canAutoUpdate {
+                        SectionFooter(Self.betaUpdatesNote)
+                    }
+
+                    // --- Footer ---
+                    HStack {
+                        Text("\u{00A9} 2026 Haythem Gataa")
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Link(destination: URL(string: "https://github.com/haythemgataa/design-ruler")!) {
+                            Label("View on GitHub", systemImage: "arrow.up.right.square")
+                        }
+                    }
+                    .font(.callout)
+                    .padding(.top, AppBuild.canAutoUpdate ? 12 : 0)
+                }
+            }
+        }
+        .onAppear {
+            launchAtLogin = SMAppService.mainApp.status == .enabled
+        }
+        // Reopening Settings reuses the window, so onAppear doesn't fire again: re-read the
+        // status (it may have changed in System Settings) whenever the window becomes key
+        .onChange(of: controlActiveState) { _, state in
+            if state == .key { launchAtLogin = SMAppService.mainApp.status == .enabled }
+        }
+    }
+}
+
+struct MeasureSettingsView: View {
+    @State private var corrections = AppPreferences.shared.corrections
+
+    private var correctionsDescription: String {
+        switch corrections {
+        case "include": return "Counts them in every measurement."
+        case "none": return "Leaves them out of every measurement."
+        default: return "Counts them or not, whichever fits the 4px grid."
+        }
+    }
+
+    /// The green matches the crosshair's tick for an edge whose border was counted (CrosshairView).
+    private static let bordersNote: AttributedString = {
+        var note = AttributedString("A ")
+        var green = AttributedString("green")
+        green.foregroundColor = Color(.sRGB, red: 0.29, green: 0.87, blue: 0.50)
+        green.inlinePresentationIntent = .stronglyEmphasized  // bolder, so the light green reads on light backgrounds
+        note.append(green)
+        note.append(AttributedString(" tick marks an edge where a border was counted."))
+        return note
+    }()
+
+    var body: some View {
+        SettingsPane {
+            Section {
+                PaneHeader(icon: "MeasureIcon",
+                           description: "Point at anything on screen to see its width and height. Edges are "
+                               + "detected from the pixels around the cursor.") {
+                    Text("Measure")
+                }
             }
 
-            // --- Measure ---
-            Section("Measure") {
+            Section {
+                ShortcutRow(detail: "Opens Measure from any app.",
+                            name: .measure, other: .alignmentGuides, otherTitle: "Alignment Guides")
+            } footer: {
+                SectionFooter("Press it again to close the overlay, or the Alignment Guides shortcut to switch.")
+            }
+
+            Section {
                 Picker(selection: $corrections) {
                     Text("Smart").tag("smart")
-                    Text("Include Borders").tag("include")
-                    Text("None").tag("none")
+                    Text("Always").tag("include")
+                    Text("Never").tag("none")
                 } label: {
-                    SettingLabel("Border Corrections", symbol: "square.dashed", color: .orange,
-                                 detail: correctionsDescription)
+                    SettingLabel("Count 1px Borders", detail: correctionsDescription)
                 }
                 .pickerStyle(.menu)
                 .onChange(of: corrections) { _, newValue in
                     AppPreferences.shared.corrections = newValue
                 }
-            }
-
-            // --- Keyboard Shortcuts ---
-            Section {
-                shortcutRow("Measure", symbol: "ruler", color: .purple,
-                            name: .measure, other: .alignmentGuides, otherTitle: "Alignment Guides",
-                            conflict: $measureConflict)
-                shortcutRow("Alignment Guides", symbol: "rectangle.split.3x1", color: .pink,
-                            name: .alignmentGuides, other: .measure, otherTitle: "Measure",
-                            conflict: $guidesConflict)
             } header: {
-                Text("Keyboard Shortcuts")
+                Text("Measurements")
             } footer: {
-                Text("Shortcuts work from any app. Press the same shortcut again to close the overlay, or the other one to switch.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                SectionFooter(Self.bordersNote)
             }
-
-            // --- Footer ---
-            Section {
-                HStack {
-                    Text("\u{00A9} 2026 Haythem Gataa")
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Link(destination: URL(string: "https://github.com/haythemgataa/design-ruler")!) {
-                        Label("View on GitHub", systemImage: "arrow.up.right.square")
-                    }
-                }
-                .font(.callout)
-            }
-        }
-        .formStyle(.grouped)
-        .onAppear {
-            launchAtLogin = SMAppService.mainApp.status == .enabled
-        }
-        .frame(width: Self.width)
-        .fixedSize(horizontal: false, vertical: true)
-    }
-}
-
-extension SettingsView {
-    /// Shortcut recorder row. Rejects a shortcut already used by the other command and shows
-    /// the conflict in place of the row's explanation.
-    private func shortcutRow(_ title: String, symbol: String, color: Color,
-                             name: KeyboardShortcuts.Name, other: KeyboardShortcuts.Name, otherTitle: String,
-                             conflict: Binding<String?>) -> some View {
-        LabeledContent {
-            KeyboardShortcuts.Recorder(for: name) { newShortcut in
-                if let newShortcut, newShortcut == KeyboardShortcuts.getShortcut(for: other) {
-                    KeyboardShortcuts.setShortcut(nil, for: name)
-                    conflict.wrappedValue = "Already assigned to \(otherTitle)"
-                } else if newShortcut != nil {  // setShortcut(nil) re-fires onChange with nil; keep the warning
-                    conflict.wrappedValue = nil
-                }
-            }
-        } label: {
-            SettingLabel(title, symbol: symbol, color: color, warning: conflict.wrappedValue)
         }
     }
 }
 
-/// Settings row label in the System Settings style: a colored icon tile, a title, and an
-/// optional one-line explanation or orange warning underneath.
-private struct SettingLabel: View {
-    let title: String
-    let symbol: String
-    let color: Color
-    var detail: String?
-    var warning: String?
-
-    init(_ title: String, symbol: String, color: Color, detail: String? = nil, warning: String? = nil) {
-        self.title = title
-        self.symbol = symbol
-        self.color = color
-        self.detail = detail
-        self.warning = warning
-    }
+struct AlignmentSettingsView: View {
+    @State private var remembersGuideStyle = AppPreferences.shared.remembersGuideStyle
 
     var body: some View {
-        HStack(alignment: .center, spacing: 10) {
-            Image(systemName: symbol)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 24, height: 24)
-                .background(color.gradient, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        SettingsPane {
+            Section {
+                PaneHeader(icon: "AlignmentGuidesIcon",
+                           description: "Place vertical and horizontal lines across the screen to check "
+                               + "that elements line up.") {
+                    Text("Alignment Guides")
+                }
+            }
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                if let warning {
-                    Text(warning)
-                        .font(.callout)
-                        .foregroundStyle(.orange)
-                } else if let detail {
-                    Text(detail)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+            Section {
+                ShortcutRow(detail: "Opens Alignment Guides from any app.",
+                            name: .alignmentGuides, other: .measure, otherTitle: "Measure")
+            } footer: {
+                SectionFooter("Press it again to close the overlay, or the Measure shortcut to switch.")
+            }
+
+            Section("Guides") {
+                Toggle(isOn: $remembersGuideStyle) {
+                    SettingLabel("Remember Color and Direction",
+                                 detail: "Starts where you left off, instead of Dynamic and vertical.")
+                }
+                .onChange(of: remembersGuideStyle) { _, newValue in
+                    AppPreferences.shared.remembersGuideStyle = newValue
                 }
             }
         }

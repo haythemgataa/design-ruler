@@ -33,13 +33,15 @@ auto-updates), and DMG distribution via GitHub Releases.
 Standalone App (App/)
   ├─ Sources/
   │   ├─ main.swift                — 4-line entry point (NSApplication.shared.run())
-  │   ├─ AppDelegate.swift         — wires MenuBar, Settings, Hotkeys, Coordinators
+  │   ├─ AppDelegate.swift         — wires MenuBar, Settings, Hotkeys, Coordinators; launchMeasure/launchAlignmentGuides
   │   ├─ MenuBarController.swift   — NSStatusItem, dropdown, icon state, callbacks
   │   ├─ HotkeyController.swift    — session-aware global hotkey dispatch
   │   ├─ HotkeyNames.swift         — KeyboardShortcuts.Name extensions (.measure, .alignmentGuides)
   │   ├─ AppPreferences.swift      — @Observable singleton over UserDefaults
-  │   ├─ SettingsView.swift        — SwiftUI Form (header, General, Measure, Shortcuts, footer)
-  │   ├─ SettingsWindowController.swift — NSWindow lifecycle (3-branch reuse)
+  │   ├─ AppBuild.swift            — version, build, beta flag, canAutoUpdate (Developer ID Team ID present)
+  │   ├─ SettingsView.swift        — the 3 tab views: General (with the app's version and updates), Measure, Alignment
+  │   ├─ SettingsComponents.swift  — SettingsPane (tab wrapper), PaneHeader, SettingLabel, ShortcutRow, SectionFooter, BetaBadge
+  │   ├─ SettingsWindowController.swift — toolbar-tab window (3-branch reuse), SettingsTabViewController (per-tab resize)
   │   ├─ DesignRuler.entitlements  — Hardened Runtime (empty dict)
   │   └─ Info.plist                — LSUIElement, Sparkle keys, bundle metadata
   ├─ ExportOptions.plist           — Developer ID export for xcodebuild -exportArchive
@@ -65,7 +67,7 @@ Shared Swift (swift/DesignRuler/)
   │   ├─ Rendering/
   │   │   ├─ PillRenderer.swift         — shared pill factories, font, paths, text, shadows
   │   │   ├─ HintBarView.swift          — glass hint bar, slide animation, expand/collapse
-  │   │   ├─ LaunchRipple.swift         — Metal launch ripple (inline shader, CAMetalLayer)
+  │   │   ├─ LaunchWave.swift           — launch animation: grid wave from the cursor, dots (Measure) / lines (Guides)
   │   │   └─ HintBarContent.swift       — SwiftUI keycap layouts, HintBarTextStyle
   │   ├─ AlignmentGuides/
   │   │   ├─ AlignmentGuidesCoordinator.swift — open class, OverlayCoordinator subclass
@@ -92,8 +94,8 @@ Shared Swift (swift/DesignRuler/)
 
 CI/CD (.github/workflows/)
   ├─ ci.yml                        — push to main / PR → lint + compile + ad-hoc test DMG artifact
-  ├─ build-release.yml             — tag-push → archive → sign → notarize → DMG → draft release
-  └─ update-appcast.yml            — release-publish → EdDSA sign → appcast.xml → upload
+  ├─ build-release.yml             — vX.Y.Z tag → signed+notarized or unsigned DMG → draft release
+  └─ update-appcast.yml            — release-publish → EdDSA sign → appcast.xml → upload (needs the key)
 
 Scripts (scripts/)
   ├─ create-dmg.sh                 — branded DMG from a built .app (shared by ci + release)
@@ -216,8 +218,8 @@ Creating fullscreen windows steals focus — title bars gray out. Fix:
 // 5. setActivationPolicy(.accessory)
 // 6. Cleanup old windows
 // 7. createWindow() per captured screen — subclass factory; wireCallbacks() — subclass wiring
-// 8. Show all windows
-// 9. makeKey cursor screen, showInitialState(), playLaunchRipple() on every window
+// 8. Show all windows, playLaunchWave() on each
+// 9. makeKey cursor screen, showInitialState()
 // 10. Signal handler, inactivity timer, app.run()
 ```
 
@@ -242,7 +244,7 @@ if difference > tolerance → edge found
 ```
 
 ### Smart Border Corrections
-Three modes (`corrections` preference):
+Three modes (`corrections` preference, shown as "Count 1px Borders": Smart / Always / Never):
 - **smart** — tries all 4 absorption combinations for 1px borders, picks
   the one landing on a 4px grid alignment
 - **include** — always includes 1px borders in measurements
@@ -446,7 +448,8 @@ default (Measure) mode and that view type doesn't follow `state.mode`, so
 `setMode()` swaps it for the mode's content.
 
 ### Preference
-- `hideHintBar`: hides hint bar entirely
+- Show Hint Bar (on by default): `showHintBar` in Raycast, `AppPreferences.showHintBar` in the app.
+  Both bridges pass the inverse as the core's `hideHintBar`, which hides the hint bar entirely
 - Hint bar only shown on cursor's screen (multi-monitor)
 
 ---
@@ -456,18 +459,23 @@ default (Measure) mode and that view type doesn't follow `state.mode`, so
 ### Raycast Extension
 | Name | Type | Default | Scope | Description |
 |------|------|---------|-------|-------------|
-| hideHintBar | checkbox | false | both commands | Hide the keyboard shortcut hint bar |
-| corrections | dropdown | smart | measure only | How to handle 1px borders: smart, include, none |
+| showHintBar | checkbox | true | both commands | Show the keyboard shortcut hint bar (Swift bridge passes `hideHintBar: !showHintBar`) |
+| corrections | dropdown | smart | measure only | "Count 1px Borders": Smart / Always / Never (values smart, include, none) |
 
 ### Standalone App (UserDefaults via AppPreferences)
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| hideHintBar | Bool | false | Hide the keyboard shortcut hint bar (General section) |
-| corrections | String | "smart" | Border correction mode: smart, include, none (Measure section) |
-| Launch at Login | SMAppService | on | Registered on first launch (`hasLaunchedBefore`); toggle via SMAppService.mainApp |
-| Measure shortcut | KeyboardShortcuts | unassigned | Global hotkey for Measure |
-| Alignment Guides shortcut | KeyboardShortcuts | unassigned | Global hotkey for Alignment Guides |
-| Auto-check for updates | Sparkle | on | Sparkle automaticallyChecksForUpdates |
+| hideHintBar | Bool | false | Read and written inverted as `AppPreferences.showHintBar`: the Show Hint Bar switch (General tab, on by default) |
+| corrections | String | "smart" | "Count 1px Borders" menu: Smart / Always / Never (values smart, include, none; Measure tab) |
+| remembersGuideStyle | Bool | false | Remember Color and Direction: start Guides with `guideStyle`/`guideDirection` (Alignment tab) |
+| guideStyle | String | "dynamic" | Color the last Guides session ended with (`GuideLineStyle` raw value). Saved even while Remember is off |
+| guideDirection | String | "vertical" | Direction the last Guides session ended with: vertical, horizontal. Saved even while Remember is off |
+| Launch at Login | SMAppService | on | Registered on first launch (`hasLaunchedBefore`); toggle via SMAppService.mainApp (General tab) |
+| Measure shortcut | KeyboardShortcuts | unassigned | Global hotkey for Measure (Measure tab) |
+| Alignment Guides shortcut | KeyboardShortcuts | unassigned | Global hotkey for Alignment Guides (Alignment tab) |
+| Auto-check for updates | Sparkle | on | Sparkle automaticallyChecksForUpdates (General tab, Check for Updates in its header) |
+
+Remember Color and Direction is standalone-only: Raycast Guides always start dynamic + vertical.
 
 ---
 
@@ -488,7 +496,9 @@ default (Measure) mode and that view type doesn't follow `state.mode`, so
 - **Pill flip**: animates 0.15s easeOut when swapping sides near edges
 
 ### Alignment Guides
-- **Launch**: captures all screens, fullscreen overlays, preview line follows cursor
+- **Launch**: captures all screens, fullscreen overlays, preview line follows cursor.
+  Starts dynamic + vertical; the standalone app with Remember Color and Direction on starts with
+  the color and direction the last session ended with (preview, resize cursor, pill, every screen)
 - **Tab**: toggle preview direction (vertical ↔ horizontal)
 - **Spacebar**: cycle color (dynamic → red → green → orange → blue)
 - **Click**: place guide line at cursor (with position pill showing X or Y coord)
@@ -583,28 +593,35 @@ viewport: pan-out (`peekPan` 0.2s) → hold (`peekHold` 0.6s) → return
 travels with the content. Return phase runs from a cancellable
 `DispatchWorkItem`; `isPeekAnimating` guards pan updates.
 
-### Launch Ripple (LaunchRipple)
-On launch a frosted, refracting ripple spreads from the hint bar's center (`hintBarView.frame.midY`;
-48pt above the bottom on screens without a bar) across every screen over `DesignTokens.Animation.launchRipple` (1s,
-easeOut cubic). Parameters were tuned in a browser WebGL prototype and live as constants in
-`LaunchRippleRenderer`.
-- Metal fragment shader compiled at runtime from an inline source string (no `.metal` /
-  `.metallib` resources: Raycast ships only the binary). `prepare()` starts the compile at the top
-  of `run()` so it overlaps screen capture (~35ms); the pipeline is cached for later sessions
-- Per window, the screenshot is loaded off-main into a mipmapped texture (`MTKTextureLoader`);
-  the blur samples mips so large radii stay smooth
-- Drawn into a non-opaque `CAMetalLayer` added as a sublayer of `contentLayer`, so it zooms and
-  pans with the screenshot and stays below all overlay UI. Outside the ring the shader returns
-  transparent and the screenshot shows through. Driven by `NSView.displayLink` capped at 60fps
-- Drawn at point resolution (half-size drawable on Retina, ¼ the fragments); `baseLod` makes
-  the shader sample the matching mip so the refraction doesn't alias. 8-tap mip-sampled blur
-- At most 2 frames in flight: a tick is skipped when the GPU is behind, never blocking the main
-  thread in `nextDrawable()` (which waits up to 1s for a free drawable)
-- The shader is the identity at t = 0 and t = 1, and a keyframe opacity ramp covers the
-  handoffs, so switching back to the plain screenshot is invisible. The layer is removed when done
-- Tuning constants live in the shader source; only resolution, origin and progress are uniforms
-- Skipped if the shader or texture isn't ready within 0.25s of launch, and with Reduce Motion
-- Cancelled on exit
+### Launch Wave (LaunchWave)
+On launch a wave of grid marks spreads from the cursor over `DesignTokens.Animation.launchWave` (1.5s,
+easeOut cubic), with a soft halo near the front, a light wash across the band and a 1pt line at the
+front, all under the crosshair's difference blend. `OverlayWindow.launchWaveStyle` picks the marks:
+Measure keeps `.dots` (1.5pt dots every 12pt, every 8th a 3pt major), Alignment Guides overrides
+with `.lines` (one-pixel grid lines on the same 12pt grid, every 8th brighter). Tuned in a browser
+prototype; the values live in `LaunchWave.Look`.
+- Core Animation only, nothing on the main thread per frame and nothing screen-sized to draw or upload:
+  `start()` draws one 96pt tile of 8×8 marks (and one of their halos), ~2-3ms per screen, then the
+  render server runs every frame. Nested `CAReplicatorLayer`s repeat the tile from the screen's
+  top-left: screen-sized bitmaps cost ~80ms of commit (copied to the render server) and ~110MB
+- Layers in a container under `contentLayer` (zooms with the screenshot, stays below overlay UI):
+  wash = radial `CAGradientLayer`; halo and marks = replicated tiles masked by radial gradients;
+  ring = stroked `CAShapeLayer`. The container has `compositingFilter = difference` and a filled
+  circle mask (half a pixel past the ring's outer edge, so it keeps the ring's antialiasing) that is
+  the hard front. The mask path also carries zero-length subpaths at two opposite screen corners
+  so its bounding box is screen-sized from the first frame (section 18)
+- The band moves by keyframing the gradients' `locations` and the circles' `path` at 60fps with
+  the easing baked in, so every keyframe differs from the last (section 18). The timeline starts
+  once the front has left the origin (`startProgress`): before that every stop sits clamped at 0
+  and the locations would hold still. The fade-in is its own short opacity animation
+- `CAGradientLayer` draws in 256 steps (radius/256 per step, 10-20pt across a screen), so the
+  gradients only shape the smooth falloff; the front edge and line are vector shapes
+- Band geometry per screen: band width = 40% of (distance from the cursor to the screen's farthest
+  corner − distance from the cursor to the screen). The cursor's screen starts at the cursor; other screens get the cursor's
+  position in their coordinates (off-screen) and the wave sweeps in from that side
+- Removed by the completion block of the transaction that adds every animation (set before any
+  is added: the block only waits for animations added after it); cancelled on exit; skipped with
+  Reduce Motion
 - Never moves the screenshot itself: measurements stay exact during the animation
 
 ### Fade-In Pattern
@@ -633,8 +650,16 @@ Managed by `OverlayCoordinator.run()`:
 
 ### Global State Sync (Alignment Guides)
 - `currentStyle` and `currentDirection` live in `AlignmentGuides` coordinator subclass
+- Session start: `resetCommandState()` sets them to `startingStyle`/`startingDirection`
+  (dynamic/vertical unless set by `run(hideHintBar:style:direction:)`; unknown names fall back).
+  `createWindow` passes them to `AlignmentGuidesWindow.create(for:screenshot:hideHintBar:style:direction:)`,
+  which applies them to its `GuideLineManager` before `showInitialState()`. The cursor window never
+  gets `activate()`, so activation alone can't set its starting state
 - On spacebar/tab: active window performs action, coordinator reads back state
 - On activation: new window receives current style/direction via `activate()`
+- The window's `cursorDirection` reads `guideLineManager.direction` (no mirrored copy)
+- `styleName`/`directionName` (public) expose them as raw values (`GuideLineStyle`: dynamic, red,
+  green, orange, blue; `Direction`: vertical, horizontal); after a session, what it ended with
 
 ### Cursor Position Initialization
 `OverlayWindow.initCursorPosition()` initializes `lastCursorPosition` from
@@ -682,19 +707,21 @@ SIGTERM handler in `OverlayCoordinator` base calls `CursorManager.shared.restore
 ```typescript
 // measure.ts
 import { inspect } from "swift:../swift/DesignRuler";
-await inspect(hideHintBar ?? false, corrections ?? "smart");
+await inspect(showHintBar ?? true, corrections ?? "smart");
 
 // alignment-guides.ts
 import { alignmentGuides } from "swift:../swift/DesignRuler";
-await alignmentGuides(hideHintBar ?? false);
+await alignmentGuides(showHintBar ?? true);
 ```
 
 ```swift
 // RaycastBridge/Measure.swift — runMode defaults to .raycast
-@raycast func inspect(hideHintBar: Bool, corrections: String) {
-    MeasureCoordinator.shared.run(hideHintBar: hideHintBar, corrections: corrections)
+@raycast func inspect(showHintBar: Bool, corrections: String) {
+    MeasureCoordinator.shared.run(hideHintBar: !showHintBar, corrections: corrections)
 }
 ```
+`RaycastBridge/AlignmentGuides.swift` calls the base `run(hideHintBar:)`, so Raycast Guides keep
+the dynamic/vertical starting state.
 
 ### Standalone App Bridge (AppDelegate → DesignRulerCore)
 ```swift
@@ -702,12 +729,22 @@ await alignmentGuides(hideHintBar ?? false);
 MeasureCoordinator.shared.runMode = .standalone
 AlignmentGuidesCoordinator.shared.runMode = .standalone
 
-// Menu bar / hotkey triggers read preferences at invocation time
-menuBarController.onMeasure = { [weak self] in
+// Menu bar and hotkey callbacks both call these; preferences are read at invocation time
+private func launchMeasure() {
+    hotkeyController.sessionStarted(command: .measure)
     let prefs = AppPreferences.shared
-    self?.hotkeyController.sessionStarted(command: .measure)
-    MeasureCoordinator.shared.run(hideHintBar: prefs.hideHintBar,
-                                   corrections: prefs.corrections)
+    MeasureCoordinator.shared.run(hideHintBar: !prefs.showHintBar, corrections: prefs.corrections)
+}
+
+private func launchAlignmentGuides() {
+    hotkeyController.sessionStarted(command: .alignmentGuides)
+    let prefs = AppPreferences.shared
+    let remembers = prefs.remembersGuideStyle
+    AlignmentGuidesCoordinator.shared.run(
+        hideHintBar: !prefs.showHintBar,
+        style: remembers ? prefs.guideStyle : "dynamic",
+        direction: remembers ? prefs.guideDirection : "vertical"
+    )
 }
 ```
 
@@ -727,29 +764,78 @@ Session guards prevent overlapping invocations:
 
 `onSessionEnd` callback fires at the end of `handleExit()` (covers ESC,
 inactivity timer, SIGTERM) and from `abortStartup()` (permission abort, no screens,
-nothing captured).
+nothing captured). The Guides handler also saves `styleName`/`directionName` into
+`guideStyle`/`guideDirection`, whether or not Remember is on.
 
 ### Menu Bar (MenuBarController)
-- `NSStatusItem` with "ruler" SF Symbol (template mode for dark/light)
-- Dropdown: Measure, Alignment Guides, separator, Settings..., Check for Updates..., separator, Quit
-- `setActive(true/false)` swaps icon to "ruler.fill" / "ruler"
+- `NSStatusItem` with the `MenuBarIcon` asset as a template image (adapts to dark/light)
+- Dropdown: Measure, Alignment Guides, separator, Settings..., Check for Updates..., separator, Quit.
+  In builds that can't update themselves the update item reads "Check GitHub for Updates…" and
+  opens GitHub Releases
+- `setActive(true/false)` re-applies the same icon (there is no active variant)
 - `anySessionActive` guard before `setActive(true)` prevents stuck icon
+- Menu items have no images: macOS 27 hides them unless `preferredImageVisibility = .visible`
+  (macOS 27 SDK only), and Measure's symbol (`guidepoint.vertical.numbers`) didn't exist before
+  macOS 26. Check new SF Symbols against macOS 14 in
+  `/System/Library/CoreServices/CoreGlyphs.bundle/Contents/Resources/name_availability.plist`
+- AppKit adds a gear to any item titled "Settings…" (or "Preferences…") by itself, whatever the SDK,
+  and it shifts that title out of line. Setting `image = nil` doesn't help (AppKit assigns it later)
+  and an empty image keeps the indent. `MenuBarController` sets `preferredImageVisibility` to
+  hidden (2) by name with KVC, guarded by `responds(to:)`, so the Xcode 26 release build compiles it
+  and macOS 27 hides the gear. macOS 26 has no such property
 - Decoupled from coordinators via callbacks (`onMeasure`, `onAlignmentGuides`, etc.)
 - `NSMenuDelegate`: `menuNeedsUpdate` refreshes shortcut display, `menuWillOpen`/`menuDidClose`
   disable/enable global hotkeys during menu tracking
 
-### Settings (SettingsView + SettingsWindowController)
-- SwiftUI Form with `.grouped` style, System Settings look: header (icon, version, Check for
-  Updates), General (Launch at Login, Hide Hint Bar, auto-update toggle), Measure (Border
-  Corrections menu), Keyboard Shortcuts (both recorders + footer), footer (copyright, GitHub)
-- Every row uses `SettingLabel`: colored SF Symbol tile, title, one-line explanation.
-  Border Corrections' explanation follows the selected mode; shortcut conflicts replace the
-  explanation with an orange warning
+### Settings (SettingsView + SettingsComponents + SettingsWindowController)
+- Classic preferences toolbar tabs: General (`gearshape`), Measure (`ruler`), Alignment
+  (`rectangle.split.3x1`). `SettingsTabViewController` (`NSTabViewController`,
+  `tabStyle = .toolbar`) in a `[.titled, .closable]` window with `toolbarStyle = .preference`,
+  a title row showing the selected tab's name (each hosting controller's `title`, passed on by the
+  tab controller) with the close button beside it, and the miniaturize/zoom buttons hidden
+- Each tab is an `NSHostingController` around a `SettingsPane`: `.grouped` Form, 480pt wide, at its
+  ideal height (`fixedSize` vertical, scrolling disabled), pinned to the top while the window resizes
+- The window follows the selected tab: `fitWindowToSelectedTab` sizes it to the pane's `fittingSize`
+  (rounded up), keeps the top edge and animates with `setFrame(_:display:animate:)` (instant with
+  Reduce Motion or before the window is visible). It runs on the next turn after a tab switch and when
+  a pane's height changes (`onGeometryChange` → `settingsPaneDidResize` environment closure).
+  The hosting controllers use `sizingOptions = .standardBounds`: `fittingSize` needs the intrinsic
+  size (`[]` makes it zero), and `.preferredContentSize` breaks the animation (section 18)
+- Every tab opens with a `PaneHeader` card: a 32pt icon, title, a line or two about it, and an
+  optional trailing control. The icons are the `DesignRulerIcon` / `MeasureIcon` /
+  `AlignmentGuidesIcon` image sets in `Assets.xcassets`, the Raycast icons at 256px with a
+  dark-appearance variant (the `@dark` files), so they follow light/dark. The app icon in General is
+  `DesignRulerIcon`, not `NSApp.applicationIconImage` (which has no dark variant)
+- General: header (name with a Beta badge for 0.x versions, "Version X (build)", Check for
+  Updates…), Launch at Login, Show Hint Bar, auto-update toggle, footer (copyright, View on GitHub)
+- Measure: header, Keyboard Shortcut row (recorder, footer on toggle-off / cross-switch), Measurements
+  (Count 1px Borders menu: Smart / Always / Never, with a short per-mode explanation; the footer says the green tick
+  `CrosshairView` draws marks an edge whose border was counted, with "green" in that color)
+- Alignment: header, Keyboard Shortcut row (same), Guides (Remember Color and Direction →
+  `remembersGuideStyle`)
+- Builds that can't update themselves (`AppBuild.canAutoUpdate` false: no Team ID, i.e. the
+  unsigned beta) disable Check for Updates and the auto-update toggle, and the toggles' footer links
+  to GitHub Releases
+- Every row uses `SettingLabel`: title and a one-line explanation, no icon.
+  Count 1px Borders' explanation follows the selected mode. `ShortcutRow` rejects the other
+  command's shortcut (read from KeyboardShortcuts, so it works across the Measure and Alignment tabs)
+  and replaces the explanation with an orange warning
 - `AppPreferences` is `@Observable` singleton with computed properties over `UserDefaults`
-- Preferences read inside overlay-launch closures (at invocation time, not capture time)
-- Launch at Login: `SMAppService.mainApp.register()`/`.unregister()`, `.onAppear` re-syncs
-- Sparkle: `SPUStandardUpdaterController(startingUpdater: true)` created in
-  `applicationDidFinishLaunching`, auto-check toggle, Check for Updates button
+- Preferences read in `AppDelegate.launchMeasure()` / `launchAlignmentGuides()` (at invocation
+  time, not capture time), shared by the menu bar and hotkey callbacks
+- Remember Color and Direction: on → `launchAlignmentGuides()` passes `guideStyle`/`guideDirection`
+  to `run(hideHintBar:style:direction:)`; off → "dynamic"/"vertical". The last-used values are saved
+  on every session end, so turning it on resumes them. The 3-argument `run` also sets the current
+  style/direction right away (when no session is active): an aborted startup (no permission) fires
+  `onSessionEnd` before `resetCommandState()` and must save the starting values, not the type
+  defaults. With Remember off those starting values are dynamic/vertical, so an aborted launch
+  overwrites the last-used ones
+- Launch at Login: `SMAppService.mainApp.register()`/`.unregister()`; General re-reads the status in
+  `.onAppear` (tab switches) and when the window becomes key (`controlActiveState`, reopening)
+- Sparkle: `SPUStandardUpdaterController(startingUpdater: AppBuild.canAutoUpdate)` created in
+  `applicationDidFinishLaunching`, auto-check toggle, Check for Updates button. Only a
+  Developer ID release (Team ID present) starts it: ad-hoc builds would fail Sparkle's signature
+  check and have no appcast. Ship the Sparkle key together with the Developer ID secrets
 - Version: `Info.plist` reads `$(MARKETING_VERSION)` / `$(CURRENT_PROJECT_VERSION)`;
   CI sets them from the tag and `git rev-list --count HEAD`
 - SettingsWindowController: 3-branch reuse (visible → bring to front, hidden → re-center + show, nil → create new)
@@ -775,20 +861,34 @@ nothing captured).
     Release build with hardened runtime off (checks `CFBundleVersion` is stamped,
     `codesign --verify`, `check-library-validation.sh`), test DMG uploaded as a 14-day artifact,
     then a launch smoke test of the app copied out of the DMG. Needs no secrets
-  - `build-release.yml`: tag-push → archive → sign → notarize → DMG → draft release (11 steps)
-  - `update-appcast.yml`: release-publish → EdDSA sign → appcast.xml → upload (7 steps)
+  - `build-release.yml`: a `vX.Y.Z` tag (three numbers: milestone tags like `v1.2` don't
+    match) → draft release. With all six Developer ID secrets: archive, sign, notarize, staple,
+    `Design-Ruler-X.Y.Z.dmg`. Without them: the ci.yml-style ad-hoc build (hardened runtime off),
+    `Design-Ruler-X.Y.Z-unsigned.dmg`, and install notes ahead of the change list.
+    Both paths check the bundle's version and build number, `codesign --verify` and library
+    validation. The change list comes from GitHub's generate-notes API, starting at the previous
+    `vX.Y.Z` tag, rewritten to "Title (#N)" (no author credits, no New Contributors; no compare
+    link on a first release)
+  - `update-appcast.yml`: release-publish → EdDSA sign whichever DMG the release has →
+    appcast.xml → upload. Skips itself (with a notice) while `SPARKLE_PRIVATE_KEY` isn't set
 - Unsigned test DMGs: macOS blocks them on first open — Privacy & Security → Open Anyway, or
   `xattr -dr com.apple.quarantine "/Applications/Design Ruler.app"`. Screen Recording must be
-  re-granted per build (ad-hoc signature changes every build)
-- 7 GitHub Secrets: `DEVELOPER_ID_CERT_BASE64`, `DEVELOPER_ID_CERT_PASSWORD`,
-  `KEYCHAIN_PASSWORD`, `APPLE_ID`, `NOTARY_PASSWORD`, `TEAM_ID`, `SPARKLE_PRIVATE_KEY`
+  re-granted per build (ad-hoc signature changes every build): the old entry in Privacy & Security
+  → Screen Recording no longer matches, so remove it with − and add the app again with +
+- GitHub Secrets, all optional: `DEVELOPER_ID_CERT_BASE64`, `DEVELOPER_ID_CERT_PASSWORD`,
+  `KEYCHAIN_PASSWORD`, `APPLE_ID`, `NOTARY_PASSWORD`, `TEAM_ID` (signed releases) and
+  `SPARKLE_PRIVATE_KEY` (appcast). None are set yet, so releases are unsigned and Check for
+  Updates finds nothing
 - Sparkle feed: `SUFeedURL` → GitHub releases latest download, `SUPublicEDKey` for EdDSA verification
 - Cutting a release (0.x while in beta; the tag sets the version, `project.yml`'s
   `MARKETING_VERSION` is only the local default):
   1. Merge to `main`, then `git tag v0.X.Y && git push origin v0.X.Y`
-  2. `build-release.yml` creates a **draft** release with the notarized DMG — download and check it
-  3. Publish the draft with "Set as the latest release" on. Do NOT mark it pre-release:
-     `releases/latest/download/appcast.xml` skips pre-releases, so the Sparkle feed would 404
+  2. `build-release.yml` creates a **draft** release with the DMG (notarized, or unsigned while
+     the Developer ID secrets are missing) — download and check it
+  3. Publish the draft. 0.x releases are titled "Design Ruler X.Y.Z Beta"; unsigned ones arrive
+     marked pre-release (they can't update themselves anyway). Never mark a signed release
+     pre-release: `releases/latest/download/appcast.xml` skips pre-releases, so the Sparkle feed
+     would 404
   4. `update-appcast.yml` attaches `appcast.xml` to the published release
   - Failed run: delete the draft and the tag (`git push --delete origin v0.X.Y`), fix, re-tag
 
@@ -818,9 +918,10 @@ Bugs encountered and fixed — avoid re-introducing these:
   to prevent ARC crashes.
 
 - **Launch at Login toggle desync**: `SMAppService.mainApp.status` must be
-  re-read in `.onAppear` on the SettingsView, not just in `init`. Otherwise
-  the toggle shows stale state when Settings is reopened after a system
-  change.
+  re-read when `GeneralSettingsView` is shown again, not just in `init`. `.onAppear` alone isn't
+  enough: reopening Settings reuses the window (`isReleasedWhenClosed = false`), so it doesn't
+  fire again. Re-read when `controlActiveState` becomes `.key` too. Otherwise the toggle shows
+  stale state when Settings is reopened after a change in System Settings.
 
 - **Sparkle error on launch with placeholder keys**: Use
   `startingUpdater: false` until real EdDSA keys are configured. Sparkle
@@ -905,6 +1006,59 @@ Bugs encountered and fixed — avoid re-introducing these:
   screen with the cursor hidden. Drop screens whose capture failed and abort the
   session when none succeeded.
 
+- **Constant-value Core Animation in a fullscreen overlay (macOS 27)**: while an animation in the
+  window's layer tree is attached but not changing, e.g. the middle of a `[0, 1, 1, 0]` keyframe or
+  one with a future `beginTime`, the built-in ProMotion display shows no new frames from that
+  window until the value changes again. The old Metal launch ripple's opacity keyframe did this:
+  every drawable stayed held, `nextDrawable()` blocked the main thread ~300-700ms, and the whole
+  overlay froze on every launch. Completed animations kept with `fillMode = .forwards` are fine, as are
+  holds in other windows. Keep every overlay animation changing for its whole duration (drive
+  holds with timers, as peek does). Only lone animations were tested: delayed starts that overlap
+  a changing animation (`ColorCircleIndicator`'s backwards-filled stagger, `SelectionOverlay`'s
+  delayed fade inside the shake group) are unverified.
+
+- **CATransaction completion block set after the animations**: the block only waits for animations
+  added after `setCompletionBlock`. The first launch wave added its keyframes in helpers before
+  `begin()`/`setCompletionBlock`, so the block fired when the 0.12s fade-in ended and removed the
+  wave 0.2s into its 1.5s run. Begin the transaction and set the block before adding anything.
+
+- **Screen-sized bitmaps as layer contents at launch**: `CGContext.makeImage` images are copied
+  to the render server at commit. Two Retina screens of dot bitmaps (~110MB) grew the first commit
+  from ~5ms to ~85ms and delayed the overlay's first frame by 100-150ms. Repeat a small tile with
+  `CAReplicatorLayer` instead.
+
+- **A masked group whose mask grows**: the render server sizes a masked or filtered group's
+  offscreen to the mask's bounding box and reallocates it as the mask grows. The wave's growing
+  circle mask dropped 1-2 frames ~0.25s in (when the circle reached the screen edges) on two
+  Retina screens. Zero-length subpaths at opposite screen corners make the path's bounding box
+  screen-sized from frame 1 without filling anything (mid-wave drops 57% → 19% of sessions).
+
+- **Fine detail in a CAGradientLayer**: the ramp is drawn in 256 steps over the gradient's full
+  length, so a hard stop or a 1pt band smears over length/256 (15px at a 4000px radius). Use a
+  `CAShapeLayer` (or a mask) for edges and thin lines; keep gradients for smooth falloffs.
+
+- **Session starting state applied only in `activate()`**: `OverlayCoordinator.run()` calls
+  `showInitialState()` on the cursor window and never `activateWindow` on it, so state synced only
+  on activation leaves that window on the defaults while the other screens match. Pass it into the
+  window factory (`AlignmentGuidesWindow.create(...style:direction:)`) before `showInitialState()`.
+
+- **`sizingOptions = .preferredContentSize` on the Settings tabs' hosting controllers**: AppKit turns
+  it into constraints that outrank the window's own size, so the window resizes instantly on a tab
+  switch and an animated `setFrame` snaps to its end. Use `.standardBounds` (not `[]`, which makes
+  `fittingSize` zero) and size the window from the pane's `fittingSize`
+  (`SettingsTabViewController.fitWindowToSelectedTab`).
+
+- **`titleVisibility = .hidden` on the Settings window**: with a `.preference` toolbar it drops the
+  title row and centers the close button on the tabs (44pt down instead of 16pt). Keep the row: it
+  shows the selected tab's name.
+
+- **Leading padding on Settings Form footers**: built against the macOS 26+ SDK, grouped Form
+  footers already line up with the section header and the rows' titles, so extra padding pushes
+  them in. SwiftUI picks Form metrics by the SDK the binary was built with: a SwiftPM-built preview
+  binary is stamped SDK 14.0 and draws footers flush with the cards. Stamp the release SDK first
+  (`vtool -set-build-version macos 14.0 26.5 -replace`, then re-sign ad hoc) before judging layout
+  from such a binary.
+
 ---
 
 ## 19. Testing Checklist
@@ -921,7 +1075,7 @@ Bugs encountered and fixed — avoid re-introducing these:
 - [ ] Mouse move resets skip counts
 - [ ] Drag-to-select snaps to edges, minimum 4x4px enforced
 - [ ] Hover selection shows pointing hand, click removes
-- [ ] Smart/include/none corrections preference works
+- [ ] Count 1px Borders preference works: Smart / Always / Never (values smart, include, none)
 - [ ] Z cycles 1x → 2x → 4x → 1x; pixel under cursor stays put
 - [ ] Z pressed before moving the mouse zooms around the cursor (not the bottom-left corner)
 - [ ] Z works by letter on AZERTY/QWERTZ layouts; holding Z does not keep cycling
@@ -944,17 +1098,18 @@ Bugs encountered and fixed — avoid re-introducing these:
 - [ ] Z zooms; placed lines stay pinned to the same pixels at 2x and 4x
 - [ ] Hover threshold still feels like 5px while zoomed
 - [ ] ESC exits silently
+- [ ] Raycast: every session starts dynamic + vertical (unaffected by the standalone Remember setting)
 
 ### Shared
 - [ ] Multi-monitor: windows on all screens, cursor activates correct one
 - [ ] Zoom is per-screen; leaving a screen resets that window to 1x
 - [ ] Hint bar Z keycap flashes the current level on each press
-- [ ] With hideHintBar on, the fallback zoom pill appears instead
+- [ ] With Show Hint Bar off, the fallback zoom pill appears instead
 - [ ] Overlay UI (crosshair, pills, guide lines, hint bar) does not scale with zoom
 - [ ] Hint bar expanded → collapsed after 3s
 - [ ] Hint bar at bottom, shifts to top when cursor near bottom
 - [ ] Hint bar clears MacBook notch when at top
-- [ ] hideHintBar preference works (both commands)
+- [ ] Show Hint Bar preference works (both commands, Raycast and app), on by default
 - [ ] CPU stays low (<5%) during mouse movement
 - [ ] Measure: cursor hidden on launch, CAShapeLayer crosshair visible
 - [ ] Guides: resize cursor visible on launch
@@ -966,30 +1121,54 @@ Bugs encountered and fixed — avoid re-introducing these:
 - [ ] Pill shows "0000 × 0000" on launch, fades in (design ruler)
 - [ ] Pill animates smoothly when flipping sides near edges
 - [ ] Hint bar slides (not jumps) when swapping top/bottom
-- [ ] Launch ripple plays from the hint bar on every screen, no pop when it ends
-- [ ] Launch ripple skipped with Reduce Motion; Z during the ripple zooms it with the screenshot
+- [ ] Launch wave plays on every launch, from the cursor: dots in Measure, grid lines in Alignment
+  Guides; other screens get it sweeping in from the cursor's side; no pop when it ends
+- [ ] Launch wave shows on light, dark and mid-tone backgrounds (dots or grid lines, and the front
+  line, invert)
+- [ ] Launch wave doesn't freeze the overlay on the built-in display (cursor on each screen,
+  hint bar on and off); the crosshair keeps tracking during it
+- [ ] Launch wave skipped with Reduce Motion; Z during the wave zooms it with the screenshot
 - [ ] macOS 14/15: collapsed hint bar panels slide in from the expanded bar's edges
 
 ### Standalone App
 - [ ] Menu bar icon appears on launch (no Dock icon, no Cmd+Tab entry)
 - [ ] Clicking menu bar icon shows dropdown with Measure, Alignment Guides, Settings, Quit
 - [ ] Clicking Measure/Guides in dropdown launches overlay
-- [ ] Menu bar icon shows filled variant during active overlay, hollow when idle
+- [ ] Menu bar dropdown items show no icons (macOS 14 through 27), Settings… included, with every
+  title aligned
 - [ ] ESC exits overlay but app stays running (menu bar icon still visible)
 - [ ] Second overlay session launches cleanly after ESC (no residual state)
 - [ ] Settings window opens from menu bar, persists across multiple opens
-- [ ] Changing hideHintBar/corrections in Settings takes effect on next session
+- [ ] Settings shows General / Measure / Alignment toolbar tabs, selected tab tinted, the selected
+  tab's name as the window title, and only the close button, at the top above the tabs
+- [ ] Section footers line up with the section headers and the rows' titles
+- [ ] Switching tabs resizes the window to the tab (animated, top edge fixed; instant with Reduce
+  Motion), no tab clipped; opens at the right height with no jump
+- [ ] Changing Show Hint Bar/corrections in Settings takes effect on next session; Show Hint Bar is on
+  by default, and a Hide Hint Bar choice from an older version carries over (inverted)
+- [ ] Remember Color and Direction off: every Guides session starts dynamic + vertical
+- [ ] Remember on: Guides start with the last session's color and direction on every screen (preview
+  line, resize cursor, position pill), also after quitting and relaunching the app
+- [ ] Turning Remember on resumes the color and direction the last session ended with while it was off
 - [ ] Launch at Login toggle syncs with System Settings Login Items
 - [ ] Reopening Settings shows correct Launch at Login state
-- [ ] Check for Updates menu item present and does not crash
-- [ ] Shortcut recorder in Settings accepts key combinations
+- [ ] Check for Updates menu item present and does not crash; in an unsigned build it reads
+  "Check GitHub for Updates…" and opens GitHub Releases
+- [ ] General shows a Beta badge for 0.x; in an unsigned build Check for Updates and the
+  auto-update toggle are disabled and the toggles' footer links to GitHub Releases
+- [ ] Each tab opens with its icon, name and description; the icon (the app's in General) switches to
+  its dark variant in dark mode
+- [ ] Count 1px Borders' explanation follows the selected mode; the footer's "green" matches the
+  overlay's green tick
+- [ ] Shortcut recorders in the Measure and Alignment tabs accept key combinations
 - [ ] Assigned hotkey fires from any external app (Figma, Finder, etc.)
 - [ ] Same hotkey while overlay active toggles it off
 - [ ] Cross-command hotkey closes current overlay and opens the other
-- [ ] Conflict detection shows orange warning when assigning duplicate shortcut
+- [ ] Conflict detection shows orange warning when assigning duplicate shortcut (across the
+  Measure and Alignment tabs)
 - [ ] Menu bar dropdown shows assigned shortcut symbols next to command names
 - [ ] `codesign --verify --deep --strict` passes on Release build
 - [ ] DMG opens with app icon and /Applications alias (no extra plist/log files)
 - [ ] DMG background fills the 600x432 window (not cropped to the top-left quarter), icons centered vertically
-- [ ] Settings About shows the tagged version, not 1.0
+- [ ] Settings General shows the tagged version and build number, not 1.0 (1)
 - [ ] Tag push triggers CI and produces signed, notarized DMG

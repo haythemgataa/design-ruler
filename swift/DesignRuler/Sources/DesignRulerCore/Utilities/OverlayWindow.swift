@@ -24,7 +24,7 @@ package class OverlayWindow: NSWindow, OverlayWindowProtocol {
     private var isAnimatingZoom = false
     private var zoomAnimationGeneration = 0  // stale animation-end callbacks must not clear a newer zoom's flag
     package var isPeekAnimating = false
-    private var launchRipple: LaunchRipple?
+    private var launchWave: LaunchWave?
 
     // Callbacks for multi-monitor coordination
     package var onRequestExit: (() -> Void)?
@@ -129,31 +129,28 @@ package class OverlayWindow: NSWindow, OverlayWindowProtocol {
         self.contentLayer = layer
     }
 
-    // MARK: - Launch Ripple
+    // MARK: - Launch Wave
 
-    /// Play the launch ripple over the screenshot, spreading from the hint bar (or where it would
-    /// sit, on screens without one). Called by the coordinator on every window as it is shown.
-    /// Skipped with Reduce Motion.
-    package func playLaunchRipple() {
-        guard !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,
-              let contentLayer, let view = contentView,
-              let contents = contentLayer.contents, CFGetTypeID(contents as CFTypeRef) == CGImage.typeID else { return }
-        let screenshot = contents as! CGImage
-        let size = screenBounds.size
-        let originY = hintBarView.superview != nil ? hintBarView.frame.midY : Self.rippleFallbackOriginY
-        cancelLaunchRipple()
-        let ripple = LaunchRipple(screenshot: screenshot, center: CGPoint(x: 0.5, y: originY / size.height))
-        launchRipple = ripple
-        ripple.start(in: contentLayer, view: view)
+    /// Play the launch wave over the screenshot, spreading from the cursor. Called by the coordinator
+    /// on every window as it is shown: on the other screens the wave sweeps in from the cursor's
+    /// side. Skipped with Reduce Motion.
+    package func playLaunchWave() {
+        guard !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion, let contentLayer else { return }
+        cancelLaunchWave()
+        let mouse = NSEvent.mouseLocation
+        let origin = CGPoint(x: mouse.x - screenBounds.origin.x, y: mouse.y - screenBounds.origin.y)
+        let wave = LaunchWave(style: launchWaveStyle)
+        launchWave = wave
+        wave.start(in: contentLayer, origin: origin, scale: backingScaleFactor)
     }
 
-    /// Ripple origin above the bottom edge on screens without a hint bar: roughly where the bar sits.
-    private static let rippleFallbackOriginY: CGFloat = 48
+    /// The wave's marks. Measure keeps the dots; Alignment Guides overrides with grid lines.
+    package var launchWaveStyle: LaunchWave.Style { .dots }
 
-    /// Remove the ripple immediately. Called on exit.
-    package func cancelLaunchRipple() {
-        launchRipple?.cancel()
-        launchRipple = nil
+    /// Remove the wave immediately. Called on exit.
+    package func cancelLaunchWave() {
+        launchWave?.cancel()
+        launchWave = nil
     }
 
     // MARK: - Zoom
