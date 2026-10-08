@@ -35,7 +35,7 @@ Design Ruler lives in the menu bar, with no Dock icon or Cmd+Tab entry. Change k
 
 ### Raycast Extension
 
-Not in the [Raycast Store](https://www.raycast.com/store) yet. With Raycast installed, build it from source:
+Not in the [Raycast Store](https://www.raycast.com/store) yet. With Raycast and Node 22.22.2 or later installed, build it from source:
 
 ```bash
 git clone https://github.com/haythemgataa/design-ruler.git
@@ -149,6 +149,7 @@ Signed releases update themselves with [Sparkle](https://sparkle-project.org), a
 |---|---|---|---|
 | Show Hint Bar | Both | On (default) / Off | Show the keyboard shortcut hint bar |
 | Count 1px Borders | Measure | Smart / Always / Never | Whether 1px borders count in measurements |
+| Remember Color and Direction | Alignment Guides | On / Off (default) | Start each session with the guide color and direction you used last |
 
 ---
 

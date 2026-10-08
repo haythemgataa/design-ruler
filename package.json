@@ -24,10 +24,9 @@
         {
           "name": "showHintBar",
           "type": "checkbox",
-          "title": "Show Hint Bar",
+          "label": "Show Hint Bar",
           "description": "Show the keyboard shortcuts at the bottom of the overlay",
           "default": true,
-          "label": "Show hint bar",
           "required": false
         },
         {
@@ -55,22 +54,28 @@
         {
           "name": "showHintBar",
           "type": "checkbox",
-          "title": "Show Hint Bar",
+          "label": "Show Hint Bar",
           "description": "Show the keyboard shortcuts at the bottom of the overlay",
           "default": true,
-          "label": "Show hint bar",
+          "required": false
+        },
+        {
+          "name": "remembersGuideStyle",
+          "type": "checkbox",
+          "label": "Remember Color and Direction",
+          "description": "Start with the color and direction you used last, instead of Dynamic and vertical",
+          "default": false,
           "required": false
         }
       ]
     }
   ],
   "dependencies": {
-    "@raycast/api": "^1.104.5",
-    "@raycast/utils": "^1.17.0"
+    "@raycast/api": "^2.7.2"
   },
   "devDependencies": {
     "@raycast/eslint-config": "^2.0.4",
-    "@types/node": "22.13.10",
+    "@types/node": "22.19.17",
     "@types/react": "19.0.10",
     "eslint": "^9.22.0",
     "prettier": "^3.5.3",
