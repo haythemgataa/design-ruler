@@ -1132,6 +1132,12 @@ Bugs encountered and fixed — avoid re-introducing these:
   length, so a hard stop or a 1pt band smears over length/256 (15px at a 4000px radius). Use a
   `CAShapeLayer` (or a mask) for edges and thin lines; keep gradients for smooth falloffs.
 
+- **Rounding the selection's size**: hover and drag-to-select measure in half points on Retina
+  (device pixels / 2), and a size ending in .5 is common: a browser draws a text-sized 80.4px
+  button as 161 device pixels. `CrosshairView` truncates (`Int(left + right)`), and
+  `SelectionManager` rounded (`Int(round(width))`), so the same button read 80 on hover and 81
+  dragged around. Both truncate; keep any new size pill the same.
+
 - **Session starting state applied only in `activate()`**: `OverlayCoordinator.run()` calls
   `showInitialState()` on the cursor window and never `activateWindow` on it, so state synced only
   on activation leaves that window on the defaults while the other screens match. Pass it into the
@@ -1192,6 +1198,7 @@ Bugs encountered and fixed — avoid re-introducing these:
 - [ ] Arrow keys skip edges; shift+arrow reverses
 - [ ] Mouse move resets skip counts
 - [ ] Drag-to-select snaps to edges, minimum 4x4px enforced
+- [ ] Dragging around a bordered button shows the same W × H as hovering inside it (Smart / Always)
 - [ ] Hover selection shows pointing hand, click removes
 - [ ] Count 1px Borders preference works: Smart / Always / Never (values smart, include, none)
 - [ ] Z cycles 1x → 2x → 4x → 1x; pixel under cursor stays put
