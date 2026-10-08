@@ -1,7 +1,7 @@
 <div align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/design-ruler-icon@dark.png">
-    <img src="assets/design-ruler-icon.png" width="96" alt="Design Ruler">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/banner-dark.png">
+    <img src="docs/banner.png" width="100%" alt="Design Ruler">
   </picture>
 
   # Design Ruler
