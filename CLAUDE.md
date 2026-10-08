@@ -99,7 +99,7 @@ Scripts (scripts/)
   ├─ create-dmg.sh                 — branded DMG from a built .app (shared by ci + release)
   ├─ check-library-validation.sh   — fails if dyld would refuse an embedded framework at launch
   ├─ generate-appcast.sh           — Sparkle appcast.xml generation from env vars
-  └─ assets/dmg-background.png     — 1200×800 branded DMG background
+  └─ assets/dmg-background.png     — 1200×864 branded DMG background (600×432 window)
 ```
 
 ### Key Design Principles
@@ -768,7 +768,7 @@ nothing captured).
 - Code-signed with Developer ID Application (Hardened Runtime, empty entitlements)
 - Notarized via `notarytool submit --wait` (credentials passed inline) + `stapler staple` on the DMG
 - DMG built by `scripts/create-dmg.sh` (wraps `create-dmg`): stages only the `.app`, branded
-  1200x800 background tagged 144 DPI, app icon + /Applications alias. Both CI and release use it,
+  1200x864 background tagged 144 DPI, app icon + /Applications alias. Both CI and release use it,
   so a green CI run exercises the release DMG path
 - Three GitHub Actions workflows (`gh` steps authenticate via `GH_TOKEN: ${{ github.token }}`):
   - `ci.yml`: push to `main` / PR / manual → ESLint + Prettier, `swift build`, ad-hoc signed
@@ -990,6 +990,6 @@ Bugs encountered and fixed — avoid re-introducing these:
 - [ ] Menu bar dropdown shows assigned shortcut symbols next to command names
 - [ ] `codesign --verify --deep --strict` passes on Release build
 - [ ] DMG opens with app icon and /Applications alias (no extra plist/log files)
-- [ ] DMG background fills the 600x400 window (not cropped to the top-left quarter)
+- [ ] DMG background fills the 600x432 window (not cropped to the top-left quarter), icons centered vertically
 - [ ] Settings About shows the tagged version, not 1.0
 - [ ] Tag push triggers CI and produces signed, notarized DMG
