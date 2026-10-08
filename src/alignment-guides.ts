@@ -1,4 +1,4 @@
-import { closeMainWindow, environment, getPreferenceValues } from "@raycast/api";
+import { closeMainWindow, environment, getPreferenceValues, showHUD } from "@raycast/api";
 import { alignmentGuides } from "swift:../swift/DesignRuler";
 
 interface Preferences {
@@ -9,5 +9,7 @@ interface Preferences {
 export default async function Command() {
   await closeMainWindow();
   const { showHintBar, remembersGuideStyle } = getPreferenceValues<Preferences>();
-  await alignmentGuides(showHintBar ?? true, remembersGuideStyle ?? false, environment.supportPath);
+  // Null once the overlay has run (it ends the process); a message if it couldn't open
+  const failure = await alignmentGuides(showHintBar ?? true, remembersGuideStyle ?? false, environment.supportPath);
+  if (failure) await showHUD(failure);
 }

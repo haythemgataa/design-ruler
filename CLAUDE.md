@@ -93,7 +93,8 @@ Shared Swift (swift/DesignRuler/)
   │       └─ PermissionChecker.swift    — screen recording check/request
   └─ Sources/RaycastBridge/        — 2 thin @raycast entry points (import DesignRulerCore)
       ├─ Measure.swift
-      └─ AlignmentGuides.swift
+      ├─ AlignmentGuides.swift
+      └─ StartupFailure.swift      — HUD message when the overlay didn't open
 
 CI/CD (.github/workflows/)
   ├─ ci.yml                        — push to main / PR → lint + compile + ad-hoc test DMG artifact
@@ -112,7 +113,8 @@ Scripts (scripts/)
   code. Both the Raycast executable and the standalone app import it.
 - **Dual mode**: `OverlayCoordinator.RunMode` (.raycast vs .standalone) gates `app.run()`
   and `NSApp.terminate()`. Raycast mode owns the process; standalone mode survives ESC.
-- TypeScript does NOTHING except read preferences and call Swift.
+- TypeScript does NOTHING except read preferences, call Swift, and show the HUD message Swift
+  returns when the overlay couldn't open.
 - Shared base classes: `OverlayCoordinator` (lifecycle) and `OverlayWindow` (window setup).
   Each command subclasses both, providing only command-specific factory/hook overrides.
 - Single class for edge detection (no ImageEdgeDetector wrapper).
@@ -719,19 +721,28 @@ SIGTERM handler in `OverlayCoordinator` base calls `CursorManager.shared.restore
 ```typescript
 // measure.ts
 import { inspect } from "swift:../swift/DesignRuler";
-await inspect(showHintBar ?? true, corrections ?? "smart");
+const failure = await inspect(showHintBar ?? true, corrections ?? "smart");
+if (failure) await showHUD(failure);
 
 // alignment-guides.ts
 import { alignmentGuides } from "swift:../swift/DesignRuler";
-await alignmentGuides(showHintBar ?? true, remembersGuideStyle ?? false, environment.supportPath);
+const failure = await alignmentGuides(showHintBar ?? true, remembersGuideStyle ?? false, environment.supportPath);
+if (failure) await showHUD(failure);
 ```
 
 ```swift
 // RaycastBridge/Measure.swift — runMode defaults to .raycast
-@raycast func inspect(showHintBar: Bool, corrections: String) {
+@raycast func inspect(showHintBar: Bool, corrections: String) -> String? {
     MeasureCoordinator.shared.run(hideHintBar: !showHintBar, corrections: corrections)
+    return startupFailureMessage()
 }
 ```
+Raycast mode's `run()` only returns when the overlay didn't open: one that opens ends the process
+when it closes (stdout stays empty, so TypeScript gets null). `startupFailureMessage()` then says
+why: no Screen Recording for Raycast, or the capture failed. Don't throw instead: the generated
+`main` prints a thrown error with `print(error)`, not a readable message.
+
+API 2.x (`@raycast/api` ^2.7) needs Node 22.22.2 or later for `ray develop` / `ray build`.
 `RaycastBridge/AlignmentGuides.swift` reads the last color and direction from
 `supportPath/last-guide-style.plist` when `remembersGuideStyle` is on, passes them (or
 dynamic/vertical) to `run(hideHintBar:style:direction:)`, and saves the ended ones in `onSessionEnd`.
@@ -1209,7 +1220,7 @@ Bugs encountered and fixed — avoid re-introducing these:
 - [ ] SIGTERM restores cursor state cleanly
 - [ ] Standalone: `kill <pid>` quits the app during a session and between sessions
 - [ ] Without Screen Recording permission, no black overlay appears (session ends; the standalone
-  app shows the onboarding window's Screen Recording page)
+  app shows the onboarding window's Screen Recording page, Raycast a HUD naming the setting)
 - [ ] macOS 14/15: Alignment Guides collapsed hint bar shows Tab/Space keycaps, not arrows
 - [ ] Pill shows "0000 × 0000" on launch, fades in (design ruler)
 - [ ] Pill animates smoothly when flipping sides near edges
