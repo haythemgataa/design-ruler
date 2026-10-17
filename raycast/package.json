@@ -1,9 +1,9 @@
 {
   "$schema": "https://www.raycast.com/schemas/extension.json",
-  "name": "design-ruler",
-  "title": "Design Ruler",
+  "name": "graticule",
+  "title": "Graticule",
   "description": "Measure UI with edge detection and add lines to verify alignment.",
-  "icon": "design-ruler-icon.png",
+  "icon": "graticule-icon.png",
   "author": "haythem_gataa",
   "platforms": [
     "macOS"

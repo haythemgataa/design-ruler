@@ -1,10 +1,12 @@
-# Design Ruler
+# Graticule
 
 Measure UI with edge detection and place guides to check alignment. Both commands freeze the screen in a fullscreen overlay, work across all your monitors, and zoom to 4x with **Z**.
 
+Graticule finds the edges for you, so it works best on UI with clean edges. To measure between any two points, at an angle, or inside photos and gradients, use [Ruler](https://www.raycast.com/anwarulislam/ruler).
+
 ## Setup
 
-Design Ruler reads the screen, so Raycast needs the Screen Recording permission:
+Graticule reads the screen, so Raycast needs the Screen Recording permission:
 
 1. Run **Measure** or **Alignment Guides**. macOS asks whether Raycast can record the screen.
 2. Turn on Raycast in **System Settings → Privacy & Security → Screen Recording**. If macOS offers to quit and reopen Raycast, let it.
@@ -57,4 +59,4 @@ Click to place vertical or horizontal guides. Each one shows its exact X or Y po
 
 ## Also a menu bar app
 
-Design Ruler is also a standalone macOS app with global keyboard shortcuts, from [GitHub](https://github.com/haythemgataa/design-ruler).
+Graticule is also a standalone macOS app with global keyboard shortcuts, from [GitHub](https://github.com/haythemgataa/design-ruler).

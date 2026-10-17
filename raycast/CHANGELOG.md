@@ -1,3 +1,3 @@
-# Design Ruler Changelog
+# Graticule Changelog
 
 ## [Initial Version] - {PR_MERGE_DATE}
