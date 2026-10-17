@@ -1,16 +1,18 @@
 <div align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/banner-dark.png">
-    <img src="docs/banner.png" width="100%" alt="Design Ruler">
+    <img src="docs/banner.png" width="100%" alt="Graticule">
   </picture>
 
-  # Design Ruler
+  # Graticule
 
-  **Pixel-perfect measurement and alignment for macOS.**
+  **Inspect any UI, pixel by pixel.**
 
-  Design Ruler gives you two fullscreen overlay tools for inspecting UI: one for measuring pixel distances with automatic edge detection, and one for placing alignment guides anywhere on screen. Zoom to 4x to work pixel by pixel. Works across all monitors.
+  Graticule gives you two fullscreen overlay tools for inspecting UI: one for measuring pixel distances with automatic edge detection, and one for placing alignment guides anywhere on screen. Zoom in up to 4x. Works across all monitors.
 
   Available as a **standalone menu bar app** or a **Raycast extension**.
+
+  <sub>A graticule is the fine grid in a microscope's eyepiece, used to measure what you see. Graticule puts one over your screen. Formerly Design Ruler.</sub>
 
   <a href="https://github.com/haythemgataa/design-ruler/releases"><img src="https://img.shields.io/github/v/release/haythemgataa/design-ruler?include_prereleases&label=download" alt="Download"></a>
   <img src="https://img.shields.io/badge/macOS-14%2B-lightgrey" alt="macOS 14+">
@@ -24,14 +26,16 @@
 
 **[Download the latest DMG](https://github.com/haythemgataa/design-ruler/releases)** from GitHub Releases. Requires macOS 14 Sonoma or later.
 
-1. Open the DMG and drag **Design Ruler** to Applications.
+1. Open the DMG and drag **Graticule** to Applications.
 2. Open it. The beta isn't signed with a Developer ID yet, so macOS blocks it the first time: go to **System Settings → Privacy & Security** and click **Open Anyway**, or run:
    ```bash
-   xattr -dr com.apple.quarantine "/Applications/Design Ruler.app"
+   xattr -dr com.apple.quarantine "/Applications/Graticule.app"
    ```
-3. A short welcome walks you through **Screen Recording** and keyboard shortcuts. Each new beta build needs Screen Recording again: if an older build was installed, remove Design Ruler from **System Settings → Privacy & Security → Screen Recording** with **−**, then add it again with **+**.
+3. A short welcome walks you through **Screen Recording** and keyboard shortcuts. Each new beta build needs Screen Recording again: if an older build was installed, remove Graticule from **System Settings → Privacy & Security → Screen Recording** with **−**, then add it again with **+**.
 
-Design Ruler lives in the menu bar, with no Dock icon or Cmd+Tab entry. Change keyboard shortcuts in **Settings**. The beta can't update itself yet: **Check GitHub for Updates** in the menu bar opens the releases page.
+**Coming from Design Ruler?** Quit it, move Design Ruler.app to the Trash, and remove Design Ruler from **Screen Recording** with **−**. Graticule replaces it and keeps your settings and shortcuts.
+
+Graticule lives in the menu bar, with no Dock icon or Cmd+Tab entry. Change keyboard shortcuts in **Settings**. The beta can't update itself yet: **Check GitHub for Updates** in the menu bar opens the releases page.
 
 ### Raycast Extension
 
@@ -117,7 +121,7 @@ Press **Z** in either command to magnify the frozen screenshot. Available in bot
 ## Standalone App Features
 
 ### Menu Bar
-Click the Design Ruler icon in the menu bar to launch either command, open Settings, or check for updates. Assigned keyboard shortcuts show next to each command.
+Click the Graticule icon in the menu bar to launch either command, open Settings, or check for updates. Assigned keyboard shortcuts show next to each command.
 
 ### Global Keyboard Shortcuts
 Assign custom hotkeys to Measure and Alignment Guides in Settings. Hotkeys work from any application. Press the same hotkey while an overlay is active to dismiss it, or press the other command's hotkey to switch.
@@ -138,7 +142,7 @@ Signed releases update themselves with [Sparkle](https://sparkle-project.org), a
 ### Standalone App (Settings Window)
 | Setting | Tab | Options | Description |
 |---|---|---|---|
-| Launch at Login | General | On / Off | Start Design Ruler when you log in |
+| Launch at Login | General | On / Off | Start Graticule when you log in |
 | Show Hint Bar | General | On (default) / Off | Show the keyboard shortcut hint bar (both commands) |
 | Check for Updates Automatically | General | On / Off | Sparkle automatic update checks |
 | Measure Shortcut | Measure | Key combo | Global hotkey for Measure |
@@ -189,9 +193,9 @@ Signed releases update themselves with [Sparkle](https://sparkle-project.org), a
 ```bash
 cd App
 xcodegen generate
-xcodebuild -project "Design Ruler.xcodeproj" -scheme "Design Ruler" -configuration Debug \
+xcodebuild -project Graticule.xcodeproj -scheme Graticule -configuration Debug \
   -derivedDataPath DerivedData build
-open "DerivedData/Build/Products/Debug/Design Ruler.app"
+open DerivedData/Build/Products/Debug/Graticule.app
 ```
 
 Debug builds are ad-hoc signed, so macOS may ask for Screen Recording permission again after a rebuild. If the overlay comes up black, run `tccutil reset ScreenCapture cv.haythem.designruler` and relaunch.
@@ -206,4 +210,4 @@ npm run dev   # builds the Swift package and loads Measure / Alignment Guides in
 Both targets share the same Swift overlay code via the `DesignRulerCore` SPM library in `raycast/swift/DesignRuler`. It lives in the extension's folder because the Raycast Store builds it from there.
 
 ### Test Builds
-Every push to `main` and every pull request builds an unsigned test DMG. Download it from the workflow run's **Artifacts** section under [Actions → CI](https://github.com/haythemgataa/design-ruler/actions/workflows/ci.yml). macOS blocks unsigned apps on first open: use **System Settings → Privacy & Security → Open Anyway**, or run `xattr -dr com.apple.quarantine "/Applications/Design Ruler.app"`. Screen Recording permission has to be granted again for each new test build: if an older build was installed, remove Design Ruler from **System Settings → Privacy & Security → Screen Recording** with **−**, then add it again with **+**.
+Every push to `main` and every pull request builds an unsigned test DMG. Download it from the workflow run's **Artifacts** section under [Actions → CI](https://github.com/haythemgataa/design-ruler/actions/workflows/ci.yml). macOS blocks unsigned apps on first open: use **System Settings → Privacy & Security → Open Anyway**, or run `xattr -dr com.apple.quarantine "/Applications/Graticule.app"`. Screen Recording permission has to be granted again for each new test build: if an older build was installed, remove Graticule from **System Settings → Privacy & Security → Screen Recording** with **−**, then add it again with **+**.
