@@ -75,8 +75,8 @@ jobs:
         run: |
           cd App
           xcodebuild build \
-            -project "Design Ruler.xcodeproj" \
-            -scheme "Design Ruler" \
+            -project "Graticule.xcodeproj" \
+            -scheme "Graticule" \
             -configuration Release \
             -destination "generic/platform=macOS" \
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
@@ -91,7 +91,7 @@ jobs:
           # Hardened runtime off: an ad-hoc app has no Team ID, so library validation can't match it
           # to any embedded framework (Sparkle) and dyld aborts at launch. Only notarization needs
           # hardened runtime; release builds keep it and are signed with the Developer ID team.
-          echo "APP_PATH=$RUNNER_TEMP/DerivedData/Build/Products/Release/Design Ruler.app" >> "$GITHUB_ENV"
+          echo "APP_PATH=$RUNNER_TEMP/DerivedData/Build/Products/Release/Graticule.app" >> "$GITHUB_ENV"
 
       - name: Verify app bundle
         run: |
@@ -106,7 +106,7 @@ jobs:
 
       - name: Create DMG
         run: |
-          DMG="$RUNNER_TEMP/Design-Ruler-$VERSION-$SHORT_SHA-unsigned.dmg"
+          DMG="$RUNNER_TEMP/Graticule-$VERSION-$SHORT_SHA-unsigned.dmg"
           echo "DMG_PATH=$DMG" >> "$GITHUB_ENV"
           scripts/create-dmg.sh "$APP_PATH" "$DMG"
           # Show what testers will see (expect: app, Applications link, hidden styling files)
@@ -118,8 +118,8 @@ jobs:
       - name: Upload test DMG
         uses: actions/upload-artifact@v4
         with:
-          name: Design-Ruler-${{ env.VERSION }}-${{ env.SHORT_SHA }}-unsigned
-          path: ${{ runner.temp }}/Design-Ruler-*-unsigned.dmg
+          name: Graticule-${{ env.VERSION }}-${{ env.SHORT_SHA }}-unsigned
+          path: ${{ runner.temp }}/Graticule-*-unsigned.dmg
           if-no-files-found: error
           retention-days: 14
 
@@ -133,23 +133,23 @@ jobs:
           mkdir -p "$RUNNER_TEMP/smoke"
           MNT=$(mktemp -d)
           hdiutil attach -nobrowse -readonly -mountpoint "$MNT" "$DMG_PATH" >/dev/null
-          ditto "$MNT/Design Ruler.app" "$RUNNER_TEMP/smoke/Design Ruler.app"
+          ditto "$MNT/Graticule.app" "$RUNNER_TEMP/smoke/Graticule.app"
           hdiutil detach "$MNT" >/dev/null
-          SMOKE_APP="$RUNNER_TEMP/smoke/Design Ruler.app"
+          SMOKE_APP="$RUNNER_TEMP/smoke/Graticule.app"
           codesign -dvv "$SMOKE_APP" 2>&1 | grep -E 'Identifier|Signature|TeamIdentifier|flags|Runtime' || true
           spctl --assess --type execute -vv "$SMOKE_APP" 2>&1 || true   # informational: ad-hoc is expected to be rejected
           START=$(date '+%Y-%m-%d %H:%M:%S')
           open "$SMOKE_APP"
           sleep 10
           screencapture -x "$RUNNER_TEMP/smoke/screen.png" 2>/dev/null || true
-          echo "--- logs from Design Ruler since launch ---"
-          log show --start "$START" --style compact --predicate 'process == "Design Ruler"' 2>/dev/null | tail -60 || true
-          if pgrep -x "Design Ruler" >/dev/null; then
-            echo "OK: Design Ruler is running 10s after launch"
-            pkill -x "Design Ruler" || true
+          echo "--- logs from Graticule since launch ---"
+          log show --start "$START" --style compact --predicate 'process == "Graticule"' 2>/dev/null | tail -60 || true
+          if pgrep -x "Graticule" >/dev/null; then
+            echo "OK: Graticule is running 10s after launch"
+            pkill -x "Graticule" || true
           else
-            echo "FAIL: Design Ruler is not running 10s after launch"
-            for f in ~/Library/Logs/DiagnosticReports/Design*Ruler*; do
+            echo "FAIL: Graticule is not running 10s after launch"
+            for f in ~/Library/Logs/DiagnosticReports/Graticule*; do
               [ -e "$f" ] && { echo "=== $f"; head -120 "$f"; }
             done
             exit 1

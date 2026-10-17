@@ -29,7 +29,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         image?.size = NSSize(width: 22, height: 22)
         image?.isTemplate = true
         button.image = image
-        button.toolTip = "Design Ruler"
+        button.toolTip = "Graticule"
     }
 
     /// Update the menu bar icon to reflect active/idle session state.
@@ -95,7 +95,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         menu.addItem(NSMenuItem.separator())
 
         let quitItem = menu.addItem(
-            withTitle: "Quit Design Ruler",
+            withTitle: "Quit Graticule",
             action: #selector(quitApp),
             keyEquivalent: "q"
         )

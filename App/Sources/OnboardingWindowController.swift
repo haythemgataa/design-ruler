@@ -54,7 +54,7 @@ final class OnboardingModel {
         page = .permission
     }
 
-    /// Asks macOS, which shows its prompt and adds Design Ruler to the Screen Recording list only
+    /// Asks macOS, which shows its prompt and adds Graticule to the Screen Recording list only
     /// while the app isn't in it: the first time, or after its entry was removed (each beta build
     /// needs that). When no prompt takes the focus, opens the list in System Settings instead.
     func requestPermission() {
@@ -118,7 +118,7 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
         content.sizingOptions = []  // the window's content size, set below, includes the title bar
         let window = NSWindow(contentViewController: content)
         window.styleMask = [.titled, .closable, .fullSizeContentView]
-        window.title = mode == .permission ? "Screen Recording" : "Welcome to Design Ruler"
+        window.title = mode == .permission ? "Screen Recording" : "Welcome to Graticule"
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.isMovableByWindowBackground = true

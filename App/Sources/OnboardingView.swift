@@ -86,7 +86,7 @@ struct OnboardingView: View {
 
     private var title: String {
         switch model.page {
-        case .welcome: "Welcome to Design Ruler"
+        case .welcome: "Welcome to Graticule"
         case .permission: "Allow Screen Recording"
         case .shortcuts: "Open It from Anywhere"
         }
@@ -97,9 +97,9 @@ struct OnboardingView: View {
         case .welcome:
             "Measure anything on your screen and check that it lines up, right from the menu bar."
         case .permission:
-            "Design Ruler measures a still screenshot of your screen. It never leaves your Mac and is never saved."
+            "Graticule measures a still screenshot of your screen. It never leaves your Mac and is never saved."
         case .shortcuts:
-            "Design Ruler lives in your menu bar. Give each tool a shortcut to open it from any app, now or later in Settings."
+            "Graticule lives in your menu bar. Give each tool a shortcut to open it from any app, now or later in Settings."
         }
     }
 

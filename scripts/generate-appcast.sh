@@ -12,7 +12,7 @@ cat > "$OUTPUT" << EOF
      xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"
      xmlns:dc="http://purl.org/dc/elements/1.1/">
   <channel>
-    <title>Design Ruler Updates</title>
+    <title>Graticule Updates</title>
     <link>${REPO_URL}</link>
     <description>Most recent changes with links to updates.</description>
     <language>en</language>

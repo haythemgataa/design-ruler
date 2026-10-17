@@ -222,7 +222,7 @@ private struct MovingGuide: View, Animatable {
 
 // MARK: - Screen Recording
 
-/// The System Settings list the user is about to visit: Design Ruler between two wireframe rows,
+/// The System Settings list the user is about to visit: Graticule between two wireframe rows,
 /// with its switch following the real permission and a pointer nudging toward it until then.
 struct PermissionArtwork: View {
     let isOn: Bool
@@ -252,7 +252,7 @@ struct PermissionArtwork: View {
                 Divider().padding(.leading, 46)
                 HStack(spacing: 10) {
                     AssetIcon("DesignRulerIcon", size: 24)
-                    Text("Design Ruler")
+                    Text("Graticule")
                         .font(.system(size: 13, weight: .medium))
                     Spacer()
                     Switch(isOn: isOn)
@@ -331,7 +331,7 @@ private struct Pointer: View {
 
 // MARK: - Shortcuts
 
-/// The top of a screen: the menu bar with Design Ruler's menu open, showing the shortcuts as the
+/// The top of a screen: the menu bar with Graticule's menu open, showing the shortcuts as the
 /// user records them. The command whose shortcut just changed lights up.
 struct MenuBarArtwork: View {
     let lastChange: (command: Command, date: Date)?
@@ -382,7 +382,7 @@ struct MenuBarArtwork: View {
         .padding(.leading, 14)
         .frame(width: Self.screen.width, height: Self.menuBarHeight)
         .overlay(alignment: .topLeading) {
-            // Design Ruler's status item, open, then the system's own items
+            // Graticule's status item, open, then the system's own items
             HStack(spacing: 12) {
                 Image("MenuBarIcon")
                     .renderingMode(.template)

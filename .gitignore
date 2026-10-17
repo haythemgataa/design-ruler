@@ -12,8 +12,8 @@ compiled_raycast_swift
 compiled_raycast_rust
 
 # Xcode
-App/Design Ruler.xcodeproj/xcuserdata/
-App/Design Ruler.xcodeproj/project.xcworkspace/xcuserdata/
+App/Graticule.xcodeproj/xcuserdata/
+App/Graticule.xcodeproj/project.xcworkspace/xcuserdata/
 DerivedData/
 App/DerivedData/
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 # Fail if an embedded framework would be rejected by library validation at launch.
-# Usage: scripts/check-library-validation.sh <path/to/Design Ruler.app>
+# Usage: scripts/check-library-validation.sh <path/to/Graticule.app>
 #
 # With hardened runtime on, dyld only loads non-Apple frameworks signed with the app's own
 # Team ID; otherwise the app dies at launch with "mapping process and mapped file (non-platform)

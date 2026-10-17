@@ -1,4 +1,4 @@
-name: "Design Ruler"
+name: Graticule
 options:
   deploymentTarget:
     macOS: "14.0"
@@ -15,7 +15,7 @@ packages:
     from: "3.1.0"
 
 targets:
-  "Design Ruler":
+  Graticule:
     type: application
     platform: macOS
     deploymentTarget: "14.0"
@@ -29,8 +29,8 @@ targets:
     info:
       path: Sources/Info.plist
       properties:
-        CFBundleName: Design Ruler
-        CFBundleDisplayName: Design Ruler
+        CFBundleName: Graticule
+        CFBundleDisplayName: Graticule
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         LSUIElement: true
@@ -43,7 +43,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: cv.haythem.designruler
-        PRODUCT_NAME: "Design Ruler"
+        PRODUCT_NAME: Graticule
         SWIFT_VERSION: "5.9"
         MACOSX_DEPLOYMENT_TARGET: "14.0"
         ARCHS: "$(ARCHS_STANDARD)"

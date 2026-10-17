@@ -30,7 +30,7 @@ struct GeneralSettingsView: View {
             Section {
                 PaneHeader(icon: "DesignRulerIcon", description: "Version \(AppBuild.version) (\(AppBuild.build))") {
                     HStack(spacing: 8) {
-                        Text("Design Ruler")
+                        Text("Graticule")
                         if AppBuild.isBeta {
                             BetaBadge()
                         }
@@ -45,7 +45,7 @@ struct GeneralSettingsView: View {
 
             Section {
                 Toggle(isOn: $launchAtLogin) {
-                    SettingLabel("Launch at Login", detail: "Keeps Design Ruler in the menu bar after you restart.")
+                    SettingLabel("Launch at Login", detail: "Keeps Graticule in the menu bar after you restart.")
                 }
                 .onChange(of: launchAtLogin) { _, newValue in
                     if newValue {

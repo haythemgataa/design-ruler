@@ -30,8 +30,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverDelegat
         center.requestAuthorization(options: [.alert]) { granted, _ in
             guard granted else { return }
             let content = UNMutableNotificationContent()
-            content.title = "Design Ruler \(update.displayVersionString) Available"
-            content.body = "Open Design Ruler to install the update."
+            content.title = "Graticule \(update.displayVersionString) Available"
+            content.body = "Open Graticule to install the update."
             let request = UNNotificationRequest(
                 identifier: "sparkle-update-\(update.versionString)",
                 content: content,
